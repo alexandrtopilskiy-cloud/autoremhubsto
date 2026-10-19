@@ -5,6 +5,8 @@ import { nextNumber } from "../counters";
 import { UserError } from "../errors";
 import { orderTotals } from "../money";
 import { ownClient, ownEmployee, ownOrder, ownOrganization, ownVehicle } from "../tenant";
+import { defaultCashbox } from "./cash";
+import { returnOrderToStock, writeOffOrder } from "./stock";
 
 export const STAGES: { value: OrderStage; label: string }[] = [
   { value: "NEW", label: "Новый" },
@@ -63,6 +65,7 @@ export const itemLineSchema = z.object({
 export const paymentSchema = z.object({
   amount: kop.refine((v) => v !== 0, "Сумма не может быть нулевой"),
   method: z.enum(["CASH", "CARD", "BANK_TRANSFER", "SBP"]),
+  cashboxId: optId,
   comment: optText,
 });
 
@@ -160,7 +163,7 @@ export async function getOrder(companyId: string, orderId: string) {
       manager: true,
       works: { orderBy: { position: "asc" }, include: { executor: true } },
       items: { orderBy: { position: "asc" } },
-      payments: { orderBy: { paidAt: "asc" } },
+      payments: { orderBy: { paidAt: "asc" }, include: { cashbox: true } },
     },
   });
   return { ...o, totals: totalsOf(o) };
@@ -212,7 +215,11 @@ export async function addPayment(companyId: string, orderId: string, input: unkn
       const paid = await tx.payment.aggregate({ where: { orderId }, _sum: { amount: true } });
       if ((paid._sum.amount ?? 0) + data.amount < 0) throw new UserError("Возврат больше оплаченной суммы");
     }
-    return tx.payment.create({ data: { ...data, orderId, companyId } });
+    const cashboxId = data.cashboxId
+      ? (await tx.cashbox.findFirst({ where: { id: data.cashboxId, companyId } }))?.id
+      : (await defaultCashbox(tx, companyId, data.method))?.id;
+    if (data.cashboxId && !cashboxId) throw new UserError("Касса не найдена");
+    return tx.payment.create({ data: { ...data, cashboxId: cashboxId ?? null, orderId, companyId } });
   });
 }
 
@@ -233,9 +240,11 @@ export async function postOrder(companyId: string, orderId: string) {
       (await tx.workOrderWork.count({ where: { orderId: o.id } })) +
       (await tx.workOrderItem.count({ where: { orderId: o.id } }));
     if (lines === 0) throw new UserError("Добавьте хотя бы одну работу или товар");
+    const closedAt = new Date();
+    await writeOffOrder(tx, companyId, orderId, closedAt);
     return tx.workOrder.update({
       where: { id: orderId },
-      data: { status: "POSTED", stage: "CLOSED", closedAt: new Date() },
+      data: { status: "POSTED", stage: "CLOSED", closedAt },
     });
   });
 }
@@ -244,6 +253,7 @@ export async function unpostOrder(companyId: string, orderId: string) {
   return prisma.$transaction(async (tx) => {
     const o = await ownOrder(tx, companyId, orderId);
     if (o.status !== "POSTED") return o;
+    await returnOrderToStock(tx, companyId, orderId);
     return tx.workOrder.update({
       where: { id: orderId },
       data: { status: "DRAFT", stage: "READY", closedAt: null },

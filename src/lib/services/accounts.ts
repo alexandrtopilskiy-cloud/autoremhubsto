@@ -27,6 +27,12 @@ export async function registerCompany(input: unknown) {
     });
     await tx.membership.create({ data: { userId: user.id, companyId: company.id, role: "OWNER" } });
     await tx.employee.create({ data: { companyId: company.id, name: data.name, position: "Руководитель" } });
+    await tx.cashbox.createMany({
+      data: [
+        { companyId: company.id, name: "Касса", kind: "CASH" },
+        { companyId: company.id, name: "Расчётный счёт", kind: "BANK" },
+      ],
+    });
     return { user, company };
   });
 }
