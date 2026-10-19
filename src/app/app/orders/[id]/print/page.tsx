@@ -4,6 +4,7 @@ import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
 import { formatRub, lineTotal } from "@/lib/money";
 import { getOrder } from "@/lib/services/orders";
+import { listRecommendations } from "@/lib/services/recommendations";
 import { PrintButton } from "./print-button";
 
 export default async function PrintOrder({ params }: { params: Promise<{ id: string }> }) {
@@ -14,6 +15,9 @@ export default async function PrintOrder({ params }: { params: Promise<{ id: str
     throw e;
   });
   const org = o.organization;
+  const recs = (await listRecommendations(s.companyId, { clientId: o.clientId, status: "OPEN" })).filter(
+    (r) => !o.vehicleId || !r.vehicleId || r.vehicleId === o.vehicleId,
+  );
   const cell = "border border-slate-400 px-2 py-1";
   return (
     <div className="mx-auto max-w-3xl bg-white p-8 text-sm print:p-0">
@@ -113,6 +117,22 @@ export default async function PrintOrder({ params }: { params: Promise<{ id: str
           <b>{formatRub(Math.max(0, o.totals.due))}</b>
         </div>
       </div>
+
+      {recs.length > 0 && (
+        <div className="mt-6">
+          <h2 className="mb-1 font-semibold">Рекомендации</h2>
+          <ul className="list-disc pl-5">
+            {recs.map((r) => (
+              <li key={r.id}>
+                {r.name}
+                {Number(r.qty) !== 1 && ` × ${formatQty(Number(r.qty))}`}
+                {r.price > 0 && `, ориентировочно ${formatRub(Math.round(Number(r.qty) * r.price))}`}
+                {r.comment && ` (${r.comment})`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="mt-12 grid grid-cols-2 gap-8">
         <div className="border-t border-slate-400 pt-1 text-slate-600">Исполнитель</div>

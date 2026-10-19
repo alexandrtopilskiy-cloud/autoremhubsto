@@ -1,3 +1,4 @@
+import { Attachments } from "@/components/attachments";
 import { notFound } from "next/navigation";
 import { ActionForm, Submit } from "@/components/form";
 import { OperatorOnly } from "@/components/manager-only";
@@ -124,6 +125,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
             </ActionForm>
           )}
         </Card>
+        <Attachments companyId={s.companyId} kind="RECEIPT" docId={r.id} path={`/app/stock/receipts/${r.id}`} />
       </OperatorOnly>
     </div>
   );

@@ -15,6 +15,7 @@ import {
   updateReceipt,
   updateSupplier,
 } from "@/lib/services/stock";
+import { cancelRequest, issueRequest } from "@/lib/services/parts-requests";
 
 async function op(path: string, fn: (companyId: string) => Promise<unknown>): Promise<FormState> {
   const s = await requireSession();
@@ -60,4 +61,12 @@ export async function postReceiptAction(id: string) {
 }
 export async function unpostReceiptAction(id: string) {
   return op(rp(id), (c) => unpostReceipt(c, id));
+}
+
+export async function issueRequestAction(id: string) {
+  return op("/app/stock/requests", (c) => issueRequest(c, id));
+}
+
+export async function cancelRequestAction(id: string) {
+  return op("/app/stock/requests", (c) => cancelRequest(c, id));
 }
