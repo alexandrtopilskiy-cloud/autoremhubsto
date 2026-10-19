@@ -11,6 +11,7 @@ import { listEmployees } from "@/lib/services/employees";
 import { getCompany } from "@/lib/services/settings";
 import { dateLabel, localDate, localTime } from "@/lib/time";
 import { createOrderFromAppointmentAction, setAppointmentStageAction, updateAppointmentAction } from "../actions";
+import { ContactLinks } from "@/components/contact-links";
 import { AppointmentFields } from "../appointment-fields";
 
 export default async function AppointmentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,6 +29,9 @@ export default async function AppointmentPage({ params }: { params: Promise<{ id
   ]);
   const tz = company.utcOffset;
   const date = localDate(a.startAt, tz);
+  const who = a.client?.name ?? a.contactName;
+  const phone = a.client?.phone ?? a.contactPhone;
+  const reminder = `Здравствуйте${who ? `, ${who}` : ""}! Напоминаем о записи в ${company.name} ${dateLabel(date)} в ${localTime(a.startAt, tz)}.`;
   return (
     <div className="flex flex-col gap-4">
       <PageTitle
@@ -54,6 +58,12 @@ export default async function AppointmentPage({ params }: { params: Promise<{ id
           </ActionForm>
         ))}
       </div>
+      {phone && (
+        <p className="text-sm">
+          {who} {phone}
+          <ContactLinks phone={phone} text={reminder} />
+        </p>
+      )}
       <Card title="Запись">
         <ActionForm action={updateAppointmentAction.bind(null, a.id)} className="flex flex-wrap items-end gap-3">
           <AppointmentFields

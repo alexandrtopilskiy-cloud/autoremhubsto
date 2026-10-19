@@ -27,6 +27,7 @@ import {
   setRecommendationStatus,
 } from "@/lib/services/recommendations";
 import { assertOperator } from "@/lib/roles";
+import { addDamage, removeDamage, saveInspection } from "@/lib/services/inspections";
 
 export async function createOrderAction(_: FormState, fd: FormData): Promise<FormState> {
   const s = await requireSession();
@@ -147,4 +148,26 @@ export async function cancelRequestAction(orderId: string, requestId: string) {
     assertOperator(s.role);
     return cancelRequest(c, requestId);
   });
+}
+
+// --- акт осмотра ---
+
+export async function saveInspectionAction(orderId: string, _: FormState, fd: FormData) {
+  return onOrder(orderId, (c) =>
+    saveInspection(c, orderId, {
+      fuel: fields(fd).fuel,
+      items: fd.getAll("items").map(String),
+      dirty: fd.get("dirty") === "on",
+      dark: fd.get("dark") === "on",
+      notes: fields(fd).notes,
+    }),
+  );
+}
+
+export async function addDamageAction(orderId: string, _: FormState, fd: FormData) {
+  return onOrder(orderId, (c) => addDamage(c, orderId, fields(fd)));
+}
+
+export async function removeDamageAction(orderId: string, index: number) {
+  return onOrder(orderId, (c) => removeDamage(c, orderId, index));
 }
