@@ -82,7 +82,18 @@ export async function removeMemberAction(id: string) {
 
 // --- настройки ---
 export async function updateCompanyAction(_: FormState, fd: FormData) {
-  return manage("/app", (c) => updateCompany(c, { ...fields(fd), hourPrice: rub(fd, "hourPrice", "Цена нормочаса") }));
+  const minutes = (name: string) => {
+    const [h, m] = (fields(fd)[name] ?? "").split(":").map(Number);
+    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : undefined;
+  };
+  return manage("/app", (c) =>
+    updateCompany(c, {
+      ...fields(fd),
+      hourPrice: rub(fd, "hourPrice", "Цена нормочаса"),
+      dayStart: minutes("dayStart"),
+      dayEnd: minutes("dayEnd") === 0 ? 1440 : minutes("dayEnd"),
+    }),
+  );
 }
 export async function createOrganizationAction(_: FormState, fd: FormData) {
   return manage("/app/settings", (c) => createOrganization(c, fields(fd)));

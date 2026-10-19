@@ -12,7 +12,10 @@ export const companySchema = z.object({
   name: z.string().trim().min(2, "Укажите название СТО"),
   city: opt,
   hourPrice: z.coerce.number().int().min(0, "Цена нормочаса не может быть отрицательной"),
-});
+  utcOffset: z.coerce.number().int().min(-720).max(840).default(180),
+  dayStart: z.coerce.number().int().min(0).max(1439).default(540),
+  dayEnd: z.coerce.number().int().min(1).max(1440).default(1260),
+}).refine((d) => d.dayEnd > d.dayStart, { message: "Конец рабочего дня должен быть позже начала" });
 
 export const organizationSchema = z.object({
   name: z.string().trim().min(2, "Укажите название организации"),

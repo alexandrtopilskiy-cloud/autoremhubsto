@@ -33,6 +33,12 @@ export async function registerCompany(input: unknown) {
         { companyId: company.id, name: "Расчётный счёт", kind: "BANK" },
       ],
     });
+    await tx.workplace.createMany({
+      data: [
+        { companyId: company.id, name: "Пост 1", position: 0 },
+        { companyId: company.id, name: "Пост 2", position: 1 },
+      ],
+    });
     return { user, company };
   });
 }
