@@ -4,6 +4,7 @@ import { roleLabel } from "@/lib/roles";
 import { logoutAction } from "./actions";
 
 const nav = [
+  { href: "/app/schedule", label: "Запись" },
   { href: "/app/orders", label: "Заказ-наряды" },
   { href: "/app/clients", label: "Клиенты" },
   { href: "/app/stock", label: "Склад" },

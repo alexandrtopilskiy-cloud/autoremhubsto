@@ -7,13 +7,11 @@ import { formatDate } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { canManage } from "@/lib/roles";
 import { cashJournal, EXPENSE_CATEGORIES, INCOME_CATEGORIES, listCashboxes } from "@/lib/services/cash";
+import { getCompany } from "@/lib/services/settings";
 import { listSuppliers } from "@/lib/services/stock";
+import { addDays, isDateStr, localToUtc, todayLocal } from "@/lib/time";
 import { addOperationAction, createCashboxAction, deleteOperationAction, transferAction } from "./actions";
 
-// Даты периода — по Москве.
-const TZ = "+03:00";
-const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" });
-const isDate = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 export default async function CashPage({
   searchParams,
@@ -22,14 +20,14 @@ export default async function CashPage({
 }) {
   const s = await requireSession();
   const sp = await searchParams;
-  const to = isDate(sp.to) ? sp.to! : today();
-  const from = isDate(sp.from) ? sp.from! : `${to.slice(0, 8)}01`;
-  const end = new Date(`${to}T00:00:00${TZ}`);
-  end.setDate(end.getDate() + 1);
+  const company = await getCompany(s.companyId);
+  const tz = company.utcOffset;
+  const to = isDateStr(sp.to) ? sp.to : todayLocal(tz);
+  const from = isDateStr(sp.from) ? sp.from : `${to.slice(0, 8)}01`;
 
   const [boxes, suppliers] = await Promise.all([listCashboxes(s.companyId), listSuppliers(s.companyId)]);
   const box = boxes.find((b) => b.id === sp.box)?.id;
-  const journal = await cashJournal(s.companyId, new Date(`${from}T00:00:00${TZ}`), end, box);
+  const journal = await cashJournal(s.companyId, localToUtc(from, "00:00", tz), localToUtc(addDays(to, 1), "00:00", tz), box);
   const income = journal.filter((r) => r.amount > 0).reduce((a, r) => a + r.amount, 0);
   const expense = journal.filter((r) => r.amount < 0).reduce((a, r) => a + r.amount, 0);
 

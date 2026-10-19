@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* В Tailwind 4 цвет рамки по умолчанию — currentColor; возвращаем светлые разделители. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-slate-200, currentColor);
+  }
+}
+
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }

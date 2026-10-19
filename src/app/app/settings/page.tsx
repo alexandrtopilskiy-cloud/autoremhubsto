@@ -1,9 +1,12 @@
 import { ActionForm, Submit } from "@/components/form";
 import { ManagerOnly } from "@/components/manager-only";
-import { Card, Field, Input, PageTitle } from "@/components/ui";
+import { Card, Field, Input, PageTitle, Select } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { listOrganizations } from "@/lib/services/employees";
 import { getCompany } from "@/lib/services/settings";
+import { listWorkplaces } from "@/lib/services/appointments";
+import { minutesToTime, UTC_OFFSETS } from "@/lib/time";
+import { createWorkplaceAction, updateWorkplaceAction } from "../schedule/actions";
 import { createOrganizationAction, updateCompanyAction, updateOrganizationAction } from "../manage-actions";
 
 type Org = { name?: string; inn?: string | null; kpp?: string | null; ogrn?: string | null; address?: string | null; phone?: string | null };
@@ -35,7 +38,11 @@ function OrgFields({ o = {} }: { o?: Org }) {
 
 export default async function SettingsPage() {
   const s = await requireSession();
-  const [company, orgs] = await Promise.all([getCompany(s.companyId), listOrganizations(s.companyId)]);
+  const [company, orgs, workplaces] = await Promise.all([
+    getCompany(s.companyId),
+    listOrganizations(s.companyId),
+    listWorkplaces(s.companyId, { all: true }),
+  ]);
   return (
     <div className="flex flex-col gap-4">
       <PageTitle>Настройки СТО</PageTitle>
@@ -51,7 +58,42 @@ export default async function SettingsPage() {
             <Field label="Цена нормочаса, ₽">
               <Input name="hourPrice" defaultValue={(company.hourPrice / 100).toFixed(2).replace(".", ",")} inputMode="decimal" className="w-32" />
             </Field>
+            <Field label="Часовой пояс">
+              <Select name="utcOffset" defaultValue={company.utcOffset}>
+                {UTC_OFFSETS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Рабочий день с">
+              <Input type="time" name="dayStart" step={1800} defaultValue={minutesToTime(company.dayStart)} />
+            </Field>
+            <Field label="до">
+              <Input type="time" name="dayEnd" step={1800} defaultValue={minutesToTime(company.dayEnd % 1440)} />
+            </Field>
             <Submit>Сохранить</Submit>
+          </ActionForm>
+        </Card>
+        <Card title="Посты (рабочие места)">
+          <p className="mb-3 text-sm text-slate-600">По постам ведётся запись на сервис и считается их загрузка.</p>
+          <div className="flex flex-col divide-y">
+            {workplaces.map((w) => (
+              <ActionForm key={w.id} action={updateWorkplaceAction.bind(null, w.id)} className="flex flex-wrap items-end gap-3 py-2">
+                <Input name="name" defaultValue={w.name} className="min-w-56 flex-1" aria-label="Название поста" />
+                <label className="flex items-center gap-1 pb-2 text-sm">
+                  <input type="checkbox" name="active" defaultChecked={w.active} /> работает
+                </label>
+                <Submit variant="ghost">Сохранить</Submit>
+              </ActionForm>
+            ))}
+          </div>
+          <ActionForm action={createWorkplaceAction} reset className="mt-2 flex flex-wrap items-end gap-3">
+            <Field label="Новый пост" className="min-w-56 flex-1">
+              <Input name="name" placeholder="например, Развал-схождение" required />
+            </Field>
+            <Submit>Добавить пост</Submit>
           </ActionForm>
         </Card>
         <Card title="Организации (юрлица и ИП)">

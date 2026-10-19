@@ -37,6 +37,14 @@ enum OrderStage {
   CLOSED
 }
 
+enum AppointmentStage {
+  NEW
+  CONFIRMED
+  IN_WORK
+  DONE
+  CANCELLED
+}
+
 enum CashboxKind {
   CASH
   BANK
@@ -59,6 +67,9 @@ model Company {
   name          String
   city          String?
   hourPrice     Int             @default(0) // стоимость нормочаса по умолчанию, коп.
+  utcOffset     Int             @default(180) // часовой пояс СТО, минуты от UTC (Москва = 180)
+  dayStart      Int             @default(540) // начало рабочего дня, минуты от полуночи
+  dayEnd        Int             @default(1260) // конец рабочего дня
   createdAt     DateTime        @default(now())
   memberships   Membership[]
   organizations Organization[]
@@ -75,6 +86,8 @@ model Company {
   stockMoves    StockMove[]
   cashboxes     Cashbox[]
   cashOps       CashOperation[]
+  workplaces    Workplace[]
+  appointments  Appointment[]
 }
 
 // Юрлицо или ИП внутри СТО: от его имени оформляются документы.
@@ -138,39 +151,41 @@ model Counter {
 }
 
 model Client {
-  id         String      @id @default(cuid())
-  companyId  String
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  kind       ClientKind  @default(PERSON)
-  name       String
-  phone      String?
-  email      String?
-  inn        String?
-  comment    String?
-  discount   Int         @default(0) // скидка клиента, %
-  archived   Boolean     @default(false)
-  createdAt  DateTime    @default(now())
-  vehicles   Vehicle[]
-  workOrders WorkOrder[]
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind         ClientKind    @default(PERSON)
+  name         String
+  phone        String?
+  email        String?
+  inn          String?
+  comment      String?
+  discount     Int           @default(0) // скидка клиента, %
+  archived     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  vehicles     Vehicle[]
+  workOrders   WorkOrder[]
+  appointments Appointment[]
 
   @@index([companyId, name])
   @@index([companyId, phone])
 }
 
 model Vehicle {
-  id         String      @id @default(cuid())
-  companyId  String
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  clientId   String
-  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  make       String
-  model      String
-  year       Int?
-  vin        String?
-  plate      String?
-  color      String?
-  createdAt  DateTime    @default(now())
-  workOrders WorkOrder[]
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  make         String
+  model        String
+  year         Int?
+  vin          String?
+  plate        String?
+  color        String?
+  createdAt    DateTime      @default(now())
+  workOrders   WorkOrder[]
+  appointments Appointment[]
 
   @@index([companyId, plate])
   @@index([companyId, vin])
@@ -188,6 +203,7 @@ model Employee {
   createdAt     DateTime        @default(now())
   orderWorks    WorkOrderWork[]
   managedOrders WorkOrder[]     @relation("OrderManager")
+  appointments  Appointment[]
 
   @@index([companyId])
 }
@@ -249,6 +265,7 @@ model WorkOrder {
   works          WorkOrderWork[]
   items          WorkOrderItem[]
   payments       Payment[]
+  appointment    Appointment?
 
   @@unique([companyId, number])
   @@index([companyId, acceptedAt])
@@ -390,4 +407,46 @@ model CashOperation {
   date       DateTime  @default(now())
 
   @@index([companyId, date])
+}
+
+// Пост (рабочее место): подъёмник, развал-схождение и т.п.
+model Workplace {
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  active       Boolean       @default(true)
+  position     Int           @default(0)
+  createdAt    DateTime      @default(now())
+  appointments Appointment[]
+
+  @@index([companyId])
+}
+
+// Запись клиента на сервис: время на посту, из неё создаётся заказ-наряд.
+model Appointment {
+  id           String           @id @default(cuid())
+  companyId    String
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workplaceId  String
+  workplace    Workplace        @relation(fields: [workplaceId], references: [id], onDelete: Cascade)
+  startAt      DateTime
+  endAt        DateTime
+  stage        AppointmentStage @default(NEW)
+  clientId     String?
+  client       Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  vehicleId    String?
+  vehicle      Vehicle?         @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  contactName  String? // для нового клиента, которого ещё нет в базе
+  contactPhone String?
+  reason       String?
+  amount       Int              @default(0) // ориентировочная сумма, коп.
+  masterId     String?
+  master       Employee?        @relation(fields: [masterId], references: [id], onDelete: SetNull)
+  orderId      String?          @unique
+  order        WorkOrder?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+
+  @@index([companyId, startAt])
+  @@index([workplaceId, startAt])
 }
