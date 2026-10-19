@@ -6,12 +6,16 @@ import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
 import { formatRub, lineTotal } from "@/lib/money";
+import { listProducts, listWorks } from "@/lib/services/catalog";
 import { listEmployees } from "@/lib/services/employees";
+import { getCompany } from "@/lib/services/settings";
 import { getOrder, STAGES, stageLabel } from "@/lib/services/orders";
 import {
   addItemAction,
+  addItemFromCatalogAction,
   addPaymentAction,
   addWorkAction,
+  addWorkFromCatalogAction,
   postAction,
   removeItemAction,
   removeWorkAction,
@@ -31,7 +35,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const employees = await listEmployees(s.companyId);
+  const [employees, works, products, company] = await Promise.all([
+    listEmployees(s.companyId),
+    listWorks(s.companyId),
+    listProducts(s.companyId),
+    getCompany(s.companyId),
+  ]);
   const posted = o.status === "POSTED";
   const t = o.totals;
 
@@ -159,6 +168,37 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             ))}
           </tbody>
         </table>
+        {!posted && works.length > 0 && (
+          <ActionForm action={addWorkFromCatalogAction.bind(null, o.id)} reset className="mb-3 flex flex-wrap items-end gap-3 rounded-md bg-slate-50 p-3">
+            <Field label="Из справочника" className="min-w-64 flex-1">
+              <Select name="refId" defaultValue="">
+                <option value="">Выберите работу</option>
+                {works.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} · {w.price ? formatRub(w.price) : `${formatQty(Number(w.normHours ?? 1))} н/ч`}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Кол-во">
+              <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
+            </Field>
+            <Field label="Скидка, %">
+              <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.discount} className="w-20" />
+            </Field>
+            <Field label="Исполнитель">
+              <Select name="executorId" defaultValue="">
+                <option value="">Не указан</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Submit variant="ghost">Добавить</Submit>
+          </ActionForm>
+        )}
         {!posted && (
           <ActionForm action={addWorkAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
             <Field label="Работа" className="min-w-64 flex-1">
@@ -168,7 +208,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <Input name="normHours" defaultValue="1" inputMode="decimal" className="w-24" />
             </Field>
             <Field label="Цена за н/ч, ₽">
-              <Input name="price" inputMode="decimal" className="w-28" required />
+              <Input name="price" defaultValue={company.hourPrice ? money(company.hourPrice) : ""} inputMode="decimal" className="w-28" required />
             </Field>
             <Field label="Скидка, %">
               <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.discount} className="w-20" />
@@ -225,6 +265,27 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             ))}
           </tbody>
         </table>
+        {!posted && products.length > 0 && (
+          <ActionForm action={addItemFromCatalogAction.bind(null, o.id)} reset className="mb-3 flex flex-wrap items-end gap-3 rounded-md bg-slate-50 p-3">
+            <Field label="Из номенклатуры" className="min-w-64 flex-1">
+              <Select name="refId" defaultValue="">
+                <option value="">Выберите товар</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {[p.name, p.article, p.brand].filter(Boolean).join(" · ")} · {formatRub(p.price)}/{p.unit}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Кол-во">
+              <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
+            </Field>
+            <Field label="Скидка, %">
+              <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.discount} className="w-20" />
+            </Field>
+            <Submit variant="ghost">Добавить</Submit>
+          </ActionForm>
+        )}
         {!posted && (
           <ActionForm action={addItemAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
             <Field label="Наименование" className="min-w-64 flex-1">
