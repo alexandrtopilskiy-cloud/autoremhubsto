@@ -7,6 +7,8 @@ import { NotFoundError } from "@/lib/errors";
 import { formatDate, orderNo, vehicleTitle } from "@/lib/format";
 import { getClient } from "@/lib/services/clients";
 import { stageLabel } from "@/lib/services/orders";
+import { listRecommendations } from "@/lib/services/recommendations";
+import { formatRub } from "@/lib/money";
 import { addVehicleAction, archiveClientAction, updateClientAction } from "../actions";
 import { ClientFields } from "../client-fields";
 
@@ -17,11 +19,18 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
+  const recs = await listRecommendations(s.companyId, { clientId: client.id, status: "OPEN" });
   return (
     <div className="flex flex-col gap-4">
       <PageTitle
         actions={
           <div className="flex gap-2">
+            <Link
+              href={`/app/estimates/new?clientId=${client.id}`}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              Калькуляция
+            </Link>
             <Link
               href={`/app/orders/new?clientId=${client.id}`}
               className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -114,6 +123,26 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </tbody>
         </table>
       </Card>
+
+      {recs.length > 0 && (
+        <Card title={`Невыполненные рекомендации · ${recs.length}`}>
+          <ul className="flex flex-col gap-1 text-sm">
+            {recs.map((r) => (
+              <li key={r.id}>
+                {formatDate(r.createdAt)} · {r.vehicle ? `${vehicleTitle(r.vehicle)} · ` : ""}
+                <b>{r.name}</b>
+                {r.price > 0 && ` · ${formatRub(Math.round(Number(r.qty) * r.price))}`}
+                {r.order && (
+                  <Link href={`/app/orders/${r.order.id}`} className="text-blue-600 hover:underline">
+                    {" "}
+                    · из {orderNo(r.order.number)}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

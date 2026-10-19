@@ -11,14 +11,26 @@ import { listEmployees } from "@/lib/services/employees";
 import { getCompany } from "@/lib/services/settings";
 import { listCashboxes } from "@/lib/services/cash";
 import { stockBalances } from "@/lib/services/stock";
-import { getOrder, STAGES, stageLabel } from "@/lib/services/orders";
+import { getOrder, orderSummary, STAGES, stageLabel } from "@/lib/services/orders";
+import { orderPartsRequests, requestStatusLabel } from "@/lib/services/parts-requests";
+import { listRecommendations, recStatusLabel } from "@/lib/services/recommendations";
+import { canOperate } from "@/lib/roles";
+import { Attachments } from "@/components/attachments";
 import {
   addItemAction,
   addItemFromCatalogAction,
   addPaymentAction,
   addWorkAction,
   addWorkFromCatalogAction,
+  addRecommendationAction,
+  cancelRequestAction,
+  issueRequestAction,
+  lineToRecommendationAction,
   postAction,
+  recommendationToOrderAction,
+  removeRequestLineAction,
+  requestPartAction,
+  setRecommendationStatusAction,
   removeItemAction,
   removeWorkAction,
   setStageAction,
@@ -37,13 +49,19 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const [employees, works, products, company, cashboxes] = await Promise.all([
+  const [employees, works, products, company, cashboxes, summary, recs, requests] = await Promise.all([
     listEmployees(s.companyId),
     listWorks(s.companyId),
     stockBalances(s.companyId),
     getCompany(s.companyId),
     listCashboxes(s.companyId),
+    orderSummary(s.companyId, id),
+    listRecommendations(s.companyId, { clientId: o.clientId }),
+    orderPartsRequests(s.companyId, id),
   ]);
+  // открытые рекомендации клиента и всё, что записано из этого наряда
+  const shownRecs = recs.filter((r) => r.status === "OPEN" || r.orderId === o.id || r.doneOrderId === o.id);
+  const operator = canOperate(s.role);
   const posted = o.status === "POSTED";
   const t = o.totals;
 
@@ -160,11 +178,18 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 </td>
                 <td className={`${td} text-right`}>
                   {!posted && (
-                    <ActionForm action={removeWorkAction.bind(null, o.id, w.id)}>
-                      <button className="text-red-600 hover:underline" title="Удалить">
-                        ✕
-                      </button>
-                    </ActionForm>
+                    <div className="flex justify-end gap-3">
+                      <ActionForm action={lineToRecommendationAction.bind(null, o.id, "WORK", w.id)}>
+                        <button className="text-slate-500 hover:text-blue-600" title="Клиент отказался: перенести в рекомендации">
+                          ↷
+                        </button>
+                      </ActionForm>
+                      <ActionForm action={removeWorkAction.bind(null, o.id, w.id)}>
+                        <button className="text-red-600 hover:underline" title="Удалить">
+                          ✕
+                        </button>
+                      </ActionForm>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -257,11 +282,18 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 </td>
                 <td className={`${td} text-right`}>
                   {!posted && (
-                    <ActionForm action={removeItemAction.bind(null, o.id, i.id)}>
-                      <button className="text-red-600 hover:underline" title="Удалить">
-                        ✕
-                      </button>
-                    </ActionForm>
+                    <div className="flex justify-end gap-3">
+                      <ActionForm action={lineToRecommendationAction.bind(null, o.id, "ITEM", i.id)}>
+                        <button className="text-slate-500 hover:text-blue-600" title="Клиент отказался: перенести в рекомендации">
+                          ↷
+                        </button>
+                      </ActionForm>
+                      <ActionForm action={removeItemAction.bind(null, o.id, i.id)}>
+                        <button className="text-red-600 hover:underline" title="Удалить">
+                          ✕
+                        </button>
+                      </ActionForm>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -309,6 +341,140 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             <Submit variant="ghost">Добавить</Submit>
           </ActionForm>
         )}
+      </Card>
+
+      <Card title="Требования на запчасти">
+        {requests.length > 0 && (
+          <ul className="mb-3 flex flex-col gap-2 text-sm">
+            {requests.map((r) => (
+              <li key={r.id} className="rounded-md border border-slate-200 p-2">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <b>ТР-{r.number}</b>
+                  <Badge tone={r.status === "NEW" ? "amber" : r.status === "ISSUED" ? "green" : "slate"}>{requestStatusLabel(r.status)}</Badge>
+                  <span className="text-slate-500">
+                    {formatDate(r.createdAt, true)}
+                    {r.requestedBy && `, ${r.requestedBy.name}`}
+                  </span>
+                  {r.status === "NEW" && operator && !posted && (
+                    <span className="ml-auto flex gap-2">
+                      <ActionForm action={issueRequestAction.bind(null, o.id, r.id)}>
+                        <Submit variant="ghost">Выдать</Submit>
+                      </ActionForm>
+                      <ActionForm action={cancelRequestAction.bind(null, o.id, r.id)}>
+                        <Submit variant="danger">Отклонить</Submit>
+                      </ActionForm>
+                    </span>
+                  )}
+                </div>
+                <ul>
+                  {r.lines.map((l) => (
+                    <li key={l.id} className="flex gap-2">
+                      {l.product.name} {l.product.article && <span className="text-slate-500">{l.product.article}</span>} ·{" "}
+                      {formatQty(Number(l.qty))} {l.product.unit}
+                      {r.status === "NEW" && !posted && (
+                        <ActionForm action={removeRequestLineAction.bind(null, o.id, r.id, l.id)}>
+                          <button className="text-red-600 hover:underline" title="Убрать из требования">
+                            ✕
+                          </button>
+                        </ActionForm>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!posted && products.length > 0 && (
+          <ActionForm action={requestPartAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
+            <Field label="Запросить со склада" className="min-w-64 flex-1">
+              <Select name="productId" defaultValue="">
+                <option value="">Выберите товар</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {[p.name, p.article, p.brand].filter(Boolean).join(" · ")} · остаток {formatQty(p.qty)} {p.unit}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Кол-во">
+              <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
+            </Field>
+            <Submit variant="ghost">Запросить</Submit>
+          </ActionForm>
+        )}
+        {requests.length === 0 && posted && <p className="text-sm text-slate-500">Требований не было</p>}
+        {!posted && products.length === 0 && (
+          <p className="text-sm text-slate-500">
+            Запросить товар со склада можно, когда в <Link href="/app/catalog/products" className="text-blue-600 hover:underline">номенклатуре</Link> есть товары.
+          </p>
+        )}
+      </Card>
+
+      <Card title="Рекомендации клиенту">
+        {shownRecs.length > 0 && (
+          <table className="mb-3 w-full text-sm">
+            <tbody>
+              {shownRecs.map((r) => (
+                <tr key={r.id} className="border-b last:border-0">
+                  <td className={td}>
+                    {r.name}
+                    {r.comment && <span className="text-slate-500"> · {r.comment}</span>}
+                    <div className="text-xs text-slate-500">
+                      {r.kind === "WORK" ? "Работа" : "Товар"} · {formatDate(r.createdAt)}
+                      {r.order && r.order.id !== o.id && <> · из {orderNo(r.order.number)}</>}
+                    </div>
+                  </td>
+                  <td className={`${td} text-right whitespace-nowrap`}>
+                    {formatQty(Number(r.qty))} × {formatRub(r.price)}
+                  </td>
+                  <td className={td}>
+                    <Badge tone={r.status === "OPEN" ? "amber" : r.status === "DONE" ? "green" : "slate"}>{recStatusLabel(r.status)}</Badge>
+                  </td>
+                  <td className={`${td} text-right`}>
+                    {r.status === "OPEN" ? (
+                      <div className="flex justify-end gap-2">
+                        {!posted && (
+                          <ActionForm action={recommendationToOrderAction.bind(null, o.id, r.id)}>
+                            <button className="text-blue-600 hover:underline">В наряд</button>
+                          </ActionForm>
+                        )}
+                        <ActionForm action={setRecommendationStatusAction.bind(null, o.id, r.id, "DECLINED")}>
+                          <button className="text-slate-500 hover:underline">Отказ</button>
+                        </ActionForm>
+                      </div>
+                    ) : (
+                      <ActionForm action={setRecommendationStatusAction.bind(null, o.id, r.id, "OPEN")}>
+                        <button className="text-slate-500 hover:underline">Вернуть</button>
+                      </ActionForm>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <ActionForm action={addRecommendationAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
+          <Field label="Что рекомендуем">
+            <Select name="kind" defaultValue="WORK">
+              <option value="WORK">Работа</option>
+              <option value="ITEM">Товар</option>
+            </Select>
+          </Field>
+          <Field label="Наименование" className="min-w-64 flex-1">
+            <Input name="name" required />
+          </Field>
+          <Field label="Кол-во">
+            <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
+          </Field>
+          <Field label="Цена, ₽">
+            <Input name="price" inputMode="decimal" className="w-28" />
+          </Field>
+          <Field label="Комментарий" className="min-w-48">
+            <Input name="comment" />
+          </Field>
+          <Submit variant="ghost">Добавить</Submit>
+        </ActionForm>
       </Card>
 
       <Card title="Оплаты">
@@ -368,6 +534,38 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           <Submit variant="ghost">Провести оплату</Submit>
         </ActionForm>
       </Card>
+
+      {operator && (
+        <Card title="Сводка">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-slate-500">Себестоимость товаров</dt>
+              <dd className="font-medium">{formatRub(summary.cost)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Исполнителям</dt>
+              <dd className="font-medium">{formatRub(summary.executors)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Менеджеру</dt>
+              <dd className="font-medium">{formatRub(summary.manager)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Прибыль</dt>
+              <dd className={`font-semibold ${summary.profit < 0 ? "text-red-600" : "text-green-700"}`}>{formatRub(summary.profit)}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Запчасти к работам</dt>
+              <dd className="font-medium">{summary.itemsToWorks === null ? "—" : summary.itemsToWorks.toLocaleString("ru-RU")}</dd>
+            </div>
+          </dl>
+          {summary.manualItems && (
+            <p className="mt-2 text-xs text-slate-500">Товары, введённые вручную, а не из номенклатуры, посчитаны без себестоимости.</p>
+          )}
+        </Card>
+      )}
+
+      <Attachments companyId={s.companyId} kind="ORDER" docId={o.id} path={`/app/orders/${o.id}`} />
     </div>
   );
 }

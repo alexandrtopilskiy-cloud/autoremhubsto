@@ -12,7 +12,15 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const clients = await listClients(s.companyId, q, { archived: archived === "1" });
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Клиенты</PageTitle>
+      <PageTitle
+        actions={
+          <Link href="/app/recommendations" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50">
+            Рекомендации клиентам
+          </Link>
+        }
+      >
+        Клиенты
+      </PageTitle>
       <Card title="Новый клиент">
         <ActionForm action={createClientAction} className="flex flex-wrap items-end gap-3">
           <ClientFields />

@@ -3,10 +3,10 @@ import type { OrderStage, Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { nextNumber } from "../counters";
 import { UserError } from "../errors";
-import { orderTotals } from "../money";
+import { lineTotal, orderTotals } from "../money";
 import { ownClient, ownEmployee, ownOrder, ownOrganization, ownVehicle } from "../tenant";
 import { defaultCashbox } from "./cash";
-import { returnOrderToStock, writeOffOrder } from "./stock";
+import { averageCosts, returnOrderToStock, writeOffOrder } from "./stock";
 
 export const STAGES: { value: OrderStage; label: string }[] = [
   { value: "NEW", label: "Новый" },
@@ -85,7 +85,7 @@ async function checkRefs(
   if (h.managerId) await ownEmployee(tx, companyId, h.managerId);
 }
 
-async function editableOrder(tx: Tx, companyId: string, orderId: string) {
+export async function editableOrder(tx: Tx, companyId: string, orderId: string) {
   const o = await ownOrder(tx, companyId, orderId);
   if (o.status === "POSTED") throw new UserError("Заказ-наряд проведён. Сначала отмените проведение.");
   return o;
@@ -317,4 +317,37 @@ export async function addItemFromCatalog(companyId: string, orderId: string, inp
       },
     });
   });
+}
+
+/**
+ * Сводка заказ-наряда: себестоимость товаров, вознаграждения исполнителей и менеджера, прибыль.
+ * Для проведённого наряда себестоимость берётся из списания, для черновика — по средней закупочной цене.
+ * Товары, введённые вручную (не из номенклатуры), идут с нулевой себестоимостью.
+ */
+export async function orderSummary(companyId: string, orderId: string) {
+  const o = await getOrder(companyId, orderId);
+  let cost: number;
+  if (o.status === "POSTED") {
+    const r = await prisma.$queryRaw<{ sum: number | null }[]>`
+      SELECT SUM(-qty * cost)::float8 AS sum FROM "StockMove" WHERE "companyId" = ${companyId} AND kind = 'ORDER' AND "docId" = ${orderId}`;
+    cost = Math.round(r[0]?.sum ?? 0);
+  } else {
+    const ids = o.items.flatMap((i) => (i.productId ? [i.productId] : []));
+    const costs = ids.length ? await averageCosts(prisma, companyId, ids) : new Map<string, number>();
+    cost = o.items.reduce((s, i) => s + (i.productId ? Math.round(Number(i.qty) * (costs.get(i.productId) ?? 0)) : 0), 0);
+  }
+  const executors = o.works.reduce(
+    (s, w) => s + Math.round((lineTotal({ qty: Number(w.normHours), price: w.price, discount: w.discount }) * (w.executor?.workPercent ?? 0)) / 100),
+    0,
+  );
+  const manager = Math.round((o.totals.total * (o.manager?.salesPercent ?? 0)) / 100);
+  const t = o.totals;
+  return {
+    cost,
+    executors,
+    manager,
+    profit: t.total - cost - executors - manager,
+    itemsToWorks: t.works ? Math.round((t.items / t.works) * 100) / 100 : null,
+    manualItems: o.items.some((i) => !i.productId),
+  };
 }

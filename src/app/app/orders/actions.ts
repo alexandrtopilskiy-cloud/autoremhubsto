@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { OrderStage } from "@prisma/client";
+import type { LineKind, OrderStage, RecommendationStatus } from "@prisma/client";
 import { requireSession } from "@/lib/auth";
 import { fields, num, rub, run, type FormState } from "@/lib/actions";
 import {
@@ -19,6 +19,14 @@ import {
   unpostOrder,
   updateOrderHeader,
 } from "@/lib/services/orders";
+import { cancelRequest, issueRequest, removeRequestLine, requestPart } from "@/lib/services/parts-requests";
+import {
+  addRecommendation,
+  lineToRecommendation,
+  recommendationToOrder,
+  setRecommendationStatus,
+} from "@/lib/services/recommendations";
+import { assertOperator } from "@/lib/roles";
 
 export async function createOrderAction(_: FormState, fd: FormData): Promise<FormState> {
   const s = await requireSession();
@@ -92,4 +100,51 @@ export async function addWorkFromCatalogAction(orderId: string, _: FormState, fd
 
 export async function addItemFromCatalogAction(orderId: string, _: FormState, fd: FormData) {
   return onOrder(orderId, (c) => addItemFromCatalog(c, orderId, { ...fields(fd), qty: num(fd, "qty") }));
+}
+
+// --- рекомендации ---
+
+export async function addRecommendationAction(orderId: string, _: FormState, fd: FormData) {
+  return onOrder(orderId, (c) =>
+    addRecommendation(c, orderId, { ...fields(fd), qty: num(fd, "qty"), price: fd.get("price") ? rub(fd, "price", "Цена") : 0 }),
+  );
+}
+
+export async function lineToRecommendationAction(orderId: string, kind: LineKind, lineId: string) {
+  return onOrder(orderId, (c) => lineToRecommendation(c, orderId, kind, lineId));
+}
+
+export async function recommendationToOrderAction(orderId: string, recId: string) {
+  return onOrder(orderId, (c) => recommendationToOrder(c, recId, orderId));
+}
+
+export async function setRecommendationStatusAction(orderId: string, recId: string, status: RecommendationStatus) {
+  return onOrder(orderId, (c) => setRecommendationStatus(c, recId, status));
+}
+
+// --- требования на запчасти ---
+
+export async function requestPartAction(orderId: string, _: FormState, fd: FormData) {
+  const s = await requireSession();
+  return onOrder(orderId, (c) => requestPart(c, orderId, s.userId, { ...fields(fd), qty: num(fd, "qty") }));
+}
+
+export async function removeRequestLineAction(orderId: string, requestId: string, lineId: string) {
+  return onOrder(orderId, (c) => removeRequestLine(c, requestId, lineId));
+}
+
+export async function issueRequestAction(orderId: string, requestId: string) {
+  const s = await requireSession();
+  return onOrder(orderId, (c) => {
+    assertOperator(s.role);
+    return issueRequest(c, requestId);
+  });
+}
+
+export async function cancelRequestAction(orderId: string, requestId: string) {
+  const s = await requireSession();
+  return onOrder(orderId, (c) => {
+    assertOperator(s.role);
+    return cancelRequest(c, requestId);
+  });
 }

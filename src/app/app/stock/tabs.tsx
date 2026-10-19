@@ -3,6 +3,7 @@ import Link from "next/link";
 const tabs = [
   { key: "balances", href: "/app/stock", label: "Остатки" },
   { key: "receipts", href: "/app/stock/receipts", label: "Приход товара" },
+  { key: "requests", href: "/app/stock/requests", label: "Требования" },
   { key: "suppliers", href: "/app/stock/suppliers", label: "Поставщики" },
 ];
 
