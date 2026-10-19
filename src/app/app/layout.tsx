@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
+import { roleLabel } from "@/lib/roles";
 import { logoutAction } from "./actions";
 
 const nav = [
   { href: "/app/orders", label: "Заказ-наряды" },
   { href: "/app/clients", label: "Клиенты" },
+  { href: "/app/catalog/works", label: "Справочники" },
+  { href: "/app/staff", label: "Сотрудники" },
+  { href: "/app/settings", label: "Настройки" },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -25,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm text-slate-600">
             <span>
-              {s.companyName} · {s.userName}
+              {s.companyName} · {s.userName} ({roleLabel(s.role)})
             </span>
             <form action={logoutAction}>
               <button className="text-blue-600 hover:underline">Выйти</button>

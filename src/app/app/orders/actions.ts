@@ -7,6 +7,8 @@ import { requireSession } from "@/lib/auth";
 import { fields, num, rub, run, type FormState } from "@/lib/actions";
 import {
   addItem,
+  addItemFromCatalog,
+  addWorkFromCatalog,
   addPayment,
   addWork,
   createOrder,
@@ -81,4 +83,12 @@ export async function postAction(orderId: string) {
 
 export async function unpostAction(orderId: string) {
   return onOrder(orderId, (c) => unpostOrder(c, orderId));
+}
+
+export async function addWorkFromCatalogAction(orderId: string, _: FormState, fd: FormData) {
+  return onOrder(orderId, (c) => addWorkFromCatalog(c, orderId, { ...fields(fd), qty: num(fd, "qty") }));
+}
+
+export async function addItemFromCatalogAction(orderId: string, _: FormState, fd: FormData) {
+  return onOrder(orderId, (c) => addItemFromCatalog(c, orderId, { ...fields(fd), qty: num(fd, "qty") }));
 }

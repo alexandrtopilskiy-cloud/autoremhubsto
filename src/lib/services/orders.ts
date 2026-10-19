@@ -250,3 +250,61 @@ export async function unpostOrder(companyId: string, orderId: string) {
     });
   });
 }
+
+export const fromCatalogSchema = z.object({
+  refId: z.string().min(1, "Выберите позицию из справочника"),
+  qty: decimal.default(1),
+  discount: percent,
+  executorId: optId,
+});
+
+/**
+ * Работа из справочника. Фиксированная цена идёт как 1 × цена,
+ * иначе — нормочасы справочника × цена нормочаса СТО.
+ */
+export async function addWorkFromCatalog(companyId: string, orderId: string, input: unknown) {
+  const data = fromCatalogSchema.parse(input);
+  return prisma.$transaction(async (tx) => {
+    await editableOrder(tx, companyId, orderId);
+    const w = await tx.work.findFirst({ where: { id: data.refId, companyId } });
+    if (!w) throw new UserError("Работа не найдена в справочнике");
+    if (data.executorId) await ownEmployee(tx, companyId, data.executorId);
+    const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
+    const fixed = w.price > 0;
+    const position = await tx.workOrderWork.count({ where: { orderId } });
+    return tx.workOrderWork.create({
+      data: {
+        orderId,
+        workId: w.id,
+        name: w.name,
+        normHours: fixed ? data.qty : Number(w.normHours ?? 1) * data.qty,
+        price: fixed ? w.price : company.hourPrice,
+        discount: data.discount,
+        executorId: data.executorId,
+        position,
+      },
+    });
+  });
+}
+
+export async function addItemFromCatalog(companyId: string, orderId: string, input: unknown) {
+  const data = fromCatalogSchema.parse(input);
+  return prisma.$transaction(async (tx) => {
+    await editableOrder(tx, companyId, orderId);
+    const p = await tx.product.findFirst({ where: { id: data.refId, companyId } });
+    if (!p) throw new UserError("Товар не найден в номенклатуре");
+    const position = await tx.workOrderItem.count({ where: { orderId } });
+    return tx.workOrderItem.create({
+      data: {
+        orderId,
+        productId: p.id,
+        name: p.name,
+        article: p.article,
+        qty: data.qty,
+        price: p.price,
+        discount: data.discount,
+        position,
+      },
+    });
+  });
+}
