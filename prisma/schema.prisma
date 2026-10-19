@@ -1,0 +1,281 @@
+// Каждая СТО — отдельная компания (Company). Все рабочие данные несут companyId,
+// и доступ к ним идёт только через scoped-клиент из src/lib/tenant.ts.
+// Деньги хранятся в копейках (Int), количество и нормочасы — Decimal.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  MECHANIC
+}
+
+enum ClientKind {
+  PERSON
+  ENTREPRENEUR
+  LEGAL
+}
+
+enum DocStatus {
+  DRAFT
+  POSTED
+}
+
+enum OrderStage {
+  NEW
+  APPROVING
+  IN_WORK
+  READY
+  CLOSED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  SBP
+}
+
+model Company {
+  id            String         @id @default(cuid())
+  name          String
+  city          String?
+  hourPrice     Int            @default(0) // стоимость нормочаса по умолчанию, коп.
+  createdAt     DateTime       @default(now())
+  memberships   Membership[]
+  organizations Organization[]
+  clients       Client[]
+  vehicles      Vehicle[]
+  employees     Employee[]
+  works         Work[]
+  products      Product[]
+  workOrders    WorkOrder[]
+  payments      Payment[]
+  counters      Counter[]
+}
+
+// Юрлицо или ИП внутри СТО: от его имени оформляются документы.
+model Organization {
+  id         String      @id @default(cuid())
+  companyId  String
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  inn        String?
+  kpp        String?
+  ogrn       String?
+  address    String?
+  phone      String?
+  createdAt  DateTime    @default(now())
+  workOrders WorkOrder[]
+
+  @@index([companyId])
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+  sessions     Session[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role      Role
+  createdAt DateTime @default(now())
+
+  @@unique([userId, companyId])
+}
+
+model Session {
+  id        String   @id // sha256 от токена в cookie
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Сквозная нумерация документов внутри компании: ЗН-1, ЗН-2 ...
+model Counter {
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  key       String
+  value     Int     @default(0)
+
+  @@id([companyId, key])
+}
+
+model Client {
+  id         String      @id @default(cuid())
+  companyId  String
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind       ClientKind  @default(PERSON)
+  name       String
+  phone      String?
+  email      String?
+  inn        String?
+  comment    String?
+  discount   Int         @default(0) // скидка клиента, %
+  archived   Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  vehicles   Vehicle[]
+  workOrders WorkOrder[]
+
+  @@index([companyId, name])
+  @@index([companyId, phone])
+}
+
+model Vehicle {
+  id         String      @id @default(cuid())
+  companyId  String
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientId   String
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  make       String
+  model      String
+  year       Int?
+  vin        String?
+  plate      String?
+  color      String?
+  createdAt  DateTime    @default(now())
+  workOrders WorkOrder[]
+
+  @@index([companyId, plate])
+  @@index([companyId, vin])
+}
+
+// Исполнитель работ: мастер (не обязательно с логином) или менеджер.
+model Employee {
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  position     String?
+  workPercent  Int             @default(0) // % от работ для расчёта зарплаты
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  orderWorks   WorkOrderWork[]
+  managedOrders WorkOrder[]    @relation("OrderManager")
+
+  @@index([companyId])
+}
+
+// Справочник работ.
+model Work {
+  id         String          @id @default(cuid())
+  companyId  String
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  normHours  Decimal?        @db.Decimal(8, 2)
+  price      Int             @default(0) // фиксированная цена, коп.; 0 = считать по нормочасам
+  createdAt  DateTime        @default(now())
+  orderWorks WorkOrderWork[]
+
+  @@index([companyId, name])
+}
+
+// Номенклатура (запчасти и материалы).
+model Product {
+  id         String          @id @default(cuid())
+  companyId  String
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  article    String?
+  brand      String?
+  unit       String          @default("шт")
+  price      Int             @default(0) // цена продажи, коп.
+  createdAt  DateTime        @default(now())
+  orderItems WorkOrderItem[]
+
+  @@index([companyId, name])
+  @@index([companyId, article])
+}
+
+model WorkOrder {
+  id             String          @id @default(cuid())
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number         Int
+  status         DocStatus       @default(DRAFT)
+  stage          OrderStage      @default(NEW)
+  organizationId String?
+  organization   Organization?   @relation(fields: [organizationId], references: [id])
+  clientId       String
+  client         Client          @relation(fields: [clientId], references: [id])
+  vehicleId      String?
+  vehicle        Vehicle?        @relation(fields: [vehicleId], references: [id])
+  managerId      String?
+  manager        Employee?       @relation("OrderManager", fields: [managerId], references: [id])
+  mileage        Int?
+  reason         String?
+  comment        String?
+  acceptedAt     DateTime        @default(now())
+  closedAt       DateTime?
+  createdAt      DateTime        @default(now())
+  works          WorkOrderWork[]
+  items          WorkOrderItem[]
+  payments       Payment[]
+
+  @@unique([companyId, number])
+  @@index([companyId, acceptedAt])
+}
+
+model WorkOrderWork {
+  id          String    @id @default(cuid())
+  orderId     String
+  order       WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  workId      String?
+  work        Work?     @relation(fields: [workId], references: [id])
+  name        String
+  normHours   Decimal   @default(1) @db.Decimal(8, 2)
+  price       Int // цена за 1 нормочас или за работу целиком, коп.
+  discount    Int       @default(0) // %
+  executorId  String?
+  executor    Employee? @relation(fields: [executorId], references: [id])
+  position    Int       @default(0)
+}
+
+model WorkOrderItem {
+  id        String    @id @default(cuid())
+  orderId   String
+  order     WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product?  @relation(fields: [productId], references: [id])
+  name      String
+  article   String?
+  qty       Decimal   @db.Decimal(12, 3)
+  price     Int // за единицу, коп.
+  discount  Int       @default(0) // %
+  position  Int       @default(0)
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderId   String
+  order     WorkOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Int // коп., возврат — отрицательная сумма
+  method    PaymentMethod
+  paidAt    DateTime      @default(now())
+  comment   String?
+
+  @@index([companyId, paidAt])
+}
