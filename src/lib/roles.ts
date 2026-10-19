@@ -16,3 +16,10 @@ export const canManage = (r: Role) => r === "OWNER" || r === "ADMIN";
 export function assertManager(r: Role) {
   if (!canManage(r)) throw new UserError("Недостаточно прав: нужен владелец или администратор");
 }
+
+/** Склад и касса: все, кроме механика. */
+export const canOperate = (r: Role) => r !== "MECHANIC";
+
+export function assertOperator(r: Role) {
+  if (!canOperate(r)) throw new UserError("Недостаточно прав для склада и кассы");
+}

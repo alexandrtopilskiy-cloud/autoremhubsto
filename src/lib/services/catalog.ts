@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "../db";
-import { NotFoundError } from "../errors";
+import { NotFoundError, UserError } from "../errors";
 
 const opt = z
   .string()
@@ -83,6 +83,8 @@ export async function updateProduct(companyId: string, id: string, input: unknow
 }
 
 export async function deleteProduct(companyId: string, id: string) {
+  const used = await prisma.receiptLine.count({ where: { productId: id, receipt: { companyId } } });
+  if (used > 0) throw new UserError("Товар есть в приходных накладных, удалить его нельзя");
   await prisma.$transaction([
     prisma.workOrderItem.updateMany({ where: { productId: id, order: { companyId } }, data: { productId: null } }),
     prisma.product.deleteMany({ where: { id, companyId } }),

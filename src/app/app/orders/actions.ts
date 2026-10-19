@@ -60,6 +60,7 @@ export async function addPaymentAction(orderId: string, _: FormState, fd: FormDa
     return addPayment(c, orderId, {
       amount: refund ? -Math.abs(amount) : amount,
       method: fields(fd).method as "CASH",
+      cashboxId: fields(fd).cashboxId,
       comment: fields(fd).comment,
     });
   });

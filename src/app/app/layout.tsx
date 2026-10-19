@@ -6,6 +6,8 @@ import { logoutAction } from "./actions";
 const nav = [
   { href: "/app/orders", label: "Заказ-наряды" },
   { href: "/app/clients", label: "Клиенты" },
+  { href: "/app/stock", label: "Склад" },
+  { href: "/app/cash", label: "Касса" },
   { href: "/app/catalog/works", label: "Справочники" },
   { href: "/app/staff", label: "Сотрудники" },
   { href: "/app/settings", label: "Настройки" },

@@ -6,9 +6,11 @@ import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
 import { formatRub, lineTotal } from "@/lib/money";
-import { listProducts, listWorks } from "@/lib/services/catalog";
+import { listWorks } from "@/lib/services/catalog";
 import { listEmployees } from "@/lib/services/employees";
 import { getCompany } from "@/lib/services/settings";
+import { listCashboxes } from "@/lib/services/cash";
+import { stockBalances } from "@/lib/services/stock";
 import { getOrder, STAGES, stageLabel } from "@/lib/services/orders";
 import {
   addItemAction,
@@ -35,11 +37,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const [employees, works, products, company] = await Promise.all([
+  const [employees, works, products, company, cashboxes] = await Promise.all([
     listEmployees(s.companyId),
     listWorks(s.companyId),
-    listProducts(s.companyId),
+    stockBalances(s.companyId),
     getCompany(s.companyId),
+    listCashboxes(s.companyId),
   ]);
   const posted = o.status === "POSTED";
   const t = o.totals;
@@ -272,7 +275,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 <option value="">Выберите товар</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {[p.name, p.article, p.brand].filter(Boolean).join(" · ")} · {formatRub(p.price)}/{p.unit}
+                    {[p.name, p.article, p.brand].filter(Boolean).join(" · ")} · {formatRub(p.price)}/{p.unit} · остаток {formatQty(p.qty)}
                   </option>
                 ))}
               </Select>
@@ -325,14 +328,15 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           <ul className="mb-3 flex flex-col gap-1 text-sm">
             {o.payments.map((p) => (
               <li key={p.id}>
-                {formatDate(p.paidAt, true)} · {METHODS[p.method]} ·{" "}
+                {formatDate(p.paidAt, true)} · {METHODS[p.method]}
+                {p.cashbox && ` (${p.cashbox.name})`} ·{" "}
                 <b className={p.amount < 0 ? "text-red-600" : ""}>{formatRub(p.amount)}</b>
                 {p.comment && <span className="text-slate-500"> · {p.comment}</span>}
               </li>
             ))}
           </ul>
         )}
-        <ActionForm action={addPaymentAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
+        <ActionForm key={t.due} action={addPaymentAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
           <Field label="Сумма, ₽">
             <Input name="amount" inputMode="decimal" defaultValue={t.due > 0 ? money(t.due) : ""} className="w-32" required />
           </Field>
@@ -341,6 +345,16 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               {Object.entries(METHODS).map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Касса">
+            <Select name="cashboxId" defaultValue="">
+              <option value="">Автоматически</option>
+              {cashboxes.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
                 </option>
               ))}
             </Select>

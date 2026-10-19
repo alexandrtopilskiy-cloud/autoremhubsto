@@ -37,6 +37,16 @@ enum OrderStage {
   CLOSED
 }
 
+enum CashboxKind {
+  CASH
+  BANK
+}
+
+enum StockMoveKind {
+  RECEIPT
+  ORDER
+}
+
 enum PaymentMethod {
   CASH
   CARD
@@ -45,11 +55,11 @@ enum PaymentMethod {
 }
 
 model Company {
-  id            String         @id @default(cuid())
+  id            String          @id @default(cuid())
   name          String
   city          String?
-  hourPrice     Int            @default(0) // стоимость нормочаса по умолчанию, коп.
-  createdAt     DateTime       @default(now())
+  hourPrice     Int             @default(0) // стоимость нормочаса по умолчанию, коп.
+  createdAt     DateTime        @default(now())
   memberships   Membership[]
   organizations Organization[]
   clients       Client[]
@@ -60,6 +70,11 @@ model Company {
   workOrders    WorkOrder[]
   payments      Payment[]
   counters      Counter[]
+  suppliers     Supplier[]
+  receipts      Receipt[]
+  stockMoves    StockMove[]
+  cashboxes     Cashbox[]
+  cashOps       CashOperation[]
 }
 
 // Юрлицо или ИП внутри СТО: от его имени оформляются документы.
@@ -163,16 +178,16 @@ model Vehicle {
 
 // Исполнитель работ: мастер (не обязательно с логином) или менеджер.
 model Employee {
-  id           String          @id @default(cuid())
-  companyId    String
-  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name         String
-  position     String?
-  workPercent  Int             @default(0) // % от работ для расчёта зарплаты
-  active       Boolean         @default(true)
-  createdAt    DateTime        @default(now())
-  orderWorks   WorkOrderWork[]
-  managedOrders WorkOrder[]    @relation("OrderManager")
+  id            String          @id @default(cuid())
+  companyId     String
+  company       Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String
+  position      String?
+  workPercent   Int             @default(0) // % от работ для расчёта зарплаты
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  orderWorks    WorkOrderWork[]
+  managedOrders WorkOrder[]     @relation("OrderManager")
 
   @@index([companyId])
 }
@@ -193,16 +208,18 @@ model Work {
 
 // Номенклатура (запчасти и материалы).
 model Product {
-  id         String          @id @default(cuid())
-  companyId  String
-  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name       String
-  article    String?
-  brand      String?
-  unit       String          @default("шт")
-  price      Int             @default(0) // цена продажи, коп.
-  createdAt  DateTime        @default(now())
-  orderItems WorkOrderItem[]
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  article      String?
+  brand        String?
+  unit         String          @default("шт")
+  price        Int             @default(0) // цена продажи, коп.
+  createdAt    DateTime        @default(now())
+  orderItems   WorkOrderItem[]
+  receiptLines ReceiptLine[]
+  stockMoves   StockMove[]
 
   @@index([companyId, name])
   @@index([companyId, article])
@@ -238,18 +255,18 @@ model WorkOrder {
 }
 
 model WorkOrderWork {
-  id          String    @id @default(cuid())
-  orderId     String
-  order       WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  workId      String?
-  work        Work?     @relation(fields: [workId], references: [id])
-  name        String
-  normHours   Decimal   @default(1) @db.Decimal(8, 2)
-  price       Int // цена за 1 нормочас или за работу целиком, коп.
-  discount    Int       @default(0) // %
-  executorId  String?
-  executor    Employee? @relation(fields: [executorId], references: [id])
-  position    Int       @default(0)
+  id         String    @id @default(cuid())
+  orderId    String
+  order      WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  workId     String?
+  work       Work?     @relation(fields: [workId], references: [id])
+  name       String
+  normHours  Decimal   @default(1) @db.Decimal(8, 2)
+  price      Int // цена за 1 нормочас или за работу целиком, коп.
+  discount   Int       @default(0) // %
+  executorId String?
+  executor   Employee? @relation(fields: [executorId], references: [id])
+  position   Int       @default(0)
 }
 
 model WorkOrderItem {
@@ -274,8 +291,103 @@ model Payment {
   order     WorkOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   amount    Int // коп., возврат — отрицательная сумма
   method    PaymentMethod
+  cashboxId String?
+  cashbox   Cashbox?      @relation(fields: [cashboxId], references: [id])
   paidAt    DateTime      @default(now())
   comment   String?
 
   @@index([companyId, paidAt])
+}
+
+model Supplier {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  inn       String?
+  phone     String?
+  comment   String?
+  createdAt DateTime        @default(now())
+  receipts  Receipt[]
+  cashOps   CashOperation[]
+
+  @@index([companyId, name])
+}
+
+// Приходная накладная от поставщика. При проведении товар поступает на склад.
+model Receipt {
+  id          String        @id @default(cuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number      Int
+  status      DocStatus     @default(DRAFT)
+  supplierId  String?
+  supplier    Supplier?     @relation(fields: [supplierId], references: [id])
+  supplierDoc String? // номер накладной поставщика
+  date        DateTime      @default(now())
+  comment     String?
+  createdAt   DateTime      @default(now())
+  lines       ReceiptLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId, date])
+}
+
+model ReceiptLine {
+  id        String  @id @default(cuid())
+  receiptId String
+  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade) // удаление товара из накладной запрещено в catalog.deleteProduct
+  qty       Decimal @db.Decimal(12, 3)
+  cost      Int // закупочная цена за единицу, коп.
+  position  Int     @default(0)
+}
+
+// Движение товара: приход (+) или расход в заказ-наряд (−). Остаток = сумма qty.
+model StockMove {
+  id        String        @id @default(cuid())
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qty       Decimal       @db.Decimal(12, 3)
+  cost      Int           @default(0) // себестоимость единицы, коп.
+  kind      StockMoveKind
+  docId     String // Receipt.id или WorkOrder.id
+  date      DateTime      @default(now())
+
+  @@index([companyId, productId])
+  @@index([docId])
+}
+
+// Касса (наличные) или расчётный счёт.
+model Cashbox {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  kind      CashboxKind
+  createdAt DateTime        @default(now())
+  payments  Payment[]
+  ops       CashOperation[]
+
+  @@index([companyId])
+}
+
+// Приход или расход денег, не связанный с оплатой заказ-наряда: аренда, оплата поставщику, внесение.
+model CashOperation {
+  id         String    @id @default(cuid())
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  cashboxId  String
+  cashbox    Cashbox   @relation(fields: [cashboxId], references: [id], onDelete: Cascade)
+  amount     Int // коп., расход — отрицательная сумма
+  category   String
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+  comment    String?
+  date       DateTime  @default(now())
+
+  @@index([companyId, date])
 }
