@@ -12,6 +12,7 @@ export const employeeSchema = z.object({
     .optional()
     .transform((v) => (v ? v : null)),
   workPercent: z.coerce.number().int().min(0).max(100).default(0),
+  salesPercent: z.coerce.number().int().min(0).max(100).default(0),
   active: z
     .union([z.boolean(), z.literal("on"), z.literal("")])
     .optional()

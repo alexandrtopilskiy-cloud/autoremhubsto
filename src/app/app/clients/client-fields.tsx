@@ -1,6 +1,7 @@
 import { Field, Input, Select } from "@/components/ui";
+import { CLIENT_SOURCES } from "@/lib/services/clients";
 
-type C = { kind?: string; name?: string; phone?: string | null; email?: string | null; inn?: string | null; discount?: number; comment?: string | null };
+type C = { kind?: string; name?: string; phone?: string | null; email?: string | null; inn?: string | null; discount?: number; source?: string | null; comment?: string | null };
 
 export function ClientFields({ c = {} }: { c?: C }) {
   return (
@@ -26,6 +27,14 @@ export function ClientFields({ c = {} }: { c?: C }) {
       </Field>
       <Field label="Скидка, %">
         <Input name="discount" type="number" min={0} max={100} defaultValue={c.discount ?? 0} className="w-24" />
+      </Field>
+      <Field label="Откуда узнал">
+        <Input name="source" list="client-sources" defaultValue={c.source ?? ""} />
+        <datalist id="client-sources">
+          {CLIENT_SOURCES.map((x) => (
+            <option key={x} value={x} />
+          ))}
+        </datalist>
       </Field>
       <Field label="Комментарий" className="w-full">
         <Input name="comment" defaultValue={c.comment ?? ""} />

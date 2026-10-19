@@ -161,6 +161,7 @@ model Client {
   inn          String?
   comment      String?
   discount     Int           @default(0) // скидка клиента, %
+  source       String? // откуда пришёл: рекламный источник
   archived     Boolean       @default(false)
   createdAt    DateTime      @default(now())
   vehicles     Vehicle[]
@@ -199,6 +200,7 @@ model Employee {
   name          String
   position      String?
   workPercent   Int             @default(0) // % от работ для расчёта зарплаты
+  salesPercent  Int             @default(0) // % менеджера от суммы проведённых заказ-нарядов
   active        Boolean         @default(true)
   createdAt     DateTime        @default(now())
   orderWorks    WorkOrderWork[]

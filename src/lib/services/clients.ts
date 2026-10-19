@@ -16,7 +16,11 @@ export const clientSchema = z.object({
   inn: opt,
   comment: opt,
   discount: z.coerce.number().int().min(0).max(100).default(0),
+  source: opt,
 });
+
+/** Подсказки для поля «Откуда узнал»; можно ввести и свой вариант. */
+export const CLIENT_SOURCES = ["Рекомендация", "Яндекс Карты", "2ГИС", "Сайт", "Авито", "Соцсети", "Вывеска", "Повторный визит"];
 
 export const vehicleSchema = z.object({
   make: z.string().trim().min(1, "Укажите марку"),

@@ -23,7 +23,7 @@ export default async function StaffPage() {
       <ManagerOnly role={s.role}>
         <Card title="Сотрудники и исполнители">
           <p className="mb-3 text-sm text-slate-600">
-            Мастера и менеджеры, которых можно указать в заказ-наряде. Процент от работ пригодится для расчёта зарплаты.
+            Мастера и менеджеры, которых можно указать в заказ-наряде. Процент от работ начисляется мастеру с выполненных им работ, процент от продаж — менеджеру с суммы его заказ-нарядов (отчёты «Исполнители» и «Менеджеры»).
           </p>
           <div className="mb-4 flex flex-col divide-y">
             {employees.map((e) => (
@@ -31,7 +31,10 @@ export default async function StaffPage() {
                 <Input name="name" defaultValue={e.name} className="min-w-56 flex-1" aria-label="Имя" />
                 <Input name="position" defaultValue={e.position ?? ""} placeholder="должность" className="w-40" aria-label="Должность" />
                 <label className="flex items-center gap-1 text-sm">
-                  <Input name="workPercent" type="number" min={0} max={100} defaultValue={e.workPercent} className="w-20" aria-label="Процент" />%
+                  <Input name="workPercent" type="number" min={0} max={100} defaultValue={e.workPercent} className="w-20" aria-label="Процент от работ" />% от работ
+                </label>
+                <label className="flex items-center gap-1 text-sm">
+                  <Input name="salesPercent" type="number" min={0} max={100} defaultValue={e.salesPercent} className="w-20" aria-label="Процент от продаж" />% от продаж
                 </label>
                 <label className="flex items-center gap-1 pb-2 text-sm">
                   <input type="checkbox" name="active" defaultChecked={e.active} /> работает
@@ -49,6 +52,9 @@ export default async function StaffPage() {
             </Field>
             <Field label="% от работ">
               <Input name="workPercent" type="number" min={0} max={100} defaultValue={0} className="w-20" />
+            </Field>
+            <Field label="% от продаж">
+              <Input name="salesPercent" type="number" min={0} max={100} defaultValue={0} className="w-20" />
             </Field>
             <Submit>Добавить сотрудника</Submit>
           </ActionForm>
