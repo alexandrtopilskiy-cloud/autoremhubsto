@@ -2,10 +2,11 @@ import Link from "next/link";
 import { Card, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { vehicleTitle } from "@/lib/format";
-import { APPOINTMENT_STAGES, appointmentStage, listAppointments, listWorkplaces, workplaceLoad } from "@/lib/services/appointments";
+import { APPOINTMENT_STAGES, appointmentStage, dayLoad, listAppointments, listWorkplaces, workplaceLoad } from "@/lib/services/appointments";
 import { getCompany } from "@/lib/services/settings";
 import {
   addDays,
+  addMonths,
   dateLabel,
   isDateStr,
   localDate,
@@ -13,6 +14,8 @@ import {
   localTime,
   localToUtc,
   minutesToTime,
+  monthLabel,
+  monthWeeks,
   todayLocal,
   weekdayLabel,
   weekStart,
@@ -25,27 +28,34 @@ const ROW_PX = 40;
 type Appt = Awaited<ReturnType<typeof listAppointments>>[number];
 
 const who = (a: Appt) => a.client?.name ?? a.contactName ?? a.contactPhone ?? "Без клиента";
+const SHOWN = 3; // записей в клетке месяца, остальные — «ещё N»
 
-export default async function SchedulePage({ searchParams }: { searchParams: Promise<{ date?: string; view?: string }> }) {
+export default async function SchedulePage({ searchParams }: { searchParams: Promise<{ date?: string; view?: string; wp?: string }> }) {
   const s = await requireSession();
   const sp = await searchParams;
   const company = await getCompany(s.companyId);
   const tz = company.utcOffset;
   const date = isDateStr(sp.date) ? sp.date : todayLocal(tz);
-  const week = sp.view === "week";
-  const from = week ? weekStart(date) : date;
-  const days = week ? 7 : 1;
-  const [workplaces, appts] = await Promise.all([
-    listWorkplaces(s.companyId),
-    listAppointments(s.companyId, localToUtc(from, "00:00", tz), localToUtc(addDays(from, days), "00:00", tz)),
-  ]);
+  const view = sp.view === "week" || sp.view === "month" ? sp.view : "day";
+  const week = view === "week";
+  const weeks = view === "month" ? monthWeeks(date) : [];
+  const from = view === "month" ? weeks[0][0] : week ? weekStart(date) : date;
+  const days = view === "month" ? weeks.length * 7 : week ? 7 : 1;
+  const allPlaces = await listWorkplaces(s.companyId);
+  // в месяце можно смотреть один пост
+  const wp = view === "month" ? allPlaces.find((w) => w.id === sp.wp) : undefined;
+  const workplaces = wp ? [wp] : allPlaces;
+  const appts = await listAppointments(s.companyId, localToUtc(from, "00:00", tz), localToUtc(addDays(from, days), "00:00", tz), {
+    workplaceId: wp?.id,
+  });
   const workMinutes = company.dayEnd - company.dayStart;
   const workday = (d: string) => ({
     start: localToUtc(d, minutesToTime(company.dayStart), tz),
     end: localToUtc(d, minutesToTime(company.dayEnd), tz),
   });
-  const step = week ? 7 : 1;
-  const nav = (d: string) => `/app/schedule?date=${d}${week ? "&view=week" : ""}`;
+  const shift = (n: number) => (view === "month" ? addMonths(date, n) : addDays(date, n * (week ? 7 : 1)));
+  const nav = (d: string) => `/app/schedule?date=${d}${view !== "day" ? `&view=${view}` : ""}${wp ? `&wp=${wp.id}` : ""}`;
+  const today = todayLocal(tz);
 
   return (
     <div className="flex flex-col gap-4">
@@ -59,18 +69,20 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
         Запись на сервис
       </PageTitle>
       <div className="flex flex-wrap items-center gap-3">
-        <ScheduleTabs active={week ? "week" : "day"} date={date} />
+        <ScheduleTabs active={view} date={date} />
         <div className="flex items-center gap-1 text-sm">
-          <Link href={nav(addDays(date, -step))} className="rounded border border-slate-300 bg-white px-2 py-1">
+          <Link href={nav(shift(-1))} className="rounded border border-slate-300 bg-white px-2 py-1">
             ←
           </Link>
-          <Link href={nav(todayLocal(tz))} className="rounded border border-slate-300 bg-white px-2 py-1">
+          <Link href={nav(today)} className="rounded border border-slate-300 bg-white px-2 py-1">
             Сегодня
           </Link>
-          <Link href={nav(addDays(date, step))} className="rounded border border-slate-300 bg-white px-2 py-1">
+          <Link href={nav(shift(1))} className="rounded border border-slate-300 bg-white px-2 py-1">
             →
           </Link>
-          <span className="ml-2 font-medium">{week ? `${dateLabel(from)} — ${dateLabel(addDays(from, 6))}` : dateLabel(date)}</span>
+          <span className="ml-2 font-medium">
+            {view === "month" ? monthLabel(date) : week ? `${dateLabel(from)} — ${dateLabel(addDays(from, 6))}` : dateLabel(date)}
+          </span>
         </div>
         <div className="ml-auto flex flex-wrap gap-1 text-xs">
           {APPOINTMENT_STAGES.map((x) => (
@@ -86,6 +98,72 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
           <p className="text-sm text-slate-600">
             Постов пока нет. Добавьте их в <Link className="text-blue-600" href="/app/settings">настройках</Link>.
           </p>
+        </Card>
+      ) : view === "month" ? (
+        <Card>
+          {allPlaces.length > 1 && (
+            <form className="mb-3 flex items-center gap-2 text-sm">
+              <input type="hidden" name="view" value="month" />
+              <input type="hidden" name="date" value={date} />
+              <select name="wp" defaultValue={wp?.id ?? ""} aria-label="Пост" className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5">
+                <option value="">Все посты</option>
+                {allPlaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+              <button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50">Показать</button>
+            </form>
+          )}
+          <div className="overflow-x-auto">
+            <div className="grid min-w-[720px] grid-cols-7 border-t border-l text-xs">
+              {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
+                <div key={d} className="border-r border-b bg-slate-50 p-1.5 font-medium text-slate-500">
+                  {d}
+                </div>
+              ))}
+              {weeks.flat().map((d) => {
+                const list = appts.filter((a) => localDate(a.startAt, tz) === d);
+                const load = dayLoad(appts, workplaces.map((w) => w.id), workday(d), workMinutes);
+                const other = d.slice(0, 7) !== date.slice(0, 7);
+                return (
+                  <div key={d} className={`min-h-28 border-r border-b p-1 ${other ? "bg-slate-50 text-slate-400" : ""}`} data-date={d}>
+                    <div className="mb-1 flex items-center justify-between gap-1">
+                      <Link
+                        href={`/app/schedule?date=${d}`}
+                        className={`rounded px-1 font-medium hover:text-blue-600 ${d === today ? "bg-blue-600 text-white hover:text-white" : ""}`}
+                      >
+                        {Number(d.slice(8))}
+                      </Link>
+                      {list.length > 0 && (
+                        <span className={load > 85 ? "text-red-600" : "text-slate-500"} title="Загрузка постов">
+                          {load}%
+                        </span>
+                      )}
+                    </div>
+                    {list.length > 0 && (
+                      <div className="mb-1 h-1 rounded bg-slate-100">
+                        <div className={`h-1 rounded ${load > 85 ? "bg-red-500" : "bg-blue-500"}`} style={{ width: `${Math.min(100, load)}%` }} />
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-0.5">
+                      {list.slice(0, SHOWN).map((a) => (
+                        <Link key={a.id} href={`/app/schedule/${a.id}`} className={`block truncate rounded border px-1 py-0.5 ${appointmentStage(a.stage).color}`}>
+                          {localTime(a.startAt, tz)} {who(a)}
+                        </Link>
+                      ))}
+                      {list.length > SHOWN && (
+                        <Link href={`/app/schedule?date=${d}`} className="px-1 text-blue-600 hover:underline">
+                          ещё {list.length - SHOWN}
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </Card>
       ) : week ? (
         <Card>
