@@ -5,7 +5,7 @@ import type { Prisma, SupplierOrderStatus } from "@prisma/client";
 import { prisma } from "../db";
 import { nextNumber } from "../counters";
 import { NotFoundError, UserError } from "../errors";
-import { receiptTotal } from "./stock";
+import { receiptTotal, stockBalances } from "./stock";
 
 type Tx = Prisma.TransactionClient;
 
@@ -126,6 +126,26 @@ export async function addSupplierOrderLine(companyId: string, id: string, input:
         position,
       },
     });
+  });
+}
+
+/**
+ * 9.5 Дефицит в заказ: по каждому товару ниже минимального остатка (можно только из группы) добавляет
+ * недостающее количество с ценой последнего прихода. Товары, которые уже есть в заказе, пропускаются.
+ */
+export async function addDeficitLines(companyId: string, id: string, groupId?: string) {
+  const rows = await stockBalances(companyId, undefined, { groupId, deficit: true });
+  return prisma.$transaction(async (tx) => {
+    await editable(tx, companyId, id);
+    const inOrder = new Set((await tx.supplierOrderLine.findMany({ where: { orderId: id }, select: { productId: true } })).map((l) => l.productId));
+    const add = rows.filter((r) => !inOrder.has(r.id));
+    if (add.length === 0) throw new UserError(rows.length ? "Все товары с дефицитом уже есть в заказе" : "Товаров ниже минимального остатка нет");
+    let position = await tx.supplierOrderLine.count({ where: { orderId: id } });
+    for (const r of add) {
+      const last = await tx.stockMove.findFirst({ where: { companyId, productId: r.id, kind: "RECEIPT" }, orderBy: { date: "desc" } });
+      await tx.supplierOrderLine.create({ data: { orderId: id, productId: r.id, qty: r.shortage, cost: last?.cost ?? 0, position: position++ } });
+    }
+    return add.length;
   });
 }
 

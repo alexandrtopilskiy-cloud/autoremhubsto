@@ -16,6 +16,7 @@ import {
   unpostReceiptAction,
   updateReceiptAction,
 } from "../../actions";
+import { ProductSelect } from "../../product-select";
 import { StockTabs } from "../../tabs";
 
 export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
@@ -106,14 +107,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           {!posted && (
             <ActionForm action={addReceiptLineAction.bind(null, r.id)} reset className="flex flex-wrap items-end gap-3">
               <Field label="Товар" className="min-w-64 flex-1">
-                <Select name="productId" defaultValue="">
-                  <option value="">Выберите товар</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {[p.name, p.article, p.brand].filter(Boolean).join(" · ")}
-                    </option>
-                  ))}
-                </Select>
+                <ProductSelect products={products} />
               </Field>
               <Field label="Кол-во">
                 <Input name="qty" defaultValue="1" inputMode="decimal" className="w-24" />

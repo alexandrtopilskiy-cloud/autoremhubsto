@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { SessionCtx } from "@/lib/auth";
 import { fields, num, rub, type FormState } from "@/lib/actions";
 import { guarded } from "@/lib/guard";
+import { resolveProductId } from "@/lib/services/catalog";
 import { assertFlag, type Level } from "@/lib/permissions";
 import {
   addReceiptLine,
@@ -52,8 +53,8 @@ export async function updateReceiptAction(id: string, _: FormState, fd: FormData
   return op(rp(id), (c) => updateReceipt(c, id, fields(fd)), "EDIT", true);
 }
 export async function addReceiptLineAction(id: string, _: FormState, fd: FormData) {
-  return op(rp(id), (c) =>
-    addReceiptLine(c, id, { productId: fields(fd).productId, qty: num(fd, "qty"), cost: rub(fd, "cost", "Закупочная цена") }),
+  return op(rp(id), async (c) =>
+    addReceiptLine(c, id, { productId: await resolveProductId(c, fields(fd)), qty: num(fd, "qty"), cost: rub(fd, "cost", "Закупочная цена") }),
     "EDIT", true,
   );
 }

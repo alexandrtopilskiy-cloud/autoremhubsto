@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { nextNumber } from "../counters";
 import { NotFoundError, UserError } from "../errors";
+import { productFilter } from "./catalog";
 
 type Tx = Prisma.TransactionClient;
 
@@ -168,23 +169,13 @@ export async function averageCosts(db: Tx | typeof prisma, companyId: string, pr
   return new Map(rows.map((r) => [r.productId, Math.round(r.avg ?? 0)]));
 }
 
-export async function stockBalances(companyId: string, q?: string) {
-  const s = q?.trim();
+/** Остатки товаров; deficit — только товары с остатком ниже минимального. */
+export async function stockBalances(companyId: string, q?: string, opts: { groupId?: string; deficit?: boolean } = {}) {
   const products = await prisma.product.findMany({
-    where: {
-      companyId,
-      ...(s
-        ? {
-            OR: [
-              { name: { contains: s, mode: "insensitive" } },
-              { article: { contains: s, mode: "insensitive" } },
-              { brand: { contains: s, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
+    where: { companyId, ...productFilter(q, opts.groupId), ...(opts.deficit ? { minQty: { not: null } } : {}) },
+    include: { group: true },
     orderBy: { name: "asc" },
-    take: 500,
+    take: opts.deficit ? undefined : 500,
   });
   const ids = products.map((p) => p.id);
   const [sums, costs] = await Promise.all([
@@ -192,11 +183,15 @@ export async function stockBalances(companyId: string, q?: string) {
     averageCosts(prisma, companyId, ids),
   ]);
   const qty = new Map(sums.map((r) => [r.productId, Number(r._sum.qty ?? 0)]));
-  return products.map((p) => {
+  const rows = products.map((p) => {
     const q = qty.get(p.id) ?? 0;
     const cost = costs.get(p.id) ?? 0;
-    return { ...p, qty: q, cost, value: Math.round(q * cost) };
+    const minQty = p.minQty === null ? null : Number(p.minQty);
+    // сколько докупить до минимального остатка
+    const shortage = minQty !== null && q < minQty ? Math.round((minQty - q) * 1000) / 1000 : 0;
+    return { ...p, minQty, qty: q, cost, value: Math.round(q * cost), shortage };
   });
+  return opts.deficit ? rows.filter((r) => r.shortage > 0) : rows;
 }
 
 /** Списание товаров заказ-наряда со склада. Вызывается при проведении. */

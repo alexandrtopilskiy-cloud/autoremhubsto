@@ -5,6 +5,7 @@ import type { LineKind, OrderStage, RecommendationStatus } from "@prisma/client"
 import { requireSession, type SessionCtx } from "@/lib/auth";
 import { fields, num, rub, run, type FormState } from "@/lib/actions";
 import { guarded } from "@/lib/guard";
+import { resolveProductId } from "@/lib/services/catalog";
 import { assertCan, assertFlag, checkDiscount, type Level, type Section } from "@/lib/permissions";
 import {
   addItem,
@@ -111,9 +112,10 @@ export async function addWorkFromCatalogAction(orderId: string, _: FormState, fd
 }
 
 export async function addItemFromCatalogAction(orderId: string, _: FormState, fd: FormData) {
-  return onOrder(orderId, (c, s) => {
+  return onOrder(orderId, async (c, s) => {
     checkDiscount(s.perms, fd.get("discount"));
-    return addItemFromCatalog(c, orderId, { ...fields(fd), qty: num(fd, "qty") });
+    const f = fields(fd);
+    return addItemFromCatalog(c, orderId, { ...f, refId: await resolveProductId(c, { productId: f.refId, barcode: f.barcode }), qty: num(fd, "qty") });
   });
 }
 
