@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { ManagerOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, Select } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { ROLES, roleLabel } from "@/lib/roles";
-import { listAllEmployees, listMembers } from "@/lib/services/staff";
+import { listAllEmployees, listMembers, listRoles } from "@/lib/services/staff";
 import {
   addMemberAction,
   createEmployeeAction,
@@ -14,16 +15,23 @@ import {
 } from "../manage-actions";
 import { StaffTabs } from "./tabs";
 
-const assignable = ROLES.filter((r) => r.value !== "OWNER");
+const builtIn = ROLES.filter((r) => r.value !== "OWNER");
 
 export default async function StaffPage() {
   const s = await requireSession();
-  const [employees, members] = await Promise.all([listAllEmployees(s.companyId), listMembers(s.companyId)]);
+  const users = can(s.perms, "settings");
+  const [employees, members, roles] = await Promise.all([
+    listAllEmployees(s.companyId),
+    users ? listMembers(s.companyId) : [],
+    users ? listRoles(s.companyId) : [],
+  ]);
+  const assignable = [...builtIn, ...roles.map((r) => ({ value: `custom:${r.id}`, label: r.name }))];
+  const roleOf = (m: (typeof members)[number]) => (m.customRole ? `custom:${m.customRole.id}` : m.role);
   return (
     <div className="flex flex-col gap-4">
       <PageTitle>Сотрудники</PageTitle>
       <StaffTabs active="staff" />
-      <ManagerOnly role={s.role}>
+      <Allowed perms={s.perms} section="staff">
         <Card title="Сотрудники и исполнители">
           <p className="mb-3 text-sm text-slate-600">
             Мастера и менеджеры, которых можно указать в заказ-наряде. Процент от работ начисляется мастеру с выполненных им работ, процент от продаж — менеджеру с суммы его заказ-нарядов. Базу начисления, отдельный процент от товаров и начисление только по оплаченным нарядам можно задать по ссылке «Схема зарплаты».
@@ -66,6 +74,7 @@ export default async function StaffPage() {
           </ActionForm>
         </Card>
 
+        {users && (
         <Card title="Доступ в систему">
           <div className="mb-4 flex flex-col divide-y">
             {members.map((m) => {
@@ -76,11 +85,11 @@ export default async function StaffPage() {
                     <b>{m.user.name}</b> <span className="text-slate-500">{m.user.email}</span>
                   </span>
                   {locked ? (
-                    <Badge tone="blue">{roleLabel(m.role)}</Badge>
+                    <Badge tone="blue">{m.customRole?.name ?? roleLabel(m.role)}</Badge>
                   ) : (
                     <>
-                      <ActionForm action={setMemberRoleAction.bind(null, m.id)} className="flex items-center gap-2">
-                        <Select name="role" defaultValue={m.role}>
+                      <ActionForm key={roleOf(m)} action={setMemberRoleAction.bind(null, m.id)} className="flex items-center gap-2">
+                        <Select name="role" defaultValue={roleOf(m)}>
                           {assignable.map((r) => (
                             <option key={r.value} value={r.value}>
                               {r.label}
@@ -120,10 +129,15 @@ export default async function StaffPage() {
             <Submit>Дать доступ</Submit>
           </ActionForm>
           <p className="mt-2 text-xs text-slate-500">
-            Если человек уже работает в системе в другой СТО, пароль не нужен: он войдёт со своим.
+            Если человек уже работает в системе в другой СТО, пароль не нужен: он войдёт со своим. Свои роли с набором прав настраиваются в{" "}
+            <Link href="/app/settings/roles" className="text-blue-600 hover:underline">
+              Настройках → Роли и права
+            </Link>
+            .
           </p>
         </Card>
-      </ManagerOnly>
+        )}
+      </Allowed>
     </div>
   );
 }

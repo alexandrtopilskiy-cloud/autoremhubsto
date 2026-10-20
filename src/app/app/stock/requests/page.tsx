@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { PartsRequestStatus } from "@prisma/client";
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Badge, Card, PageTitle, Select } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
@@ -20,7 +20,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
     <div className="flex flex-col gap-4">
       <PageTitle>Склад</PageTitle>
       <StockTabs active="requests" />
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="stock">
         <Card>
           <form className="mb-3 flex flex-wrap items-center gap-2">
             <Select name="status" defaultValue={status ?? "ALL"}>
@@ -89,7 +89,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
             {list.length === 0 && <li className="text-sm text-slate-500">Требований нет</li>}
           </ul>
         </Card>
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

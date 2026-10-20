@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -16,7 +16,7 @@ export default async function InventoriesPage() {
     <div className="flex flex-col gap-4">
       <PageTitle>Склад</PageTitle>
       <StockTabs active="inventory" />
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="stock">
         <Card title="Новая инвентаризация">
           <p className="mb-3 text-sm text-slate-600">
             В документ попадут все товары с остатком. Впишите, сколько их на самом деле, и проведите: склад выровняется по факту.
@@ -67,7 +67,7 @@ export default async function InventoriesPage() {
             </tbody>
           </table>
         </Card>
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

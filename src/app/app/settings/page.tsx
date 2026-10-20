@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { ManagerOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle, Select } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { listOrganizations } from "@/lib/services/employees";
@@ -45,8 +46,16 @@ export default async function SettingsPage() {
   ]);
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Настройки СТО</PageTitle>
-      <ManagerOnly role={s.role}>
+      <PageTitle
+        actions={
+          <Link href="/app/settings/roles" className="text-sm text-blue-600 hover:underline">
+            Роли и права
+          </Link>
+        }
+      >
+        Настройки СТО
+      </PageTitle>
+      <Allowed perms={s.perms} section="settings">
         <Card title="Компания">
           <ActionForm action={updateCompanyAction} className="flex flex-wrap items-end gap-3">
             <Field label="Название СТО" className="min-w-64 flex-1">
@@ -112,7 +121,7 @@ export default async function SettingsPage() {
             <Submit>Добавить</Submit>
           </ActionForm>
         </Card>
-      </ManagerOnly>
+      </Allowed>
     </div>
   );
 }

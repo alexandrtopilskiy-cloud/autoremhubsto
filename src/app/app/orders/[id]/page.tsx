@@ -14,7 +14,7 @@ import { stockBalances } from "@/lib/services/stock";
 import { getOrder, orderSummary, STAGES, stageLabel } from "@/lib/services/orders";
 import { orderPartsRequests, requestStatusLabel } from "@/lib/services/parts-requests";
 import { listRecommendations, recStatusLabel } from "@/lib/services/recommendations";
-import { canOperate } from "@/lib/roles";
+import { can } from "@/lib/permissions";
 import { Attachments } from "@/components/attachments";
 import { CarScheme } from "@/components/car-scheme";
 import { ContactLinks } from "@/components/contact-links";
@@ -68,7 +68,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const inspection = await getInspection(s.companyId, id);
   // открытые рекомендации клиента и всё, что записано из этого наряда
   const shownRecs = recs.filter((r) => r.status === "OPEN" || r.orderId === o.id || r.doneOrderId === o.id);
-  const operator = canOperate(s.role);
+  const issuer = can(s.perms, "stock", "EDIT");
+  const cashier = can(s.perms, "cash", "CREATE");
   const car = o.vehicle ? vehicleTitle(o.vehicle) : "автомобиль";
   const message =
     o.stage === "READY"
@@ -468,7 +469,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     {formatDate(r.createdAt, true)}
                     {r.requestedBy && `, ${r.requestedBy.name}`}
                   </span>
-                  {r.status === "NEW" && operator && !posted && (
+                  {r.status === "NEW" && issuer && !posted && (
                     <span className="ml-auto flex gap-2">
                       <ActionForm action={issueRequestAction.bind(null, o.id, r.id)}>
                         <Submit variant="ghost">Выдать</Submit>
@@ -615,6 +616,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             ))}
           </ul>
         )}
+        {cashier && (
         <ActionForm key={t.due} action={addPaymentAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
           <Field label="Сумма, ₽">
             <Input name="amount" inputMode="decimal" defaultValue={t.due > 0 ? money(t.due) : ""} className="w-32" required />
@@ -646,9 +648,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           </label>
           <Submit variant="ghost">Провести оплату</Submit>
         </ActionForm>
+        )}
       </Card>
 
-      {operator && (
+      {s.perms.flags.costs && (
         <Card title="Сводка">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
             <div>

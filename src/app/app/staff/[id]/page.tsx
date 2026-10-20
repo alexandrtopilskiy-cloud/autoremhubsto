@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm, Submit } from "@/components/form";
-import { ManagerOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle, Select } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -19,7 +19,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
     <div className="flex flex-col gap-4">
       <PageTitle>Сотрудники</PageTitle>
       <StaffTabs active="staff" />
-      <ManagerOnly role={s.role}>
+      <Allowed perms={s.perms} section="staff">
         <h2 className="text-lg font-semibold">
           {e.name}
           {e.position && <span className="font-normal text-slate-500">, {e.position}</span>}
@@ -87,7 +87,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
             Расчётный листок за текущий месяц
           </Link>
         </p>
-      </ManagerOnly>
+      </Allowed>
     </div>
   );
 }

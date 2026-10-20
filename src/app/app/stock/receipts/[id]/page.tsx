@@ -1,7 +1,7 @@
 import { Attachments } from "@/components/attachments";
 import { notFound } from "next/navigation";
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
@@ -30,7 +30,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
   return (
     <div className="flex flex-col gap-4">
       <StockTabs active="receipts" />
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="stock" flag="costs">
         <PageTitle
           actions={
             posted ? (
@@ -126,7 +126,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           )}
         </Card>
         <Attachments companyId={s.companyId} kind="RECEIPT" docId={r.id} path={`/app/stock/receipts/${r.id}`} />
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

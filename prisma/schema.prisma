@@ -149,6 +149,7 @@ model Company {
   inventories     Inventory[]
   supplierOrders  SupplierOrder[]
   payrollEntries  PayrollEntry[]
+  roles           CompanyRole[]
 }
 
 // Юрлицо или ИП внутри СТО: от его имени оформляются документы.
@@ -180,15 +181,30 @@ model User {
 }
 
 model Membership {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  role      Role
-  createdAt DateTime @default(now())
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role         Role // для своей роли — базовая роль, права берутся из customRole
+  customRoleId String?
+  customRole   CompanyRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
 
   @@unique([userId, companyId])
+}
+
+// Своя роль СТО с правами по разделам (src/lib/permissions.ts).
+model CompanyRole {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  permissions Json         @default("{}")
+  createdAt   DateTime     @default(now())
+  members     Membership[]
+
+  @@unique([companyId, name])
 }
 
 model Session {

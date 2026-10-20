@@ -1,11 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
-import { fields, num, rub, run, type FormState } from "@/lib/actions";
+import type { SessionCtx } from "@/lib/auth";
+import { fields, num, rub, type FormState } from "@/lib/actions";
 import { UserError } from "@/lib/errors";
-import { assertOperator } from "@/lib/roles";
+import { guarded } from "@/lib/guard";
+import { assertCan, assertFlag, checkDiscount, type Level } from "@/lib/permissions";
 import {
   addSupplierOrderLine,
   cancelSupplierOrder,
@@ -39,22 +39,30 @@ import {
   updateWriteOff,
 } from "@/lib/services/warehouse";
 
-async function op(path: string, fn: (companyId: string) => Promise<unknown>): Promise<FormState> {
-  const s = await requireSession();
-  const res = await run(async () => {
-    assertOperator(s.role);
-    await fn(s.companyId);
+/** Действие склада; costs — документ показывает закупочные цены. */
+async function op(
+  path: string,
+  fn: (companyId: string, s: SessionCtx) => Promise<unknown>,
+  level: Level = "EDIT",
+  costs = false,
+): Promise<FormState> {
+  return guarded("stock", level, path, async (c, s) => {
+    if (costs) assertFlag(s.perms, "costs");
+    await fn(c, s);
   });
-  revalidatePath(path);
-  return res;
 }
 
 /** Создаёт документ и открывает его. */
-async function create(list: string, fn: (companyId: string) => Promise<{ id: string }>): Promise<FormState> {
+async function create(list: string, fn: (companyId: string) => Promise<{ id: string }>, costs = false): Promise<FormState> {
   let id: string | undefined;
-  const res = await op(list, async (c) => {
-    id = (await fn(c)).id;
-  });
+  const res = await op(
+    list,
+    async (c) => {
+      id = (await fn(c)).id;
+    },
+    "CREATE",
+    costs,
+  );
   if (!id) return res;
   redirect(`${list}/${id}`);
 }
@@ -73,26 +81,29 @@ export async function updateSaleAction(id: string, _: FormState, fd: FormData) {
   return op(sp(id), (c) => updateSale(c, id, fields(fd)));
 }
 export async function addSaleLineAction(id: string, _: FormState, fd: FormData) {
-  return op(sp(id), (c) =>
-    addSaleLine(c, id, {
+  return op(sp(id), (c, s) => {
+    if (fd.get("price")?.toString().trim()) assertFlag(s.perms, "prices");
+    checkDiscount(s.perms, fd.get("discount"));
+    return addSaleLine(c, id, {
       productId: fields(fd).productId,
       qty: num(fd, "qty"),
       price: optRub(fd, "price", "Цена"),
       discount: num(fd, "discount"),
-    }),
-  );
+    });
+  });
 }
 export async function removeSaleLineAction(id: string, lineId: string) {
   return op(sp(id), (c) => removeSaleLine(c, id, lineId));
 }
 export async function postSaleAction(id: string) {
-  return op(sp(id), (c) => postSale(c, id));
+  return op(sp(id), (c) => postSale(c, id), "FULL");
 }
 export async function unpostSaleAction(id: string) {
-  return op(sp(id), (c) => unpostSale(c, id));
+  return op(sp(id), (c) => unpostSale(c, id), "FULL");
 }
 export async function addSalePaymentAction(id: string, _: FormState, fd: FormData) {
-  return op(sp(id), (c) => {
+  return op(sp(id), (c, s) => {
+    assertCan(s.perms, "cash", "CREATE");
     const amount = rub(fd, "amount");
     return addSalePayment(c, id, {
       cashboxId: fields(fd).cashboxId,
@@ -106,10 +117,10 @@ export async function addSalePaymentAction(id: string, _: FormState, fd: FormDat
 const op_ = (id: string) => `/app/stock/orders/${id}`;
 
 export async function createSupplierOrderAction(_: FormState, fd: FormData) {
-  return create("/app/stock/orders", (c) => createSupplierOrder(c, fields(fd)));
+  return create("/app/stock/orders", (c) => createSupplierOrder(c, fields(fd)), true);
 }
 export async function updateSupplierOrderAction(id: string, _: FormState, fd: FormData) {
-  return op(op_(id), (c) => updateSupplierOrder(c, id, fields(fd)));
+  return op(op_(id), (c) => updateSupplierOrder(c, id, fields(fd)), "EDIT", true);
 }
 export async function addSupplierOrderLineAction(id: string, _: FormState, fd: FormData) {
   return op(op_(id), (c) =>
@@ -118,25 +129,26 @@ export async function addSupplierOrderLineAction(id: string, _: FormState, fd: F
       qty: num(fd, "qty"),
       cost: optRub(fd, "cost", "Цена"),
     }),
+    "EDIT", true,
   );
 }
 export async function removeSupplierOrderLineAction(id: string, lineId: string) {
-  return op(op_(id), (c) => removeSupplierOrderLine(c, id, lineId));
+  return op(op_(id), (c) => removeSupplierOrderLine(c, id, lineId), "EDIT", true);
 }
 export async function sendSupplierOrderAction(id: string) {
-  return op(op_(id), (c) => sendSupplierOrder(c, id));
+  return op(op_(id), (c) => sendSupplierOrder(c, id), "EDIT", true);
 }
 export async function reopenSupplierOrderAction(id: string) {
-  return op(op_(id), (c) => reopenSupplierOrder(c, id));
+  return op(op_(id), (c) => reopenSupplierOrder(c, id), "EDIT", true);
 }
 export async function cancelSupplierOrderAction(id: string) {
-  return op(op_(id), (c) => cancelSupplierOrder(c, id));
+  return op(op_(id), (c) => cancelSupplierOrder(c, id), "FULL", true);
 }
 export async function receiveSupplierOrderAction(id: string): Promise<FormState> {
   let receiptId: string | undefined;
   const res = await op(op_(id), async (c) => {
     receiptId = (await receiveSupplierOrder(c, id)).id;
-  });
+  }, "CREATE", true);
   if (!receiptId) return res;
   redirect(`/app/stock/receipts/${receiptId}`);
 }
@@ -163,10 +175,10 @@ export async function removeWriteOffLineAction(id: string, lineId: string) {
   return op(wp(id), (c) => removeWriteOffLine(c, id, lineId));
 }
 export async function postWriteOffAction(id: string) {
-  return op(wp(id), (c) => postWriteOff(c, id));
+  return op(wp(id), (c) => postWriteOff(c, id), "FULL");
 }
 export async function unpostWriteOffAction(id: string) {
-  return op(wp(id), (c) => unpostWriteOff(c, id));
+  return op(wp(id), (c) => unpostWriteOff(c, id), "FULL");
 }
 
 // --- инвентаризация ---
@@ -204,8 +216,8 @@ export async function removeInventoryLineAction(id: string, lineId: string): Pro
   await op(ip(id), (c) => removeInventoryLine(c, id, lineId));
 }
 export async function postInventoryAction(id: string) {
-  return op(ip(id), (c) => postInventory(c, id));
+  return op(ip(id), (c) => postInventory(c, id), "FULL");
 }
 export async function unpostInventoryAction(id: string) {
-  return op(ip(id), (c) => unpostInventory(c, id));
+  return op(ip(id), (c) => unpostInventory(c, id), "FULL");
 }

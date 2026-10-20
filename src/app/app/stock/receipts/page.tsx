@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -16,7 +16,7 @@ export default async function ReceiptsPage() {
     <div className="flex flex-col gap-4">
       <PageTitle>Склад</PageTitle>
       <StockTabs active="receipts" />
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="stock" flag="costs">
         <Card title="Новый приход">
           <ActionForm action={createReceiptAction} className="flex flex-wrap items-end gap-3">
             <Field label="Поставщик">
@@ -73,7 +73,7 @@ export default async function ReceiptsPage() {
             </tbody>
           </table>
         </Card>
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

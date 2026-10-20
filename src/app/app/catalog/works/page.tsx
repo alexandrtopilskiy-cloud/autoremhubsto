@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { ManagerOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatRub } from "@/lib/money";
@@ -19,7 +19,7 @@ export default async function WorksPage({ searchParams }: { searchParams: Promis
     <div className="flex flex-col gap-4">
       <PageTitle>Справочники</PageTitle>
       <CatalogTabs active="works" />
-      <ManagerOnly role={s.role}>
+      <Allowed perms={s.perms} section="catalog" level="CREATE" quiet>
         <Card title="Новая работа">
           <p className="mb-3 text-sm text-slate-600">
             Если цена не указана, работа считается по нормочасам: нормочасы × цена нормочаса СТО (
@@ -41,7 +41,7 @@ export default async function WorksPage({ searchParams }: { searchParams: Promis
             <Submit>Добавить</Submit>
           </ActionForm>
         </Card>
-      </ManagerOnly>
+      </Allowed>
       <Card>
         <form className="mb-3 flex gap-2">
           <Input name="q" defaultValue={q} placeholder="Поиск по названию" className="min-w-72" />

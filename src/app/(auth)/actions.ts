@@ -14,7 +14,7 @@ export async function registerAction(_: FormState, fd: FormData): Promise<FormSt
   if (!ids) return res;
   const s = await createSession(ids.userId, ids.companyId);
   await setSessionCookie(s.token, s.expiresAt);
-  redirect("/app/orders");
+  redirect("/app");
 }
 
 export async function loginAction(_: FormState, fd: FormData): Promise<FormState> {
@@ -25,5 +25,5 @@ export async function loginAction(_: FormState, fd: FormData): Promise<FormState
   if (!ids) return res;
   const s = await createSession(ids.userId, ids.companyId);
   await setSessionCookie(s.token, s.expiresAt);
-  redirect("/app/orders");
+  redirect("/app");
 }

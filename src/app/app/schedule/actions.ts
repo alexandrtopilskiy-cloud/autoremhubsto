@@ -6,7 +6,6 @@ import type { AppointmentStage } from "@prisma/client";
 import { requireSession } from "@/lib/auth";
 import { fields, run, type FormState } from "@/lib/actions";
 import { parseRub } from "@/lib/money";
-import { assertManager } from "@/lib/roles";
 import {
   createAppointment,
   createOrderFromAppointment,
@@ -15,6 +14,8 @@ import {
   updateAppointment,
   updateWorkplace,
 } from "@/lib/services/appointments";
+import { guarded } from "@/lib/guard";
+import { assertCan } from "@/lib/permissions";
 
 const input = (fd: FormData) => ({ ...fields(fd), amount: parseRub(fd.get("amount")?.toString()) ?? 0 });
 
@@ -22,6 +23,7 @@ export async function createAppointmentAction(_: FormState, fd: FormData): Promi
   const s = await requireSession();
   let date: string | undefined;
   const res = await run(async () => {
+    assertCan(s.perms, "schedule", "CREATE");
     await createAppointment(s.companyId, input(fd));
     date = fields(fd).date;
   });
@@ -31,23 +33,18 @@ export async function createAppointmentAction(_: FormState, fd: FormData): Promi
 }
 
 export async function updateAppointmentAction(id: string, _: FormState, fd: FormData) {
-  const s = await requireSession();
-  const res = await run(() => updateAppointment(s.companyId, id, input(fd)));
-  revalidatePath(`/app/schedule/${id}`);
-  return res;
+  return guarded("schedule", "EDIT", `/app/schedule/${id}`, (c) => updateAppointment(c, id, input(fd)));
 }
 
 export async function setAppointmentStageAction(id: string, stage: AppointmentStage) {
-  const s = await requireSession();
-  const res = await run(() => setAppointmentStage(s.companyId, id, stage));
-  revalidatePath(`/app/schedule/${id}`);
-  return res;
+  return guarded("schedule", "EDIT", `/app/schedule/${id}`, (c) => setAppointmentStage(c, id, stage));
 }
 
 export async function createOrderFromAppointmentAction(id: string): Promise<FormState> {
   const s = await requireSession();
   let orderId: string | undefined;
   const res = await run(async () => {
+    assertCan(s.perms, "orders", "CREATE");
     orderId = (await createOrderFromAppointment(s.companyId, id)).id;
   });
   if (!orderId) return res;
@@ -55,21 +52,9 @@ export async function createOrderFromAppointmentAction(id: string): Promise<Form
 }
 
 export async function createWorkplaceAction(_: FormState, fd: FormData) {
-  const s = await requireSession();
-  const res = await run(async () => {
-    assertManager(s.role);
-    await createWorkplace(s.companyId, fields(fd));
-  });
-  revalidatePath("/app/settings");
-  return res;
+  return guarded("settings", "EDIT", "/app/settings", (c) => createWorkplace(c, fields(fd)));
 }
 
 export async function updateWorkplaceAction(id: string, _: FormState, fd: FormData) {
-  const s = await requireSession();
-  const res = await run(async () => {
-    assertManager(s.role);
-    await updateWorkplace(s.companyId, id, fields(fd));
-  });
-  revalidatePath("/app/settings");
-  return res;
+  return guarded("settings", "EDIT", "/app/settings", (c) => updateWorkplace(c, id, fields(fd)));
 }

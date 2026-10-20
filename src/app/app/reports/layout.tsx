@@ -1,23 +1,24 @@
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { REPORTS } from "@/lib/report-registry";
 import { ReportTabs } from "./tabs";
 
-const tabs = [
-  { href: "/app/reports", label: "Монитор" },
-  ...Object.entries(REPORTS).map(([k, r]) => ({ href: `/app/reports/${k}`, label: r.label })),
-];
-
 export default async function ReportsLayout({ children }: { children: React.ReactNode }) {
   const s = await requireSession();
+  const tabs = [
+    { href: "/app/reports", label: "Монитор" },
+    ...Object.entries(REPORTS)
+      .filter(([, r]) => !r.costs || s.perms.flags.costs)
+      .map(([k, r]) => ({ href: `/app/reports/${k}`, label: r.label })),
+  ];
   return (
     <div className="flex flex-col">
       <PageTitle>Отчёты</PageTitle>
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="reports">
         <ReportTabs tabs={tabs} />
         {children}
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }
