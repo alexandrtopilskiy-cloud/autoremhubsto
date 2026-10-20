@@ -13,9 +13,11 @@ import { dateLabel, localDate, localTime } from "@/lib/time";
 import { createOrderFromAppointmentAction, setAppointmentStageAction, updateAppointmentAction } from "../actions";
 import { ContactLinks } from "@/components/contact-links";
 import { AppointmentFields } from "../appointment-fields";
+import { dicts } from "@/lib/services/dictionaries";
 
 export default async function AppointmentPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
+  const lists = await dicts(s.companyId, ["REPAIR_KIND"]);
   const { id } = await params;
   const a = await getAppointment(s.companyId, id).catch((e) => {
     if (e instanceof NotFoundError) notFound();
@@ -67,6 +69,7 @@ export default async function AppointmentPage({ params }: { params: Promise<{ id
       <Card title="Запись">
         <ActionForm action={updateAppointmentAction.bind(null, a.id)} className="flex flex-wrap items-end gap-3">
           <AppointmentFields
+            reasons={lists.REPAIR_KIND}
             workplaces={workplaces}
             clients={clients}
             employees={employees}

@@ -7,7 +7,7 @@ import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listProducts } from "@/lib/services/catalog";
-import { getWriteOff, WRITE_OFF_REASONS } from "@/lib/services/warehouse";
+import { getWriteOff } from "@/lib/services/warehouse";
 import { docStatus, ProductSelect } from "../../product-select";
 import { StockTabs } from "../../tabs";
 import {
@@ -17,9 +17,12 @@ import {
   unpostWriteOffAction,
   updateWriteOffAction,
 } from "../../warehouse-actions";
+import { dicts } from "@/lib/services/dictionaries";
+import { DictList } from "@/components/dict-list";
 
 export default async function WriteOffPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
+  const lists = await dicts(s.companyId, ["WRITE_OFF_REASON"]);
   const { id } = await params;
   const w = await getWriteOff(s.companyId, id).catch((e) => {
     if (e instanceof NotFoundError) notFound();
@@ -51,11 +54,7 @@ export default async function WriteOffPage({ params }: { params: Promise<{ id: s
             <Field label="Причина" className="min-w-64 flex-1">
               <Input name="reason" list="writeoff-reasons" defaultValue={w.reason ?? ""} disabled={posted} />
             </Field>
-            <datalist id="writeoff-reasons">
-              {WRITE_OFF_REASONS.map((r) => (
-                <option key={r} value={r} />
-              ))}
-            </datalist>
+            <DictList id="writeoff-reasons" items={lists.WRITE_OFF_REASON} />
             {!posted && <Submit variant="ghost">Сохранить</Submit>}
           </ActionForm>
         </Card>

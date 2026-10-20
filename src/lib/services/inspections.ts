@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { NotFoundError, UserError } from "../errors";
 import { ownOrder } from "../tenant";
+import { dict } from "./dictionaries";
 
 // Схема кузова (вид сверху, капот вверху): зона → прямоугольник в координатах 240 × 404.
 const LEFT = [
@@ -25,21 +26,6 @@ export const ZONES = [
 ];
 export const zoneLabel = (k: string) => ZONES.find((z) => z.key === k)?.label ?? k;
 
-export const DAMAGE_TYPES = ["Царапина", "Вмятина", "Скол", "Трещина", "Коррозия", "Разбито или нет детали"];
-
-export const KIT_ITEMS = [
-  "Запасное колесо",
-  "Домкрат",
-  "Баллонный ключ",
-  "Аптечка",
-  "Огнетушитель",
-  "Знак аварийной остановки",
-  "Коврики",
-  "Магнитола",
-  "Свидетельство о регистрации",
-  "Ключ и брелок сигнализации",
-];
-
 export const FUEL_LEVELS = [0, 25, 50, 75, 100];
 
 export type Damage = { zone: string; type: string; note?: string | null };
@@ -49,7 +35,7 @@ export const inspectionSchema = z.object({
     .union([z.literal(""), z.coerce.number().int().min(0).max(100)])
     .optional()
     .transform((v) => (v === "" || v === undefined ? null : v)),
-  items: z.array(z.string()).default([]).transform((a) => a.filter((x) => KIT_ITEMS.includes(x))),
+  items: z.array(z.string()).default([]),
   dirty: z.boolean().default(false),
   dark: z.boolean().default(false),
   notes: z
@@ -61,7 +47,7 @@ export const inspectionSchema = z.object({
 
 export const damageSchema = z.object({
   zone: z.string().refine((z) => ZONES.some((x) => x.key === z), "Выберите место повреждения"),
-  type: z.string().refine((t) => DAMAGE_TYPES.includes(t), "Выберите вид повреждения"),
+  type: z.string().trim().min(1, "Выберите вид повреждения"),
   note: z
     .string()
     .trim()
@@ -92,12 +78,16 @@ export async function getInspection(companyId: string, orderId: string) {
 export async function saveInspection(companyId: string, orderId: string, input: unknown) {
   const data = inspectionSchema.parse(input);
   await editable(companyId, orderId);
+  // отметки комплектности — из справочника СТО или уже отмеченные раньше (если значение потом убрали из справочника)
+  const [kit, cur] = await Promise.all([dict(companyId, "KIT_ITEM"), getInspection(companyId, orderId)]);
+  data.items = data.items.filter((x) => kit.includes(x) || cur.items.includes(x));
   return prisma.inspection.upsert({ where: { orderId }, create: { ...data, orderId }, update: data });
 }
 
 export async function addDamage(companyId: string, orderId: string, input: unknown) {
   const d = damageSchema.parse(input);
   await editable(companyId, orderId);
+  if (!(await dict(companyId, "DAMAGE_TYPE")).includes(d.type)) throw new UserError("Выберите вид повреждения из справочника");
   const cur = await getInspection(companyId, orderId);
   const damages = [...cur.damages, d];
   return prisma.inspection.upsert({ where: { orderId }, create: { orderId, damages }, update: { damages } });

@@ -8,6 +8,7 @@ import { getCompany } from "@/lib/services/settings";
 import { isDateStr, isTimeStr, todayLocal } from "@/lib/time";
 import { createAppointmentAction } from "../actions";
 import { AppointmentFields } from "../appointment-fields";
+import { dicts } from "@/lib/services/dictionaries";
 
 export default async function NewAppointmentPage({
   searchParams,
@@ -15,6 +16,7 @@ export default async function NewAppointmentPage({
   searchParams: Promise<{ date?: string; workplaceId?: string; start?: string; end?: string; clientId?: string }>;
 }) {
   const s = await requireSession();
+  const lists = await dicts(s.companyId, ["REPAIR_KIND"]);
   const sp = await searchParams;
   const company = await getCompany(s.companyId);
   const [workplaces, clients, employees] = await Promise.all([
@@ -28,6 +30,7 @@ export default async function NewAppointmentPage({
       <Card>
         <ActionForm action={createAppointmentAction} className="flex flex-wrap items-end gap-3">
           <AppointmentFields
+            reasons={lists.REPAIR_KIND}
             workplaces={workplaces}
             clients={clients}
             employees={employees}

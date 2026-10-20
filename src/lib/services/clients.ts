@@ -21,9 +21,6 @@ export const clientSchema = z.object({
   priceCategoryId: opt,
 });
 
-/** Подсказки для поля «Откуда узнал»; можно ввести и свой вариант. */
-export const CLIENT_SOURCES = ["Рекомендация", "Яндекс Карты", "2ГИС", "Сайт", "Авито", "Соцсети", "Вывеска", "Повторный визит"];
-
 export const vehicleSchema = z.object({
   make: z.string().trim().min(1, "Укажите марку"),
   model: z.string().trim().min(1, "Укажите модель"),

@@ -5,13 +5,16 @@ import { Badge, Card, Field, Input, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { formatRub } from "@/lib/money";
-import { listWriteOffs, WRITE_OFF_REASONS } from "@/lib/services/warehouse";
+import { listWriteOffs } from "@/lib/services/warehouse";
 import { docStatus } from "../product-select";
 import { StockTabs } from "../tabs";
 import { createWriteOffAction } from "../warehouse-actions";
+import { dicts } from "@/lib/services/dictionaries";
+import { DictList } from "@/components/dict-list";
 
 export default async function WriteOffsPage() {
   const s = await requireSession();
+  const lists = await dicts(s.companyId, ["WRITE_OFF_REASON"]);
   const list = await listWriteOffs(s.companyId);
   return (
     <div className="flex flex-col gap-4">
@@ -23,11 +26,7 @@ export default async function WriteOffsPage() {
             <Field label="Причина">
               <Input name="reason" list="writeoff-reasons" className="w-64" />
             </Field>
-            <datalist id="writeoff-reasons">
-              {WRITE_OFF_REASONS.map((r) => (
-                <option key={r} value={r} />
-              ))}
-            </datalist>
+            <DictList id="writeoff-reasons" items={lists.WRITE_OFF_REASON} />
             <Submit>Создать</Submit>
           </ActionForm>
         </Card>

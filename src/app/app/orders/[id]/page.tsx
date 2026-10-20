@@ -18,7 +18,8 @@ import { can } from "@/lib/permissions";
 import { Attachments } from "@/components/attachments";
 import { CarScheme } from "@/components/car-scheme";
 import { ContactLinks } from "@/components/contact-links";
-import { DAMAGE_TYPES, FUEL_LEVELS, getInspection, KIT_ITEMS, ZONES, zoneLabel } from "@/lib/services/inspections";
+import { dicts } from "@/lib/services/dictionaries";
+import { FUEL_LEVELS, getInspection, ZONES, zoneLabel } from "@/lib/services/inspections";
 import {
   addItemAction,
   addItemFromCatalogAction,
@@ -43,6 +44,7 @@ import {
   unpostAction,
   updateHeaderAction,
 } from "../actions";
+import { DictList } from "@/components/dict-list";
 
 const METHODS = { CASH: "Наличные", CARD: "Карта", BANK_TRANSFER: "Безнал", SBP: "СБП" } as const;
 
@@ -65,7 +67,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     listRecommendations(s.companyId, { clientId: o.clientId }),
     orderPartsRequests(s.companyId, id),
   ]);
-  const inspection = await getInspection(s.companyId, id);
+  const [inspection, lists] = await Promise.all([getInspection(s.companyId, id), dicts(s.companyId, ["DAMAGE_TYPE", "KIT_ITEM", "REPAIR_KIND"])]);
   // открытые рекомендации клиента и всё, что записано из этого наряда
   const shownRecs = recs.filter((r) => r.status === "OPEN" || r.orderId === o.id || r.doneOrderId === o.id);
   const issuer = can(s.perms, "stock", "EDIT");
@@ -157,7 +159,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </Select>
           </Field>
           <Field label="Причина обращения" className="min-w-64 flex-1">
-            <Input name="reason" defaultValue={o.reason ?? ""} disabled={posted} />
+            <Input name="reason" list="repair-kinds" defaultValue={o.reason ?? ""} disabled={posted} />
+            <DictList id="repair-kinds" items={lists.REPAIR_KIND} />
           </Field>
           <Field label="Комментарий" className="w-full">
             <Input name="comment" defaultValue={o.comment ?? ""} disabled={posted} />
@@ -213,8 +216,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   </Select>
                 </Field>
                 <Field label="Повреждение">
-                  <Select name="type" defaultValue={DAMAGE_TYPES[0]}>
-                    {DAMAGE_TYPES.map((t) => (
+                  <Select name="type">
+                    {lists.DAMAGE_TYPE.map((t) => (
                       <option key={t}>{t}</option>
                     ))}
                   </Select>
@@ -246,7 +249,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               </div>
               <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                 <legend className="mb-1 text-slate-600">Комплектность</legend>
-                {KIT_ITEMS.map((k) => (
+                {[...lists.KIT_ITEM, ...inspection.items.filter((x) => !lists.KIT_ITEM.includes(x))].map((k) => (
                   <label key={k} className="flex items-center gap-1">
                     <input type="checkbox" name="items" value={k} defaultChecked={inspection.items.includes(k)} disabled={posted} /> {k}
                   </label>

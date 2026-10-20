@@ -1,5 +1,4 @@
 import { Field, Input, Select } from "@/components/ui";
-import { CLIENT_SOURCES } from "@/lib/services/clients";
 
 type C = {
   kind?: string;
@@ -13,7 +12,15 @@ type C = {
   comment?: string | null;
 };
 
-export function ClientFields({ c = {}, categories = [] }: { c?: C; categories?: { id: string; name: string }[] }) {
+export function ClientFields({
+  c = {},
+  categories = [],
+  sources = [],
+}: {
+  c?: C;
+  categories?: { id: string; name: string }[];
+  sources?: string[];
+}) {
   return (
     <>
       <Field label="Тип">
@@ -53,7 +60,7 @@ export function ClientFields({ c = {}, categories = [] }: { c?: C; categories?: 
       <Field label="Откуда узнал">
         <Input name="source" list="client-sources" defaultValue={c.source ?? ""} />
         <datalist id="client-sources">
-          {CLIENT_SOURCES.map((x) => (
+          {sources.map((x) => (
             <option key={x} value={x} />
           ))}
         </datalist>

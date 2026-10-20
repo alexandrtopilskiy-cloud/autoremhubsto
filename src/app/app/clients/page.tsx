@@ -6,9 +6,11 @@ import { listClients } from "@/lib/services/clients";
 import { createClientAction } from "./actions";
 import { ClientFields } from "./client-fields";
 import { listCategories } from "@/lib/services/prices";
+import { dicts } from "@/lib/services/dictionaries";
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string; archived?: string }> }) {
   const s = await requireSession();
+  const lists = await dicts(s.companyId, ["CLIENT_SOURCE"]);
   const categories = await listCategories(s.companyId);
   const { q, archived } = await searchParams;
   const clients = await listClients(s.companyId, q, { archived: archived === "1" });
@@ -25,7 +27,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       </PageTitle>
       <Card title="Новый клиент">
         <ActionForm action={createClientAction} className="flex flex-wrap items-end gap-3">
-          <ClientFields categories={categories} />
+          <ClientFields categories={categories} sources={lists.CLIENT_SOURCE} />
           <Submit>Добавить</Submit>
         </ActionForm>
       </Card>

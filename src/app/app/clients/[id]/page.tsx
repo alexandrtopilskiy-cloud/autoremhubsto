@@ -12,9 +12,12 @@ import { formatRub } from "@/lib/money";
 import { addVehicleAction, archiveClientAction, updateClientAction } from "../actions";
 import { ClientFields } from "../client-fields";
 import { listCategories } from "@/lib/services/prices";
+import { dicts } from "@/lib/services/dictionaries";
+import { DictList } from "@/components/dict-list";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
+  const lists = await dicts(s.companyId, ["COLOR", "CLIENT_SOURCE"]);
   const categories = await listCategories(s.companyId);
   const { id } = await params;
   const client = await getClient(s.companyId, id).catch((e) => {
@@ -52,7 +55,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
       <Card title="Данные клиента">
         <ActionForm action={updateClientAction.bind(null, client.id)} className="flex flex-wrap items-end gap-3">
-          <ClientFields c={client} categories={categories} />
+          <ClientFields c={client} categories={categories} sources={lists.CLIENT_SOURCE} />
           <Submit>Сохранить</Submit>
         </ActionForm>
       </Card>
@@ -86,7 +89,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <Input name="vin" maxLength={17} />
           </Field>
           <Field label="Цвет">
-            <Input name="color" className="w-28" />
+            <Input name="color" list="car-colors" className="w-28" />
+            <DictList id="car-colors" items={lists.COLOR} />
           </Field>
           <Submit variant="ghost">Добавить автомобиль</Submit>
         </ActionForm>
