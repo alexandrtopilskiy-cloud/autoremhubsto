@@ -18,6 +18,9 @@ import {
   setEstimateStatusAction,
   updateEstimateAction,
 } from "../actions";
+import { TrashButton } from "@/components/trash-button";
+import { trashDocAction } from "@/app/app/trash-actions";
+import { can } from "@/lib/permissions";
 
 const money = (kop: number) => (kop / 100).toFixed(2).replace(".", ",");
 
@@ -40,6 +43,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
       <PageTitle
         actions={
           <div className="flex flex-wrap gap-2">
+            {!e.order && can(s.perms, "orders", "FULL") && <TrashButton action={trashDocAction.bind(null, "ESTIMATE", e.id, "/app/estimates")} />}
             <Link
               href={`/app/estimates/${e.id}/print`}
               target="_blank"

@@ -21,6 +21,9 @@ import {
   unpostSaleAction,
   updateSaleAction,
 } from "../../warehouse-actions";
+import { TrashButton } from "@/components/trash-button";
+import { trashDocAction } from "@/app/app/trash-actions";
+import { can } from "@/lib/permissions";
 
 const money = (kop: number) => (kop / 100).toFixed(2).replace(".", ",");
 
@@ -45,6 +48,9 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
         <PageTitle
           actions={
             <div className="flex gap-2">
+              {!posted && can(s.perms, "stock", "FULL") && (
+                <TrashButton action={trashDocAction.bind(null, "SALE", sale.id, "/app/stock/sales")} />
+              )}
               <Link href={`/app/stock/sales/${sale.id}/print`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
                 Товарный чек
               </Link>

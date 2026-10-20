@@ -18,6 +18,9 @@ import {
 } from "../../actions";
 import { ProductSelect } from "../../product-select";
 import { StockTabs } from "../../tabs";
+import { TrashButton } from "@/components/trash-button";
+import { trashDocAction } from "@/app/app/trash-actions";
+import { can } from "@/lib/permissions";
 
 export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
@@ -34,15 +37,20 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       <Allowed perms={s.perms} section="stock" flag="costs">
         <PageTitle
           actions={
-            posted ? (
-              <ActionForm action={unpostReceiptAction.bind(null, r.id)}>
-                <Submit variant="ghost">Отменить проведение</Submit>
-              </ActionForm>
-            ) : (
-              <ActionForm action={postReceiptAction.bind(null, r.id)}>
-                <Submit>Провести: оприходовать товар</Submit>
-              </ActionForm>
-            )
+            <div className="flex flex-wrap gap-2">
+              {!posted && can(s.perms, "stock", "FULL") && (
+                <TrashButton action={trashDocAction.bind(null, "RECEIPT", r.id, "/app/stock/receipts")} />
+              )}
+              {posted ? (
+                <ActionForm action={unpostReceiptAction.bind(null, r.id)}>
+                  <Submit variant="ghost">Отменить проведение</Submit>
+                </ActionForm>
+              ) : (
+                <ActionForm action={postReceiptAction.bind(null, r.id)}>
+                  <Submit>Провести: оприходовать товар</Submit>
+                </ActionForm>
+              )}
+            </div>
           }
         >
           Приход ПН-{r.number} от {formatDate(r.date)}{" "}

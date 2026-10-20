@@ -17,7 +17,15 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
   const label = (t: DocType) => DOC_TYPES.find((x) => x.value === t)!.label;
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Все документы</PageTitle>
+      <PageTitle
+        actions={
+          <Link href="/app/documents/trash" className="text-sm text-blue-600 hover:underline">
+            Корзина
+          </Link>
+        }
+      >
+        Все документы
+      </PageTitle>
       <Card>
         <form className="mb-3 flex flex-wrap items-end gap-2">
           <Field label="С">

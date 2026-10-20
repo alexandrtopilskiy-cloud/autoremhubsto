@@ -1,7 +1,8 @@
 "use server";
 
 import { fields, rub, type FormState } from "@/lib/actions";
-import { addOperation, createCashbox, deleteOperation, transfer } from "@/lib/services/cash";
+import { addOperation, createCashbox, transfer } from "@/lib/services/cash";
+import { moveToTrash } from "@/lib/services/trash";
 import { guarded } from "@/lib/guard";
 import type { Level } from "@/lib/permissions";
 
@@ -17,8 +18,9 @@ export async function transferAction(_: FormState, fd: FormData) {
   return op((c) => transfer(c, { ...fields(fd), amount: rub(fd, "amount") }));
 }
 
+/** Операция уходит в корзину и восстанавливается оттуда. */
 export async function deleteOperationAction(id: string) {
-  return op((c) => deleteOperation(c, id), "FULL");
+  return guarded("cash", "FULL", "/app/cash", (c, s) => moveToTrash(c, "CASH", id, { id: s.userId, name: s.userName }));
 }
 
 export async function createCashboxAction(_: FormState, fd: FormData) {

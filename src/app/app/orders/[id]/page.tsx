@@ -45,6 +45,8 @@ import {
   updateHeaderAction,
 } from "../actions";
 import { DictList } from "@/components/dict-list";
+import { TrashButton } from "@/components/trash-button";
+import { trashDocAction } from "@/app/app/trash-actions";
 
 const METHODS = { CASH: "Наличные", CARD: "Карта", BANK_TRANSFER: "Безнал", SBP: "СБП" } as const;
 
@@ -85,6 +87,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       <PageTitle
         actions={
           <div className="flex flex-wrap gap-2">
+            {!posted && can(s.perms, "orders", "FULL") && <TrashButton action={trashDocAction.bind(null, "ORDER", o.id, "/app/orders")} />}
             <Link
               href={`/app/orders/${o.id}/print`}
               target="_blank"
