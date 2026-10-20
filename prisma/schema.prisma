@@ -53,6 +53,16 @@ enum CashboxKind {
 enum StockMoveKind {
   RECEIPT
   ORDER
+  SALE
+  WRITE_OFF
+  INVENTORY
+}
+
+enum SupplierOrderStatus {
+  NEW
+  SENT
+  RECEIVED
+  CANCELLED
 }
 
 enum LineKind {
@@ -122,6 +132,10 @@ model Company {
   estimates       Estimate[]
   recommendations Recommendation[]
   partsRequests   PartsRequest[]
+  sales           Sale[]
+  writeOffs       WriteOff[]
+  inventories     Inventory[]
+  supplierOrders  SupplierOrder[]
 }
 
 // Юрлицо или ИП внутри СТО: от его имени оформляются документы.
@@ -204,6 +218,7 @@ model Client {
   appointments    Appointment[]
   estimates       Estimate[]
   recommendations Recommendation[]
+  sales           Sale[]
 
   @@index([companyId, name])
   @@index([companyId, phone])
@@ -265,19 +280,23 @@ model Work {
 
 // Номенклатура (запчасти и материалы).
 model Product {
-  id           String             @id @default(cuid())
-  companyId    String
-  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name         String
-  article      String?
-  brand        String?
-  unit         String             @default("шт")
-  price        Int                @default(0) // цена продажи, коп.
-  createdAt    DateTime           @default(now())
-  orderItems   WorkOrderItem[]
-  receiptLines ReceiptLine[]
-  stockMoves   StockMove[]
-  requestLines PartsRequestLine[]
+  id                 String              @id @default(cuid())
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name               String
+  article            String?
+  brand              String?
+  unit               String              @default("шт")
+  price              Int                 @default(0) // цена продажи, коп.
+  createdAt          DateTime            @default(now())
+  orderItems         WorkOrderItem[]
+  receiptLines       ReceiptLine[]
+  stockMoves         StockMove[]
+  requestLines       PartsRequestLine[]
+  saleLines          SaleLine[]
+  writeOffLines      WriteOffLine[]
+  inventoryLines     InventoryLine[]
+  supplierOrderLines SupplierOrderLine[]
 
   @@index([companyId, name])
   @@index([companyId, article])
@@ -373,24 +392,27 @@ model Supplier {
   createdAt DateTime        @default(now())
   receipts  Receipt[]
   cashOps   CashOperation[]
+  orders    SupplierOrder[]
 
   @@index([companyId, name])
 }
 
 // Приходная накладная от поставщика. При проведении товар поступает на склад.
 model Receipt {
-  id          String        @id @default(cuid())
-  companyId   String
-  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  number      Int
-  status      DocStatus     @default(DRAFT)
-  supplierId  String?
-  supplier    Supplier?     @relation(fields: [supplierId], references: [id])
-  supplierDoc String? // номер накладной поставщика
-  date        DateTime      @default(now())
-  comment     String?
-  createdAt   DateTime      @default(now())
-  lines       ReceiptLine[]
+  id              String         @id @default(cuid())
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number          Int
+  status          DocStatus      @default(DRAFT)
+  supplierId      String?
+  supplier        Supplier?      @relation(fields: [supplierId], references: [id])
+  supplierDoc     String? // номер накладной поставщика
+  supplierOrderId String?        @unique
+  supplierOrder   SupplierOrder? @relation(fields: [supplierOrderId], references: [id], onDelete: SetNull)
+  date            DateTime       @default(now())
+  comment         String?
+  createdAt       DateTime       @default(now())
+  lines           ReceiptLine[]
 
   @@unique([companyId, number])
   @@index([companyId, date])
@@ -417,7 +439,7 @@ model StockMove {
   qty       Decimal       @db.Decimal(12, 3)
   cost      Int           @default(0) // себестоимость единицы, коп.
   kind      StockMoveKind
-  docId     String // Receipt.id или WorkOrder.id
+  docId     String // id документа: приход, заказ-наряд, реализация, списание, инвентаризация
   date      DateTime      @default(now())
 
   @@index([companyId, productId])
@@ -449,6 +471,8 @@ model CashOperation {
   category   String
   supplierId String?
   supplier   Supplier? @relation(fields: [supplierId], references: [id])
+  saleId     String? // оплата реализации
+  sale       Sale?     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   comment    String?
   date       DateTime  @default(now())
 
@@ -614,4 +638,118 @@ model Inspection {
   dark      Boolean   @default(false) // принят в тёмное время
   notes     String?
   updatedAt DateTime  @updatedAt
+}
+
+// Реализация: продажа товара без ремонта. При проведении товар списывается со склада.
+model Sale {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number    Int
+  status    DocStatus       @default(DRAFT)
+  clientId  String? // пусто — розничный покупатель
+  client    Client?         @relation(fields: [clientId], references: [id])
+  date      DateTime        @default(now()) // при проведении — дата проведения
+  comment   String?
+  createdAt DateTime        @default(now())
+  lines     SaleLine[]
+  payments  CashOperation[]
+
+  @@unique([companyId, number])
+  @@index([companyId, date])
+}
+
+model SaleLine {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qty       Decimal @db.Decimal(12, 3)
+  price     Int // коп.
+  discount  Int     @default(0)
+  position  Int     @default(0)
+}
+
+// Списание товара: брак, порча, расход на нужды СТО.
+model WriteOff {
+  id        String         @id @default(cuid())
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number    Int
+  status    DocStatus      @default(DRAFT)
+  reason    String?
+  date      DateTime       @default(now())
+  createdAt DateTime       @default(now())
+  lines     WriteOffLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId, date])
+}
+
+model WriteOffLine {
+  id         String   @id @default(cuid())
+  writeOffId String
+  writeOff   WriteOff @relation(fields: [writeOffId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qty        Decimal  @db.Decimal(12, 3)
+  position   Int      @default(0)
+}
+
+// Инвентаризация: фактический остаток против учётного. При проведении разница становится движением склада.
+model Inventory {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number    Int
+  status    DocStatus       @default(DRAFT)
+  comment   String?
+  date      DateTime        @default(now())
+  createdAt DateTime        @default(now())
+  lines     InventoryLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId, date])
+}
+
+model InventoryLine {
+  id          String    @id @default(cuid())
+  inventoryId String
+  inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  bookQty     Decimal   @db.Decimal(12, 3) // учётный остаток; при проведении пересчитывается
+  actualQty   Decimal   @db.Decimal(12, 3)
+
+  @@unique([inventoryId, productId])
+}
+
+// Заказ поставщику. Не двигает склад; по нему создаётся приходная накладная.
+model SupplierOrder {
+  id         String              @id @default(cuid())
+  companyId  String
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number     Int
+  status     SupplierOrderStatus @default(NEW)
+  supplierId String
+  supplier   Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  comment    String?
+  createdAt  DateTime            @default(now())
+  lines      SupplierOrderLine[]
+  receipt    Receipt?
+
+  @@unique([companyId, number])
+  @@index([companyId, createdAt])
+}
+
+model SupplierOrderLine {
+  id        String        @id @default(cuid())
+  orderId   String
+  order     SupplierOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qty       Decimal       @db.Decimal(12, 3)
+  cost      Int // ожидаемая закупочная цена, коп.
+  position  Int           @default(0)
 }

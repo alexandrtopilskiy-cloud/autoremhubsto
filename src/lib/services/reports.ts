@@ -1,4 +1,4 @@
-// Отчёты. Выручка считается по проведённым заказ-нарядам с датой проведения (closedAt) в периоде,
+// Отчёты. Выручка считается по проведённым заказ-нарядам с датой проведения (closedAt) и проведённым продажам в периоде,
 // реестр — по дате приёма. Период передаётся как полуинтервал [from, to) в UTC.
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
@@ -7,6 +7,7 @@ import { lineTotal } from "../money";
 import { addDays, localDate, localToUtc, weekStart } from "../time";
 import { listCashboxes } from "./cash";
 import { stageLabel, STAGES, totalsOf } from "./orders";
+import { saleTotals } from "./warehouse";
 
 export type Period = { from: Date; to: Date };
 export type ColKind = "text" | "money" | "qty" | "int" | "date";
@@ -200,15 +201,23 @@ export async function clientDebts(companyId: string): Promise<ReportTable> {
     include: { client: true, works: true, items: true, payments: true },
     orderBy: { number: "asc" },
   });
+  const sales = await prisma.sale.findMany({
+    where: { companyId, status: "POSTED", clientId: { not: null } },
+    include: { client: true, lines: true, payments: true },
+    orderBy: { number: "asc" },
+  });
   type Acc = { _href: string; name: string; phone: string; nums: string[]; due: number };
   const map = new Map<string, Acc>();
-  for (const o of orders) {
-    const due = totalsOf(o).due;
-    if (due === 0) continue;
-    const r = map.get(o.clientId) ?? { _href: `/app/clients/${o.clientId}`, name: o.client.name, phone: o.client.phone ?? "", nums: [], due: 0 };
-    r.nums.push(orderNo(o.number));
-    r.due += due;
-    map.set(o.clientId, r);
+  const docs = [
+    ...orders.map((o) => ({ client: o.client, no: orderNo(o.number), due: totalsOf(o).due })),
+    ...sales.map((s) => ({ client: s.client!, no: `РТ-${s.number}`, due: saleTotals(s).due })),
+  ];
+  for (const d of docs) {
+    if (d.due === 0) continue;
+    const r = map.get(d.client.id) ?? { _href: `/app/clients/${d.client.id}`, name: d.client.name, phone: d.client.phone ?? "", nums: [], due: 0 };
+    r.nums.push(d.no);
+    r.due += d.due;
+    map.set(d.client.id, r);
   }
   const rows: Row[] = [...map.values()].map(({ nums, ...r }) => ({ ...r, orders: nums.join(", ") })).sort(byDesc("due"));
   return {
@@ -216,7 +225,7 @@ export async function clientDebts(companyId: string): Promise<ReportTable> {
     columns: [
       { key: "name", label: "Клиент" },
       { key: "phone", label: "Телефон" },
-      { key: "orders", label: "Заказ-наряды" },
+      { key: "orders", label: "Документы" },
       { key: "due", label: "Долг (минус — переплата)", kind: "money" },
     ],
     rows,
@@ -374,7 +383,7 @@ export async function adsReport(companyId: string, p: Period): Promise<ReportTab
 export type DayFigures = { income: number; expense: number; revenue: number; cogs: number; margin: number; orders: number };
 
 async function dayFigures(companyId: string, p: Period): Promise<DayFigures> {
-  const [pays, ops, orders, cogs] = await Promise.all([
+  const [pays, ops, orders, cogs, sales] = await Promise.all([
     prisma.payment.findMany({ where: { companyId, paidAt: { gte: p.from, lt: p.to } }, select: { amount: true } }),
     prisma.cashOperation.findMany({
       where: { companyId, date: { gte: p.from, lt: p.to }, category: { not: TRANSFER } },
@@ -386,10 +395,11 @@ async function dayFigures(companyId: string, p: Period): Promise<DayFigures> {
     }),
     prisma.$queryRaw<{ sum: number | null }[]>`
       SELECT SUM(-qty * cost)::float8 AS sum FROM "StockMove"
-      WHERE "companyId" = ${companyId} AND kind = 'ORDER' AND date >= ${p.from} AND date < ${p.to}`,
+      WHERE "companyId" = ${companyId} AND kind IN ('ORDER', 'SALE') AND date >= ${p.from} AND date < ${p.to}`,
+    prisma.sale.findMany({ where: { companyId, status: "POSTED", date: { gte: p.from, lt: p.to } }, include: { lines: true, payments: true } }),
   ]);
   const money = [...pays, ...ops].map((x) => x.amount);
-  const revenue = orders.reduce((s, o) => s + totalsOf(o).total, 0);
+  const revenue = orders.reduce((s, o) => s + totalsOf(o).total, 0) + sales.reduce((s, x) => s + saleTotals(x).total, 0);
   const c = Math.round(cogs[0]?.sum ?? 0);
   return {
     income: money.filter((a) => a > 0).reduce((s, a) => s + a, 0),
