@@ -16,13 +16,19 @@ import { orderPartsRequests, requestStatusLabel } from "@/lib/services/parts-req
 import { listRecommendations, recStatusLabel } from "@/lib/services/recommendations";
 import { canOperate } from "@/lib/roles";
 import { Attachments } from "@/components/attachments";
+import { CarScheme } from "@/components/car-scheme";
+import { ContactLinks } from "@/components/contact-links";
+import { DAMAGE_TYPES, FUEL_LEVELS, getInspection, KIT_ITEMS, ZONES, zoneLabel } from "@/lib/services/inspections";
 import {
   addItemAction,
   addItemFromCatalogAction,
   addPaymentAction,
   addWorkAction,
   addWorkFromCatalogAction,
+  addDamageAction,
   addRecommendationAction,
+  removeDamageAction,
+  saveInspectionAction,
   cancelRequestAction,
   issueRequestAction,
   lineToRecommendationAction,
@@ -59,9 +65,15 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     listRecommendations(s.companyId, { clientId: o.clientId }),
     orderPartsRequests(s.companyId, id),
   ]);
+  const inspection = await getInspection(s.companyId, id);
   // открытые рекомендации клиента и всё, что записано из этого наряда
   const shownRecs = recs.filter((r) => r.status === "OPEN" || r.orderId === o.id || r.doneOrderId === o.id);
   const operator = canOperate(s.role);
+  const car = o.vehicle ? vehicleTitle(o.vehicle) : "автомобиль";
+  const message =
+    o.stage === "READY"
+      ? `Здравствуйте, ${o.client.name}! ${car} готов, можно забирать. К оплате ${formatRub(Math.max(0, o.totals.due))}. ${s.companyName}`
+      : `Здравствуйте, ${o.client.name}! Пишем по заказ-наряду ${orderNo(o.number)} (${car}). ${s.companyName}`;
   const posted = o.status === "POSTED";
   const t = o.totals;
 
@@ -115,6 +127,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             {o.client.name}
           </Link>{" "}
           {o.client.phone}
+          <ContactLinks phone={o.client.phone} text={message} />
         </p>
         <ActionForm action={updateHeaderAction.bind(null, o.id)} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="clientId" value={o.clientId} />
@@ -150,6 +163,106 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           </Field>
           {!posted && <Submit variant="ghost">Сохранить</Submit>}
         </ActionForm>
+      </Card>
+
+      <Card
+        title="Акт осмотра"
+        actions={
+          <Link href={`/app/orders/${o.id}/inspection`} target="_blank" className="text-sm text-blue-600 hover:underline">
+            Печать акта
+          </Link>
+        }
+      >
+        <div className="flex flex-col gap-4 md:flex-row">
+          <div className="w-40 shrink-0">
+            <CarScheme damages={inspection.damages} className="w-full" />
+            <p className="mt-1 text-center text-xs text-slate-500">перед вверху</p>
+          </div>
+          <div className="flex flex-1 flex-col gap-3">
+            {inspection.damages.length > 0 ? (
+              <ol className="flex flex-col gap-1 text-sm">
+                {inspection.damages.map((d, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <b className="w-5 text-red-700">{i + 1}.</b>
+                    {zoneLabel(d.zone)}: {d.type.toLowerCase()}
+                    {d.note && <span className="text-slate-500">· {d.note}</span>}
+                    {!posted && (
+                      <ActionForm action={removeDamageAction.bind(null, o.id, i)}>
+                        <button className="text-red-600 hover:underline" title="Убрать">
+                          ✕
+                        </button>
+                      </ActionForm>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-sm text-slate-500">Повреждений не отмечено</p>
+            )}
+            {!posted && (
+              <ActionForm action={addDamageAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-2 rounded-md bg-slate-50 p-3">
+                <Field label="Где">
+                  <Select name="zone" defaultValue="">
+                    <option value="">Выберите</option>
+                    {ZONES.map((z) => (
+                      <option key={z.key} value={z.key}>
+                        {z.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Повреждение">
+                  <Select name="type" defaultValue={DAMAGE_TYPES[0]}>
+                    {DAMAGE_TYPES.map((t) => (
+                      <option key={t}>{t}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Уточнение" className="min-w-40 flex-1">
+                  <Input name="note" placeholder="например, 5 см" />
+                </Field>
+                <Submit variant="ghost">Отметить</Submit>
+              </ActionForm>
+            )}
+            <ActionForm action={saveInspectionAction.bind(null, o.id)} className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-end gap-4">
+                <Field label="Топливо">
+                  <Select name="fuel" defaultValue={inspection.fuel ?? ""} disabled={posted}>
+                    <option value="">Не указано</option>
+                    {FUEL_LEVELS.map((f) => (
+                      <option key={f} value={f}>
+                        {f === 0 ? "Пустой бак" : f === 100 ? "Полный бак" : `${f / 25}/4 бака`}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <label className="flex items-center gap-1 pb-2 text-sm">
+                  <input type="checkbox" name="dirty" defaultChecked={inspection.dirty} disabled={posted} /> Грязный автомобиль
+                </label>
+                <label className="flex items-center gap-1 pb-2 text-sm">
+                  <input type="checkbox" name="dark" defaultChecked={inspection.dark} disabled={posted} /> Принят в тёмное время
+                </label>
+              </div>
+              <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <legend className="mb-1 text-slate-600">Комплектность</legend>
+                {KIT_ITEMS.map((k) => (
+                  <label key={k} className="flex items-center gap-1">
+                    <input type="checkbox" name="items" value={k} defaultChecked={inspection.items.includes(k)} disabled={posted} /> {k}
+                  </label>
+                ))}
+              </fieldset>
+              <Field label="Примечания">
+                <Input name="notes" defaultValue={inspection.notes ?? ""} disabled={posted} placeholder="Личные вещи в салоне, следы ремонта и т.п." />
+              </Field>
+              {!posted && (
+                <div>
+                  <Submit variant="ghost">Сохранить акт</Submit>
+                </div>
+              )}
+            </ActionForm>
+            <p className="text-xs text-slate-500">Фото автомобиля прикрепите внизу в «Файлы и фото», они попадут в печатный акт.</p>
+          </div>
+        </div>
       </Card>
 
       <Card title={`Работы · ${formatRub(t.works)}`}>

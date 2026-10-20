@@ -311,6 +311,7 @@ model WorkOrder {
   estimate        Estimate?
   recommendations Recommendation[] @relation("RecommendationSource")
   partsRequests   PartsRequest[]
+  inspection      Inspection?
 
   @@unique([companyId, number])
   @@index([companyId, acceptedAt])
@@ -599,4 +600,18 @@ model PartsRequestLine {
   productId String
   product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
   qty       Decimal      @db.Decimal(12, 3)
+}
+
+// Акт осмотра автомобиля при приёмке: повреждения кузова, топливо, комплектность, отметки.
+model Inspection {
+  id        String    @id @default(cuid())
+  orderId   String    @unique
+  order     WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fuel      Int? // уровень топлива, % (0, 25, 50, 75, 100)
+  items     String[] // что есть в машине из списка комплектности
+  damages   Json      @default("[]") // [{ zone, type, note }]
+  dirty     Boolean   @default(false) // принят грязным
+  dark      Boolean   @default(false) // принят в тёмное время
+  notes     String?
+  updatedAt DateTime  @updatedAt
 }
