@@ -3,7 +3,8 @@ import type { OrderStage, Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { nextNumber } from "../counters";
 import { UserError } from "../errors";
-import { lineTotal, orderTotals } from "../money";
+import { orderTotals } from "../money";
+import { executorReward, managerReward, orderLines } from "../pay-scheme";
 import { ownClient, ownEmployee, ownOrder, ownOrganization, ownVehicle } from "../tenant";
 import { defaultCashbox } from "./cash";
 import { averageCosts, returnOrderToStock, writeOffOrder } from "./stock";
@@ -336,11 +337,13 @@ export async function orderSummary(companyId: string, orderId: string) {
     const costs = ids.length ? await averageCosts(prisma, companyId, ids) : new Map<string, number>();
     cost = o.items.reduce((s, i) => s + (i.productId ? Math.round(Number(i.qty) * (costs.get(i.productId) ?? 0)) : 0), 0);
   }
-  const executors = o.works.reduce(
-    (s, w) => s + Math.round((lineTotal({ qty: Number(w.normHours), price: w.price, discount: w.discount }) * (w.executor?.workPercent ?? 0)) / 100),
-    0,
+  const percents = new Map(
+    (await prisma.work.findMany({ where: { id: { in: o.works.flatMap((w) => (w.workId ? [w.workId] : [])) } }, select: { id: true, executorPercent: true } })).map(
+      (w) => [w.id, w],
+    ),
   );
-  const manager = Math.round((o.totals.total * (o.manager?.salesPercent ?? 0)) / 100);
+  const executors = o.works.reduce((s, w) => s + (w.executor ? executorReward({ ...w, work: percents.get(w.workId ?? "") }, w.executor).reward : 0), 0);
+  const manager = o.manager ? managerReward(orderLines(o), cost, o.manager) : 0;
   const t = o.totals;
   return {
     cost,
