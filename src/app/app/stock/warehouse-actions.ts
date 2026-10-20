@@ -5,8 +5,10 @@ import type { SessionCtx } from "@/lib/auth";
 import { fields, num, rub, type FormState } from "@/lib/actions";
 import { UserError } from "@/lib/errors";
 import { guarded } from "@/lib/guard";
+import { resolveProductId } from "@/lib/services/catalog";
 import { assertCan, assertFlag, checkDiscount, type Level } from "@/lib/permissions";
 import {
+  addDeficitLines,
   addSupplierOrderLine,
   cancelSupplierOrder,
   createSupplierOrder,
@@ -81,11 +83,11 @@ export async function updateSaleAction(id: string, _: FormState, fd: FormData) {
   return op(sp(id), (c) => updateSale(c, id, fields(fd)));
 }
 export async function addSaleLineAction(id: string, _: FormState, fd: FormData) {
-  return op(sp(id), (c, s) => {
+  return op(sp(id), async (c, s) => {
     if (fd.get("price")?.toString().trim()) assertFlag(s.perms, "prices");
     checkDiscount(s.perms, fd.get("discount"));
     return addSaleLine(c, id, {
-      productId: fields(fd).productId,
+      productId: await resolveProductId(c, fields(fd)),
       qty: num(fd, "qty"),
       price: optRub(fd, "price", "Цена"),
       discount: num(fd, "discount"),
@@ -123,14 +125,17 @@ export async function updateSupplierOrderAction(id: string, _: FormState, fd: Fo
   return op(op_(id), (c) => updateSupplierOrder(c, id, fields(fd)), "EDIT", true);
 }
 export async function addSupplierOrderLineAction(id: string, _: FormState, fd: FormData) {
-  return op(op_(id), (c) =>
+  return op(op_(id), async (c) =>
     addSupplierOrderLine(c, id, {
-      productId: fields(fd).productId,
+      productId: await resolveProductId(c, fields(fd)),
       qty: num(fd, "qty"),
       cost: optRub(fd, "cost", "Цена"),
     }),
     "EDIT", true,
   );
+}
+export async function addDeficitLinesAction(id: string, _: FormState, fd: FormData) {
+  return op(op_(id), (c) => addDeficitLines(c, id, fields(fd).groupId || undefined), "EDIT", true);
 }
 export async function removeSupplierOrderLineAction(id: string, lineId: string) {
   return op(op_(id), (c) => removeSupplierOrderLine(c, id, lineId), "EDIT", true);
@@ -164,9 +169,9 @@ export async function updateWriteOffAction(id: string, _: FormState, fd: FormDat
   return op(wp(id), (c) => updateWriteOff(c, id, fields(fd)));
 }
 export async function addWriteOffLineAction(id: string, _: FormState, fd: FormData) {
-  return op(wp(id), (c) =>
+  return op(wp(id), async (c) =>
     addWriteOffLine(c, id, {
-      productId: fields(fd).productId,
+      productId: await resolveProductId(c, fields(fd)),
       qty: num(fd, "qty"),
     }),
   );
@@ -204,9 +209,9 @@ export async function saveInventoryCountsAction(id: string, _: FormState, fd: Fo
   });
 }
 export async function addInventoryLineAction(id: string, _: FormState, fd: FormData) {
-  return op(ip(id), (c) =>
+  return op(ip(id), async (c) =>
     addInventoryLine(c, id, {
-      productId: fields(fd).productId,
+      productId: await resolveProductId(c, fields(fd)),
       actualQty: num(fd, "actualQty"),
     }),
   );

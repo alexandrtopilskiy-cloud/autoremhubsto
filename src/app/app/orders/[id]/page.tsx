@@ -426,6 +426,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 ))}
               </Select>
             </Field>
+            <Field label="или штрихкод">
+              <Input name="barcode" className="w-36" autoComplete="off" />
+            </Field>
             <Field label="Кол-во">
               <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
             </Field>

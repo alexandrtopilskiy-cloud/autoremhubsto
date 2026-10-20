@@ -1,14 +1,17 @@
 "use server";
 
-import { fields, rub, type FormState } from "@/lib/actions";
+import { fields, num, rub, type FormState } from "@/lib/actions";
 import { parseRub } from "@/lib/money";
 import { guarded } from "@/lib/guard";
 import { FLAGS, LEVELS, SECTIONS, type Level, type Section } from "@/lib/permissions";
 import {
+  createGroup,
   createProduct,
   createWork,
+  deleteGroup,
   deleteProduct,
   deleteWork,
+  renameGroup,
   updateProduct,
   updateWork,
 } from "@/lib/services/catalog";
@@ -53,7 +56,7 @@ export async function deleteWorkAction(id: string) {
 }
 
 // --- номенклатура ---
-const productInput = (fd: FormData) => ({ ...fields(fd), price: rub(fd, "price", "Цена") });
+const productInput = (fd: FormData) => ({ ...fields(fd), price: rub(fd, "price", "Цена"), minQty: num(fd, "minQty") });
 export async function createProductAction(_: FormState, fd: FormData) {
   return manage("catalog", "CREATE", "/app/catalog/products", (c) => createProduct(c, productInput(fd)));
 }
@@ -62,6 +65,16 @@ export async function updateProductAction(id: string, _: FormState, fd: FormData
 }
 export async function deleteProductAction(id: string) {
   return manage("catalog", "FULL", "/app/catalog/products", (c) => deleteProduct(c, id));
+}
+
+export async function createGroupAction(_: FormState, fd: FormData) {
+  return manage("catalog", "CREATE", "/app/catalog/products", (c) => createGroup(c, fields(fd)));
+}
+export async function renameGroupAction(id: string, _: FormState, fd: FormData) {
+  return manage("catalog", "EDIT", "/app/catalog/products", (c) => renameGroup(c, id, fields(fd)));
+}
+export async function deleteGroupAction(id: string) {
+  return manage("catalog", "FULL", "/app/catalog/products", (c) => deleteGroup(c, id));
 }
 
 // --- сотрудники и пользователи ---

@@ -7,12 +7,13 @@ import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty } from "@/lib/format";
 import { formatRub } from "@/lib/money";
-import { listProducts } from "@/lib/services/catalog";
+import { listGroups, listProducts } from "@/lib/services/catalog";
 import { listSuppliers } from "@/lib/services/stock";
 import { getSupplierOrder, supplierOrderStatusLabel } from "@/lib/services/supplier-orders";
 import { ProductSelect } from "../../product-select";
 import { StockTabs } from "../../tabs";
 import {
+  addDeficitLinesAction,
   addSupplierOrderLineAction,
   cancelSupplierOrderAction,
   receiveSupplierOrderAction,
@@ -29,7 +30,7 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const [suppliers, products] = await Promise.all([listSuppliers(s.companyId), listProducts(s.companyId)]);
+  const [suppliers, products, groups] = await Promise.all([listSuppliers(s.companyId), listProducts(s.companyId), listGroups(s.companyId)]);
   const editable = o.status === "NEW";
   const open = o.status === "NEW" || o.status === "SENT";
   return (
@@ -143,6 +144,23 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
                 <Input name="cost" inputMode="decimal" className="w-36" placeholder="последний приход" />
               </Field>
               <Submit variant="ghost">Добавить</Submit>
+            </ActionForm>
+          )}
+          {editable && (
+            <ActionForm action={addDeficitLinesAction.bind(null, o.id)} className="mt-3 flex flex-wrap items-end gap-3 border-t pt-3">
+              <Field label="Товары ниже минимального остатка">
+                <Select name="groupId" defaultValue="">
+                  <option value="">Все группы</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                  <option value="none">Без группы</option>
+                </Select>
+              </Field>
+              <Submit variant="ghost">Добавить дефицит</Submit>
+              <span className="pb-2 text-xs text-slate-500">Количество — до минимального остатка, цена — из последнего прихода.</span>
             </ActionForm>
           )}
         </Card>
