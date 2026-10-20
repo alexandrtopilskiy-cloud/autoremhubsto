@@ -14,6 +14,7 @@ import { ClientFields } from "../client-fields";
 import { listCategories } from "@/lib/services/prices";
 import { dicts } from "@/lib/services/dictionaries";
 import { DictList } from "@/components/dict-list";
+import { VinField } from "@/components/vin-field";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
@@ -72,7 +73,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             ))}
           </ul>
         )}
-        <ActionForm action={addVehicleAction.bind(null, client.id)} reset className="flex flex-wrap items-end gap-3">
+        <p className="mb-2 text-xs text-slate-500">Введите VIN первым: марка и год подставятся сами, модель укажите вручную.</p>
+        <ActionForm action={addVehicleAction.bind(null, client.id)} reset className="flex flex-wrap items-start gap-3">
+          <VinField />
           <Field label="Марка">
             <Input name="make" required />
           </Field>
@@ -85,14 +88,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           <Field label="Госномер">
             <Input name="plate" className="w-32" />
           </Field>
-          <Field label="VIN">
-            <Input name="vin" maxLength={17} />
-          </Field>
           <Field label="Цвет">
             <Input name="color" list="car-colors" className="w-28" />
             <DictList id="car-colors" items={lists.COLOR} />
           </Field>
-          <Submit variant="ghost">Добавить автомобиль</Submit>
+          <div className="self-end pb-5">
+            <Submit variant="ghost">Добавить автомобиль</Submit>
+          </div>
         </ActionForm>
       </Card>
 
