@@ -153,6 +153,7 @@ model Company {
   productGroups   ProductGroup[]
   priceCategories PriceCategory[]
   dictItems       DictionaryItem[]
+  trash           TrashItem[]
   customDicts     DictKind[]       @default([]) // справочники, которые СТО уже меняла; остальные — стандартные
 }
 
@@ -880,4 +881,20 @@ model DictionaryItem {
 
   @@unique([companyId, kind, name])
   @@index([companyId, kind, position])
+}
+
+/// 12.6 Корзина: удалённый документ хранится снимком вместе со строками и восстанавливается из него.
+model TrashItem {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind          String // вид документа, см. src/lib/services/trash.ts
+  docId         String
+  title         String
+  data          Json
+  deletedAt     DateTime @default(now())
+  deletedById   String?
+  deletedByName String?
+
+  @@index([companyId, deletedAt])
 }

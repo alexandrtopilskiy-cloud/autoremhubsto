@@ -19,6 +19,9 @@ import {
 } from "../../warehouse-actions";
 import { dicts } from "@/lib/services/dictionaries";
 import { DictList } from "@/components/dict-list";
+import { TrashButton } from "@/components/trash-button";
+import { trashDocAction } from "@/app/app/trash-actions";
+import { can } from "@/lib/permissions";
 
 export default async function WriteOffPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
@@ -36,15 +39,20 @@ export default async function WriteOffPage({ params }: { params: Promise<{ id: s
       <Allowed perms={s.perms} section="stock">
         <PageTitle
           actions={
-            posted ? (
-              <ActionForm action={unpostWriteOffAction.bind(null, w.id)}>
-                <Submit variant="ghost">Отменить проведение</Submit>
-              </ActionForm>
-            ) : (
-              <ActionForm action={postWriteOffAction.bind(null, w.id)}>
-                <Submit>Провести: списать со склада</Submit>
-              </ActionForm>
-            )
+            <div className="flex flex-wrap gap-2">
+              {!posted && can(s.perms, "stock", "FULL") && (
+                <TrashButton action={trashDocAction.bind(null, "WRITE_OFF", w.id, "/app/stock/writeoffs")} />
+              )}
+              {posted ? (
+                <ActionForm action={unpostWriteOffAction.bind(null, w.id)}>
+                  <Submit variant="ghost">Отменить проведение</Submit>
+                </ActionForm>
+              ) : (
+                <ActionForm action={postWriteOffAction.bind(null, w.id)}>
+                  <Submit>Провести: списать со склада</Submit>
+                </ActionForm>
+              )}
+            </div>
           }
         >
           Списание СП-{w.number} от {formatDate(w.date)} <Badge tone={posted ? "green" : "amber"}>{docStatus(posted)}</Badge>

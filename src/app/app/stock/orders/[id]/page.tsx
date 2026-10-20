@@ -22,6 +22,9 @@ import {
   sendSupplierOrderAction,
   updateSupplierOrderAction,
 } from "../../warehouse-actions";
+import { TrashButton } from "@/components/trash-button";
+import { trashDocAction } from "@/app/app/trash-actions";
+import { can } from "@/lib/permissions";
 
 export default async function SupplierOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
@@ -40,6 +43,9 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
         <PageTitle
           actions={
             <div className="flex flex-wrap gap-2">
+              {(o.status === "NEW" || o.status === "CANCELLED") && can(s.perms, "stock", "FULL") && (
+                <TrashButton action={trashDocAction.bind(null, "SUPPLIER_ORDER", o.id, "/app/stock/orders")} />
+              )}
               <Link href={`/app/stock/orders/${o.id}/print`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
                 Печать
               </Link>

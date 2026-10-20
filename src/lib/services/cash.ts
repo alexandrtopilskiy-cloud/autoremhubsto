@@ -100,10 +100,6 @@ export async function transfer(companyId: string, input: unknown) {
   });
 }
 
-export async function deleteOperation(companyId: string, id: string) {
-  await prisma.cashOperation.deleteMany({ where: { id, companyId } });
-}
-
 export type JournalRow = {
   id: string;
   date: Date;

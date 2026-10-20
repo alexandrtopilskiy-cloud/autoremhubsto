@@ -18,6 +18,9 @@ import {
   unpostInventoryAction,
   updateInventoryCommentAction,
 } from "../../warehouse-actions";
+import { TrashButton } from "@/components/trash-button";
+import { trashDocAction } from "@/app/app/trash-actions";
+import { can } from "@/lib/permissions";
 
 export default async function InventoryPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
@@ -35,15 +38,20 @@ export default async function InventoryPage({ params }: { params: Promise<{ id: 
       <Allowed perms={s.perms} section="stock">
         <PageTitle
           actions={
-            posted ? (
-              <ActionForm action={unpostInventoryAction.bind(null, inv.id)}>
-                <Submit variant="ghost">Отменить проведение</Submit>
-              </ActionForm>
-            ) : (
-              <ActionForm action={postInventoryAction.bind(null, inv.id)}>
-                <Submit>Провести: выровнять склад по факту</Submit>
-              </ActionForm>
-            )
+            <div className="flex flex-wrap gap-2">
+              {!posted && can(s.perms, "stock", "FULL") && (
+                <TrashButton action={trashDocAction.bind(null, "INVENTORY", inv.id, "/app/stock/inventory")} />
+              )}
+              {posted ? (
+                <ActionForm action={unpostInventoryAction.bind(null, inv.id)}>
+                  <Submit variant="ghost">Отменить проведение</Submit>
+                </ActionForm>
+              ) : (
+                <ActionForm action={postInventoryAction.bind(null, inv.id)}>
+                  <Submit>Провести: выровнять склад по факту</Submit>
+                </ActionForm>
+              )}
+            </div>
           }
         >
           Инвентаризация ИН-{inv.number} от {formatDate(inv.date)} <Badge tone={posted ? "green" : "amber"}>{docStatus(posted)}</Badge>
