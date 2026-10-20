@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ClientKind } from "@prisma/client";
 import { prisma } from "../db";
 import { ownClient, ownVehicle } from "../tenant";
 import { ownCategory } from "./prices";
@@ -8,6 +9,12 @@ const opt = z
   .trim()
   .optional()
   .transform((v) => (v ? v : null));
+
+export const CLIENT_KINDS: { value: ClientKind; label: string }[] = [
+  { value: "PERSON", label: "Физлицо" },
+  { value: "ENTREPRENEUR", label: "ИП" },
+  { value: "LEGAL", label: "Организация" },
+];
 
 export const clientSchema = z.object({
   kind: z.enum(["PERSON", "ENTREPRENEUR", "LEGAL"]).default("PERSON"),

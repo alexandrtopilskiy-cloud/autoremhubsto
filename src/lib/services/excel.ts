@@ -4,24 +4,19 @@
 // Существующие записи находятся по ключу (штрихкод, артикул, название, телефон, VIN, госномер) и обновляются:
 // пустая ячейка поле не меняет.
 import ExcelJS from "exceljs";
-import { Prisma, type ClientKind } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { prisma } from "../db";
 import { UserError } from "../errors";
 import { parseRub } from "../money";
 import type { Section } from "../permissions";
 import { productSchema, workSchema } from "./catalog";
-import { clientSchema, vehicleSchema } from "./clients";
+import { CLIENT_KINDS, clientSchema, vehicleSchema } from "./clients";
 
 type Tx = Prisma.TransactionClient;
 type Col = { key: string; title: string; hint: string; width?: number; required?: boolean };
 type Values = Record<string, string>;
 
-const CLIENT_KINDS: { value: ClientKind; label: string }[] = [
-  { value: "PERSON", label: "Физлицо" },
-  { value: "ENTREPRENEUR", label: "ИП" },
-  { value: "LEGAL", label: "Организация" },
-];
 
 export const EXCEL_KINDS = {
   clients: {

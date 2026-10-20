@@ -1,13 +1,65 @@
 import Link from "next/link";
+import { FilterSelect, ListFilters, Pager, PreviewHead, PreviewLink, PreviewRow, SortTh, WithPreview } from "@/components/list-view";
 import { Badge, Card, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate, orderNo, vehicleTitle } from "@/lib/format";
+import { listHref, parseListQuery } from "@/lib/list-query";
 import { formatRub } from "@/lib/money";
-import { estimateStatusLabel, listEstimates } from "@/lib/services/estimates";
+import { ESTIMATE_STATUSES, estimateStatusLabel, getEstimate } from "@/lib/services/estimates";
+import { ESTIMATE_FILTERS, ESTIMATE_SORTS, searchEstimates, type EstimateQuery } from "@/lib/services/lists";
+import { getCompany } from "@/lib/services/settings";
 
-export default async function EstimatesPage() {
+const PATH = "/app/estimates";
+
+async function Preview({ companyId, id, query }: { companyId: string; id: string; query: EstimateQuery }) {
+  const e = await getEstimate(companyId, id).catch(() => null);
+  if (!e) return null;
+  return (
+    <>
+      <PreviewHead title={`К-${e.number} от ${formatDate(e.createdAt)}`} href={`/app/estimates/${e.id}`} close={listHref(PATH, query, { preview: "" })} />
+      <PreviewRow label="Статус">{estimateStatusLabel(e.status)}</PreviewRow>
+      <PreviewRow label="Заказ-наряд">
+        {e.order ? (
+          <Link href={`/app/orders/${e.order.id}`} className="text-blue-600 hover:underline">
+            {orderNo(e.order.number)}
+          </Link>
+        ) : null}
+      </PreviewRow>
+      <PreviewRow label="Клиент">
+        <Link href={`/app/clients/${e.clientId}`} className="text-blue-600 hover:underline">
+          {e.client.name}
+        </Link>
+      </PreviewRow>
+      <PreviewRow label="Телефон">{e.client.phone}</PreviewRow>
+      <PreviewRow label="Автомобиль">{e.vehicle ? vehicleTitle(e.vehicle) : null}</PreviewRow>
+      <PreviewRow label="Комментарий">{e.comment}</PreviewRow>
+      {e.lines.length > 0 && (
+        <div className="mt-3 text-sm">
+          <div className="mb-1 text-slate-500">Строки ({e.lines.length})</div>
+          <ul className="list-inside list-disc">
+            {e.lines.slice(0, 8).map((l) => (
+              <li key={l.id}>{l.name}</li>
+            ))}
+            {e.lines.length > 8 && <li className="list-none text-slate-500">и ещё {e.lines.length - 8}</li>}
+          </ul>
+        </div>
+      )}
+      <div className="mt-3">
+        <PreviewRow label="Работы">{formatRub(e.totals.works)}</PreviewRow>
+        <PreviewRow label="Товары">{formatRub(e.totals.items)}</PreviewRow>
+        <PreviewRow label="Итого">
+          <b>{formatRub(e.totals.total)}</b>
+        </PreviewRow>
+      </div>
+    </>
+  );
+}
+
+export default async function EstimatesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
-  const list = await listEstimates(s.companyId);
+  const query = parseListQuery(await searchParams, { sorts: ESTIMATE_SORTS, sort: "number", filters: ESTIMATE_FILTERS });
+  const company = await getCompany(s.companyId);
+  const list = await searchEstimates(s.companyId, query, company.utcOffset);
   return (
     <div className="flex flex-col gap-4">
       <PageTitle
@@ -19,51 +71,78 @@ export default async function EstimatesPage() {
       >
         Калькуляции
       </PageTitle>
-      <Card>
-        <p className="mb-3 text-sm text-slate-600">
-          Предварительный расчёт ремонта для клиента. Когда клиент согласен, калькуляция одним нажатием превращается в заказ-наряд.
-        </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className={th}>Номер</th>
-                <th className={th}>Дата</th>
-                <th className={th}>Клиент</th>
-                <th className={th}>Автомобиль</th>
-                <th className={th}>Статус</th>
-                <th className={`${th} text-right`}>Сумма</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((e) => (
-                <tr key={e.id} className="border-b last:border-0 hover:bg-slate-50">
-                  <td className={td}>
-                    <Link className="text-blue-600 hover:underline" href={`/app/estimates/${e.id}`}>
-                      К-{e.number}
-                    </Link>
-                  </td>
-                  <td className={td}>{formatDate(e.createdAt)}</td>
-                  <td className={td}>{e.client.name}</td>
-                  <td className={td}>{e.vehicle ? vehicleTitle(e.vehicle) : ""}</td>
-                  <td className={td}>
-                    <Badge tone={e.status === "ACCEPTED" ? "green" : e.status === "SENT" ? "blue" : "slate"}>{estimateStatusLabel(e.status)}</Badge>
-                    {e.order && <span className="ml-2 text-slate-500">{orderNo(e.order.number)}</span>}
-                  </td>
-                  <td className={`${td} text-right whitespace-nowrap`}>{formatRub(e.totals.total)}</td>
+      <WithPreview panel={query.preview ? <Preview companyId={s.companyId} id={query.preview} query={query} /> : undefined}>
+        <Card>
+          <p className="mb-3 text-sm text-slate-600">
+            Предварительный расчёт ремонта для клиента. Когда клиент согласен, калькуляция одним нажатием превращается в заказ-наряд.
+          </p>
+          <ListFilters path={PATH} query={query} placeholder="Номер, клиент, телефон, госномер или комментарий">
+            <FilterSelect name="status" label="Статус" value={query.f.status} options={ESTIMATE_STATUSES} />
+            <FilterSelect
+              name="converted"
+              label="Заказ-наряд"
+              value={query.f.converted}
+              options={[
+                { value: "1", label: "Создан" },
+                { value: "0", label: "Не создан" },
+              ]}
+            />
+          </ListFilters>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className={th} />
+                  <SortTh path={PATH} query={query} sort="number">
+                    Номер
+                  </SortTh>
+                  <SortTh path={PATH} query={query} sort="date">
+                    Дата
+                  </SortTh>
+                  <SortTh path={PATH} query={query} sort="client">
+                    Клиент
+                  </SortTh>
+                  <th className={th}>Автомобиль</th>
+                  <th className={th}>Статус</th>
+                  <SortTh path={PATH} query={query} sort="total" right>
+                    Сумма
+                  </SortTh>
                 </tr>
-              ))}
-              {list.length === 0 && (
-                <tr>
-                  <td colSpan={6} className={`${td} text-slate-500`}>
-                    Калькуляций пока нет
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody>
+                {list.rows.map((e) => (
+                  <tr key={e.id} className={`border-b last:border-0 hover:bg-slate-50 ${query.preview === e.id ? "bg-blue-50" : ""}`}>
+                    <td className={`${td} w-6`}>
+                      <PreviewLink path={PATH} query={query} id={e.id} label={`К-${e.number}`} />
+                    </td>
+                    <td className={td}>
+                      <Link className="text-blue-600 hover:underline" href={`/app/estimates/${e.id}`}>
+                        К-{e.number}
+                      </Link>
+                    </td>
+                    <td className={td}>{formatDate(e.createdAt)}</td>
+                    <td className={td}>{e.client.name}</td>
+                    <td className={td}>{e.vehicle ? vehicleTitle(e.vehicle) : ""}</td>
+                    <td className={td}>
+                      <Badge tone={e.status === "ACCEPTED" ? "green" : e.status === "SENT" ? "blue" : "slate"}>{estimateStatusLabel(e.status)}</Badge>
+                      {e.order && <span className="ml-2 text-slate-500">{orderNo(e.order.number)}</span>}
+                    </td>
+                    <td className={`${td} text-right whitespace-nowrap`}>{formatRub(e.totals.total)}</td>
+                  </tr>
+                ))}
+                {list.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className={`${td} text-slate-500`}>
+                      Калькуляций не найдено
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <Pager path={PATH} query={query} total={list.total} page={list.page} pages={list.pages} />
+        </Card>
+      </WithPreview>
     </div>
   );
 }

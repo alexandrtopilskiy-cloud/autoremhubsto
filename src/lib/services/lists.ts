@@ -1,0 +1,242 @@
+// 1.5 Списки заказ-нарядов, калькуляций и клиентов с поиском, фильтрами, сортировкой и страницами,
+// и поиск «Везде» по всем разделам сразу.
+import type { DocStatus, EstimateStatus, OrderStage, Prisma } from "@prisma/client";
+import { prisma } from "../db";
+import { docNumber, paginate, periodWhere, sortBy, type ListQuery } from "../list-query";
+import { estimateTotals, ESTIMATE_STATUSES } from "./estimates";
+import { STAGES, totalsOf } from "./orders";
+
+const ci = (q: string) => ({ contains: q, mode: "insensitive" as const });
+const plate = (q: string) => q.toUpperCase().replace(/\s+/g, "");
+
+/** Клиент по имени, телефону, госномеру или VIN. */
+function clientMatch(q: string): Prisma.ClientWhereInput[] {
+  return [
+    { name: ci(q) },
+    { phone: { contains: q } },
+    { vehicles: { some: { plate: { contains: plate(q) } } } },
+    { vehicles: { some: { vin: { contains: q.toUpperCase() } } } },
+  ];
+}
+
+// ---------- заказ-наряды ----------
+
+export const ORDER_SORTS = ["number", "date", "client", "total", "due"] as const;
+export const ORDER_FILTERS = ["stage", "status", "org", "manager", "debt"] as const;
+export type OrderQuery = ListQuery<(typeof ORDER_SORTS)[number]>;
+
+export async function searchOrders(companyId: string, q: OrderQuery, tz: number) {
+  const n = q.q ? docNumber(q.q) : null;
+  const { stage, status, org, manager, debt } = q.f;
+  const where: Prisma.WorkOrderWhereInput = {
+    companyId,
+    ...(STAGES.some((s) => s.value === stage) ? { stage: stage as OrderStage } : {}),
+    ...(status === "DRAFT" || status === "POSTED" ? { status: status as DocStatus } : {}),
+    ...(org ? { organizationId: org === "none" ? null : org } : {}),
+    ...(manager ? { managerId: manager === "none" ? null : manager } : {}),
+    ...(periodWhere(q, tz) ? { acceptedAt: periodWhere(q, tz) } : {}),
+    ...(q.q
+      ? {
+          OR: [
+            ...(n !== null ? [{ number: n }] : []),
+            { client: { OR: clientMatch(q.q) } },
+            { vehicle: { plate: { contains: plate(q.q) } } },
+            { vehicle: { vin: { contains: q.q.toUpperCase() } } },
+            { reason: ci(q.q) },
+          ],
+        }
+      : {}),
+  };
+  // суммы считаются по строкам, поэтому отбор по долгу и сортировка по сумме — после расчёта
+  const all = (
+    await prisma.workOrder.findMany({
+      where,
+      include: { client: true, vehicle: true, manager: true, organization: true, works: true, items: true, payments: true },
+      // при равных значениях сортировки — новые выше
+      orderBy: { number: "desc" },
+    })
+  )
+    .map((o) => ({ ...o, totals: totalsOf(o) }))
+    .filter((o) => (debt === "1" ? o.totals.due > 0 : true));
+  const key = {
+    number: (o: (typeof all)[number]) => o.number,
+    date: (o: (typeof all)[number]) => o.acceptedAt,
+    client: (o: (typeof all)[number]) => o.client.name,
+    total: (o: (typeof all)[number]) => o.totals.total,
+    due: (o: (typeof all)[number]) => o.totals.due,
+  }[q.sort];
+  const sums = all.reduce((s, o) => ({ total: s.total + o.totals.total, due: s.due + o.totals.due }), { total: 0, due: 0 });
+  return { ...paginate(sortBy(all, key, q.dir), q), sums };
+}
+
+// ---------- калькуляции ----------
+
+export const ESTIMATE_SORTS = ["number", "date", "client", "total"] as const;
+export const ESTIMATE_FILTERS = ["status", "converted"] as const;
+export type EstimateQuery = ListQuery<(typeof ESTIMATE_SORTS)[number]>;
+
+export async function searchEstimates(companyId: string, q: EstimateQuery, tz: number) {
+  const n = q.q ? docNumber(q.q) : null;
+  const { status, converted } = q.f;
+  const where: Prisma.EstimateWhereInput = {
+    companyId,
+    ...(ESTIMATE_STATUSES.some((s) => s.value === status) ? { status: status as EstimateStatus } : {}),
+    ...(converted === "1" ? { orderId: { not: null } } : converted === "0" ? { orderId: null } : {}),
+    ...(periodWhere(q, tz) ? { createdAt: periodWhere(q, tz) } : {}),
+    ...(q.q
+      ? {
+          OR: [
+            ...(n !== null ? [{ number: n }] : []),
+            { client: { OR: clientMatch(q.q) } },
+            { vehicle: { plate: { contains: plate(q.q) } } },
+            { comment: ci(q.q) },
+          ],
+        }
+      : {}),
+  };
+  const all = (
+    await prisma.estimate.findMany({
+      where,
+      include: { client: true, vehicle: true, lines: true, order: { select: { id: true, number: true } } },
+      orderBy: { number: "desc" },
+    })
+  ).map((e) => ({ ...e, totals: estimateTotals(e.lines) }));
+  const key = {
+    number: (e: (typeof all)[number]) => e.number,
+    date: (e: (typeof all)[number]) => e.createdAt,
+    client: (e: (typeof all)[number]) => e.client.name,
+    total: (e: (typeof all)[number]) => e.totals.total,
+  }[q.sort];
+  return paginate(sortBy(all, key, q.dir), q);
+}
+
+// ---------- клиенты ----------
+
+export const CLIENT_SORTS = ["name", "created"] as const;
+export const CLIENT_FILTERS = ["archived", "source", "kind"] as const;
+export type ClientQuery = ListQuery<(typeof CLIENT_SORTS)[number]>;
+
+export async function searchClients(companyId: string, q: ClientQuery, tz: number) {
+  const { archived, source, kind } = q.f;
+  const where: Prisma.ClientWhereInput = {
+    companyId,
+    archived: archived === "1",
+    ...(source ? { source: source === "none" ? null : source } : {}),
+    ...(kind === "PERSON" || kind === "ENTREPRENEUR" || kind === "LEGAL" ? { kind } : {}),
+    ...(periodWhere(q, tz) ? { createdAt: periodWhere(q, tz) } : {}),
+    ...(q.q ? { OR: [...clientMatch(q.q), { email: ci(q.q) }, { inn: { contains: q.q } }] } : {}),
+  };
+  // сначала только id для сортировки (имена — по алфавиту без учёта регистра), затем строки нужной страницы
+  const keys = await prisma.client.findMany({
+    where,
+    select: { id: true, name: true, createdAt: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  const page = paginate(
+    sortBy(keys, (c) => (q.sort === "name" ? c.name : c.createdAt), q.dir),
+    q,
+  );
+  const ids = page.rows.map((c) => c.id);
+  const found = await prisma.client.findMany({ where: { id: { in: ids } }, include: { vehicles: true } });
+  const rows = ids.map((id) => found.find((c) => c.id === id)!);
+  return { ...page, rows };
+}
+
+/** Клиент для панели просмотра: автомобили, последние заказ-наряды и общий долг. */
+export async function clientPreview(companyId: string, id: string) {
+  const c = await prisma.client.findFirst({ where: { id, companyId }, include: { vehicles: { orderBy: { createdAt: "asc" } } } });
+  if (!c) return null;
+  const orders = (
+    await prisma.workOrder.findMany({
+      where: { companyId, clientId: id },
+      include: { works: true, items: true, payments: true },
+      orderBy: { number: "desc" },
+    })
+  ).map((o) => ({ id: o.id, number: o.number, acceptedAt: o.acceptedAt, stage: o.stage, totals: totalsOf(o) }));
+  return {
+    ...c,
+    orders: orders.slice(0, 5),
+    orderCount: orders.length,
+    spent: orders.reduce((s, o) => s + o.totals.paid, 0),
+    due: orders.reduce((s, o) => s + Math.max(0, o.totals.due), 0),
+  };
+}
+
+/** Рекламные источники, которые встречаются у клиентов СТО, — для фильтра. */
+export async function clientSources(companyId: string) {
+  const rows = await prisma.client.findMany({
+    where: { companyId, source: { not: null } },
+    select: { source: true },
+    distinct: ["source"],
+    orderBy: { source: "asc" },
+  });
+  return rows.map((r) => r.source!);
+}
+
+// ---------- поиск «Везде» ----------
+
+const FOUND = 10;
+const numberIs = (n: number | null) => (n === null ? [] : [{ number: n }]);
+
+/** Поиск по клиентам, заказ-нарядам, калькуляциям, продажам и товарам; разделы без доступа не ищутся. */
+export async function searchEverywhere(
+  companyId: string,
+  query: string,
+  sections: { clients: boolean; orders: boolean; stock: boolean; catalog: boolean },
+) {
+  const q = query.trim();
+  if (q.length < 2 && docNumber(q) === null) return null;
+  // «ЗН-12», «К-12», «РТ-12» ищут номер только в своём виде документов, просто «12» — во всех
+  const prefix = q.match(/^([а-яё]{1,3})\s*-?\s*\d+$/i)?.[1].toUpperCase();
+  const num = (kind: string) => (!prefix || prefix === kind ? docNumber(q) : null);
+  const none = Promise.resolve([]);
+  const [clients, orders, estimates, sales, products] = await Promise.all([
+    sections.clients
+      ? prisma.client.findMany({
+          where: { companyId, OR: clientMatch(q) },
+          include: { vehicles: true },
+          orderBy: { name: "asc" },
+          take: FOUND,
+        })
+      : none,
+    sections.orders
+      ? prisma.workOrder.findMany({
+          where: {
+            companyId,
+            OR: [
+              ...numberIs(num("ЗН")),
+              { client: { OR: clientMatch(q) } },
+              { vehicle: { plate: { contains: plate(q) } } },
+            ],
+          },
+          include: { client: true, vehicle: true },
+          orderBy: { number: "desc" },
+          take: FOUND,
+        })
+      : none,
+    sections.orders
+      ? prisma.estimate.findMany({
+          where: { companyId, OR: [...numberIs(num("К")), { client: { OR: clientMatch(q) } }] },
+          include: { client: true },
+          orderBy: { number: "desc" },
+          take: FOUND,
+        })
+      : none,
+    sections.stock
+      ? prisma.sale.findMany({
+          where: { companyId, OR: [...numberIs(num("РТ")), { client: { OR: clientMatch(q) } }] },
+          include: { client: true },
+          orderBy: { number: "desc" },
+          take: FOUND,
+        })
+      : none,
+    sections.catalog || sections.stock
+      ? prisma.product.findMany({
+          where: { companyId, OR: [{ name: ci(q) }, { article: ci(q) }, { barcode: q }] },
+          orderBy: { name: "asc" },
+          take: FOUND,
+        })
+      : none,
+  ]);
+  return { clients, orders, estimates, sales, products };
+}
