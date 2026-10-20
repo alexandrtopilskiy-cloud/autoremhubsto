@@ -48,6 +48,25 @@ export function weekStart(date: string): string {
   return addDays(date, -dow);
 }
 
+/** Первое число месяца, сдвинутого на n месяцев от месяца даты. */
+export function addMonths(date: string, n: number): string {
+  const [y, m] = date.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-01`;
+}
+
+/** Недели (с понедельника) для сетки месяца: полные недели, покрывающие весь месяц. */
+export function monthWeeks(date: string): string[][] {
+  const first = addMonths(date, 0);
+  const next = addMonths(date, 1);
+  const weeks: string[][] = [];
+  for (let d = weekStart(first); d < next; d = addDays(d, 7)) weeks.push(Array.from({ length: 7 }, (_, i) => addDays(d, i)));
+  return weeks;
+}
+
+const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+export const monthLabel = (date: string) => `${MONTHS[Number(date.slice(5, 7)) - 1]} ${date.slice(0, 4)}`;
+
 export const isDateStr = (v?: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 export const isTimeStr = (v?: string | null): v is string => !!v && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
 

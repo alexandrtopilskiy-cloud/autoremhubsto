@@ -194,6 +194,18 @@ export function workplaceLoad(
   return Math.round((busy / workMinutes) * 100);
 }
 
+/** Загрузка всех постов за день: среднее по постам, %. */
+export function dayLoad(
+  appointments: { workplaceId: string; startAt: Date; endAt: Date; stage: AppointmentStage }[],
+  workplaceIds: string[],
+  day: { start: Date; end: Date },
+  workMinutes: number,
+): number {
+  if (workplaceIds.length === 0) return 0;
+  const sum = workplaceIds.reduce((s, id) => s + workplaceLoad(appointments, id, day, workMinutes), 0);
+  return Math.round(sum / workplaceIds.length);
+}
+
 /**
  * Заказ-наряд из записи. Если клиента ещё нет в базе, он создаётся из имени и телефона записи.
  * Запись получает этап «В работе» и ссылку на заказ-наряд.

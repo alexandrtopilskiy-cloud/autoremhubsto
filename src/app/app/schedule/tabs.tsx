@@ -1,9 +1,10 @@
 import Link from "next/link";
 
-export function ScheduleTabs({ active, date }: { active: "day" | "week" | "list"; date: string }) {
+export function ScheduleTabs({ active, date }: { active: "day" | "week" | "month" | "list"; date: string }) {
   const tabs = [
     { key: "day", href: `/app/schedule?date=${date}`, label: "День" },
     { key: "week", href: `/app/schedule?date=${date}&view=week`, label: "Неделя" },
+    { key: "month", href: `/app/schedule?date=${date}&view=month`, label: "Месяц" },
     { key: "list", href: `/app/schedule/list?from=${date}`, label: "Список записей" },
   ];
   return (
