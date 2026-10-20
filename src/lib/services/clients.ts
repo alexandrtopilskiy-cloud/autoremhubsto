@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ClientKind } from "@prisma/client";
 import { prisma } from "../db";
 import { ownClient, ownVehicle } from "../tenant";
+import { normalizeVin } from "../vin";
 import { ownCategory } from "./prices";
 
 const opt = z
@@ -35,7 +36,7 @@ export const vehicleSchema = z.object({
     .union([z.literal(""), z.coerce.number().int().min(1900).max(2100)])
     .optional()
     .transform((v) => (v === "" || v === undefined ? null : v)),
-  vin: opt.transform((v) => (v ? v.toUpperCase() : null)),
+  vin: opt.transform((v) => (v ? normalizeVin(v) : null)),
   plate: opt.transform((v) => (v ? v.toUpperCase().replace(/\s+/g, "") : null)),
   color: opt,
 });
