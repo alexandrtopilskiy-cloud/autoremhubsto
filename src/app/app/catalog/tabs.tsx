@@ -5,6 +5,7 @@ const tabs = [
   { key: "products", href: "/app/catalog/products", label: "Товары и материалы" },
   { key: "prices", href: "/app/catalog/prices", label: "Категории цен" },
   { key: "dictionaries", href: "/app/catalog/dictionaries", label: "Общие справочники" },
+  { key: "excel", href: "/app/excel", label: "Загрузка из Excel" },
 ];
 
 export function CatalogTabs({ active }: { active: string }) {
