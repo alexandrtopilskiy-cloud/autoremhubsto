@@ -4,11 +4,12 @@ const tabs = [
   { key: "works", href: "/app/catalog/works", label: "Работы" },
   { key: "products", href: "/app/catalog/products", label: "Товары и материалы" },
   { key: "prices", href: "/app/catalog/prices", label: "Категории цен" },
+  { key: "dictionaries", href: "/app/catalog/dictionaries", label: "Общие справочники" },
 ];
 
 export function CatalogTabs({ active }: { active: string }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       {tabs.map((t) => (
         <Link
           key={t.key}

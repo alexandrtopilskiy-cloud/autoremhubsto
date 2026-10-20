@@ -6,9 +6,12 @@ import { vehicleTitle } from "@/lib/format";
 import { getClient, listClients } from "@/lib/services/clients";
 import { listEmployees } from "@/lib/services/employees";
 import { createOrderAction } from "../actions";
+import { dicts } from "@/lib/services/dictionaries";
+import { DictList } from "@/components/dict-list";
 
 export default async function NewOrderPage({ searchParams }: { searchParams: Promise<{ clientId?: string; q?: string }> }) {
   const s = await requireSession();
+  const lists = await dicts(s.companyId, ["REPAIR_KIND"]);
   const { clientId, q } = await searchParams;
   const client = clientId ? await getClient(s.companyId, clientId).catch(() => null) : null;
 
@@ -71,7 +74,8 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
             </Select>
           </Field>
           <Field label="Причина обращения" className="w-full">
-            <Input name="reason" />
+            <Input name="reason" list="repair-kinds" />
+            <DictList id="repair-kinds" items={lists.REPAIR_KIND} />
           </Field>
           <Submit>Создать</Submit>
         </ActionForm>

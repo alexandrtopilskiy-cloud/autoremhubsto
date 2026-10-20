@@ -4,7 +4,8 @@ import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, orderNo, vehicleTitle } from "@/lib/format";
 import { listAttachments } from "@/lib/services/attachments";
-import { getInspection, KIT_ITEMS, zoneLabel } from "@/lib/services/inspections";
+import { dict } from "@/lib/services/dictionaries";
+import { getInspection, zoneLabel } from "@/lib/services/inspections";
 import { getOrder } from "@/lib/services/orders";
 import { PrintButton } from "../print/print-button";
 
@@ -17,7 +18,12 @@ export default async function PrintInspection({ params }: { params: Promise<{ id
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const [ins, files] = await Promise.all([getInspection(s.companyId, id), listAttachments(s.companyId, "ORDER", id)]);
+  const [ins, files, kitList] = await Promise.all([
+    getInspection(s.companyId, id),
+    listAttachments(s.companyId, "ORDER", id),
+    dict(s.companyId, "KIT_ITEM"),
+  ]);
+  const kit = [...kitList, ...ins.items.filter((x) => !kitList.includes(x))];
   const photos = files.filter((f) => PHOTO.includes(f.mime));
   const org = o.organization;
   const v = o.vehicle;
@@ -81,7 +87,7 @@ export default async function PrintInspection({ params }: { params: Promise<{ id
           )}
           <h2 className="mb-1 font-semibold">Комплектность</h2>
           <ul className="mb-3 grid grid-cols-2 gap-x-4">
-            {KIT_ITEMS.map((k) => (
+            {kit.map((k) => (
               <li key={k}>
                 {ins.items.includes(k) ? "☑" : "☐"} {k}
               </li>

@@ -12,6 +12,8 @@ import {
   updateProductAction,
 } from "../../manage-actions";
 import { CatalogTabs } from "../tabs";
+import { dicts } from "@/lib/services/dictionaries";
+import { DictList } from "@/components/dict-list";
 
 const rubInput = (kop: number) => (kop / 100).toFixed(2).replace(".", ",");
 const qtyInput = (q: unknown) => (q === null || q === undefined ? "" : String(Number(q)).replace(".", ","));
@@ -31,12 +33,15 @@ function GroupSelect({ groups, value }: { groups: { id: string; name: string }[]
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ q?: string; group?: string }> }) {
   const s = await requireSession();
+  const lists = await dicts(s.companyId, ["UNIT", "BRAND"]);
   const { q, group } = await searchParams;
   const [products, groups] = await Promise.all([listProducts(s.companyId, q, group), listGroups(s.companyId)]);
   return (
     <div className="flex flex-col gap-4">
       <PageTitle>Справочники</PageTitle>
       <CatalogTabs active="products" />
+      <DictList id="units" items={lists.UNIT} />
+      <DictList id="brands" items={lists.BRAND} />
       <Allowed perms={s.perms} section="catalog" level="CREATE" quiet>
         <Card title="Новый товар">
           <ActionForm action={createProductAction} reset className="flex flex-wrap items-end gap-3">
@@ -47,10 +52,10 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
               <Input name="article" className="w-32" />
             </Field>
             <Field label="Бренд">
-              <Input name="brand" className="w-32" />
+              <Input name="brand" list="brands" className="w-32" />
             </Field>
             <Field label="Ед.">
-              <Input name="unit" defaultValue="шт" className="w-16" />
+              <Input name="unit" list="units" defaultValue="шт" className="w-16" />
             </Field>
             <Field label="Цена, ₽">
               <Input name="price" inputMode="decimal" className="w-28" required />
@@ -88,8 +93,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
               <ActionForm action={updateProductAction.bind(null, p.id)} className="flex flex-1 flex-wrap items-end gap-3">
                 <Input name="name" defaultValue={p.name} className="min-w-64 flex-1" aria-label="Наименование" />
                 <Input name="article" defaultValue={p.article ?? ""} placeholder="артикул" className="w-32" aria-label="Артикул" />
-                <Input name="brand" defaultValue={p.brand ?? ""} placeholder="бренд" className="w-32" aria-label="Бренд" />
-                <Input name="unit" defaultValue={p.unit} className="w-16" aria-label="Ед." />
+                <Input name="brand" list="brands" defaultValue={p.brand ?? ""} placeholder="бренд" className="w-32" aria-label="Бренд" />
+                <Input name="unit" list="units" defaultValue={p.unit} className="w-16" aria-label="Ед." />
                 <Input name="price" defaultValue={rubInput(p.price)} inputMode="decimal" className="w-28" aria-label="Цена" />
                 <GroupSelect groups={groups} value={p.groupId} />
                 <Input

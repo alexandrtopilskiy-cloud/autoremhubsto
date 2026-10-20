@@ -152,6 +152,8 @@ model Company {
   roles           CompanyRole[]
   productGroups   ProductGroup[]
   priceCategories PriceCategory[]
+  dictItems       DictionaryItem[]
+  customDicts     DictKind[]       @default([]) // справочники, которые СТО уже меняла; остальные — стандартные
 }
 
 // Юрлицо или ИП внутри СТО: от его имени оформляются документы.
@@ -853,4 +855,29 @@ model ProductPrice {
   price      Int // коп.
 
   @@id([productId, categoryId])
+}
+
+/// 9.10 Общие справочники: списки для подсказок и выбора в формах.
+enum DictKind {
+  UNIT
+  BRAND
+  COLOR
+  REPAIR_KIND
+  DAMAGE_TYPE
+  KIT_ITEM
+  CLIENT_SOURCE
+  WRITE_OFF_REASON
+}
+
+/// Строка общего справочника СТО. Пока СТО справочник не меняла, используется стандартный список из кода.
+model DictionaryItem {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind      DictKind
+  name      String
+  position  Int
+
+  @@unique([companyId, kind, name])
+  @@index([companyId, kind, position])
 }

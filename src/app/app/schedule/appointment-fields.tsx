@@ -1,5 +1,6 @@
 import { Field, Input, Select } from "@/components/ui";
 import { vehicleTitle } from "@/lib/format";
+import { DictList } from "@/components/dict-list";
 
 type Opt = { id: string; name: string };
 type ClientOpt = Opt & { phone: string | null; vehicles: { id: string; make: string; model: string; year: number | null; plate: string | null }[] };
@@ -23,11 +24,13 @@ export function AppointmentFields({
   workplaces,
   clients,
   employees,
+  reasons = [],
 }: {
   d: AppointmentDefaults;
   workplaces: Opt[];
   clients: ClientOpt[];
   employees: Opt[];
+  reasons?: string[];
 }) {
   return (
     <>
@@ -92,7 +95,8 @@ export function AppointmentFields({
         <Input name="contactPhone" type="tel" defaultValue={d.contactPhone ?? ""} />
       </Field>
       <Field label="Причина обращения" className="min-w-64 flex-1">
-        <Input name="reason" defaultValue={d.reason ?? ""} />
+        <Input name="reason" list="repair-kinds" defaultValue={d.reason ?? ""} />
+        <DictList id="repair-kinds" items={reasons} />
       </Field>
       <Field label="Сумма (ориентир), ₽">
         <Input name="amount" inputMode="decimal" defaultValue={d.amount ? (d.amount / 100).toFixed(2).replace(".", ",") : ""} className="w-32" />

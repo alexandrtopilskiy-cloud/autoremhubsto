@@ -247,8 +247,6 @@ export async function addSalePayment(companyId: string, saleId: string, input: u
 
 // --- 5.13 списание ---
 
-export const WRITE_OFF_REASONS = ["Брак", "Порча", "Недостача", "Для нужд СТО", "Возврат поставщику"];
-
 export const writeOffHeaderSchema = z.object({ reason: opt });
 export const writeOffLineSchema = z.object({
   productId: z.string().min(1, "Выберите товар"),
