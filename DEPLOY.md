@@ -79,6 +79,8 @@ docker compose up -d --build
 docker compose ps
 ```
 
+Если в списке нет `caddy`, а `docker compose logs caddy` пуст, порты 80/443 на сервере уже занимает другая программа (обычно nginx). Тогда переходите к разделу «Если на сервере уже есть nginx».
+
 Откройте в браузере `https://81-161-118-132.sslip.io` (или свой домен). Сертификат выдаётся при первом заходе, поэтому первая загрузка может занять до минуты.
 
 ## 6. Первый вход
@@ -86,6 +88,51 @@ docker compose ps
 Откройте «Регистрация» и создайте свою СТО: компания, ваше имя, почта и пароль. Это ваш кабинет владельца, сотрудников добавляете уже внутри.
 
 Демо-данные на рабочем сервере не нужны. Для пробного стенда их можно добавить командой `docker compose exec app npm run db:seed` (вход `demo@autoremhub.local` / `demo12345`), но тогда смените этот пароль.
+
+## Если на сервере уже есть nginx
+
+Проверка: `ss -tlnp | grep -E ':80 |:443 '`. Если в ответе `nginx`, сайт подключается через него, а Caddy не нужен.
+
+1. В файле `.env` удалите строку `COMPOSE_PROFILES=caddy` (`nano .env`) и перезапустите:
+
+   ```bash
+   docker compose rm -sf caddy
+   docker compose up -d
+   ```
+
+   Приложение теперь доступно nginx по адресу `127.0.0.1:3100` (снаружи этот порт закрыт). Если 3100 уже занят, добавьте в `.env` строку `APP_PORT=3200` и используйте этот номер ниже.
+
+2. Создайте настройку сайта для nginx, подставив свой адрес в `server_name`:
+
+   ```bash
+   cat > /etc/nginx/sites-available/autoremhub <<'EOF'
+   server {
+       listen 80;
+       server_name 81-161-118-132.sslip.io;
+       client_max_body_size 12m;
+       location / {
+           proxy_pass http://127.0.0.1:3100;
+           proxy_set_header Host $http_host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+   }
+   EOF
+   ln -s /etc/nginx/sites-available/autoremhub /etc/nginx/sites-enabled/
+   nginx -t && systemctl reload nginx
+   ```
+
+3. Получите HTTPS-сертификат (certbot сам допишет его в настройку и будет продлевать):
+
+   ```bash
+   apt install -y certbot python3-certbot-nginx
+   certbot --nginx -d 81-161-118-132.sslip.io
+   ```
+
+   На вопрос про почту введите свою, на условия ответьте `Y`.
+
+После этого сайт открывается по `https://81-161-118-132.sslip.io`.
 
 ## Обновление до новой версии
 
