@@ -35,6 +35,9 @@ export default async function WorksPage({ searchParams }: { searchParams: Promis
             <Field label="Фикс. цена, ₽">
               <Input name="price" inputMode="decimal" className="w-28" />
             </Field>
+            <Field label="% исполнителю">
+              <Input name="executorPercent" type="number" min={0} max={100} placeholder="как у сотрудника" className="w-36" />
+            </Field>
             <Submit>Добавить</Submit>
           </ActionForm>
         </Card>
@@ -51,6 +54,17 @@ export default async function WorksPage({ searchParams }: { searchParams: Promis
                 <Input name="name" defaultValue={w.name} className="min-w-64 flex-1" aria-label="Название" />
                 <Input name="normHours" defaultValue={w.normHours ? String(w.normHours).replace(".", ",") : ""} placeholder="н/ч" inputMode="decimal" className="w-24" aria-label="Нормочасы" />
                 <Input name="price" defaultValue={rubInput(w.price)} placeholder="по н/ч" inputMode="decimal" className="w-28" aria-label="Цена" />
+                <Input
+                  name="executorPercent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  defaultValue={w.executorPercent ?? ""}
+                  placeholder="% исп."
+                  className="w-24"
+                  aria-label="Процент исполнителю"
+                  title="Свой процент исполнителю за эту работу; пусто — процент из карточки сотрудника"
+                />
                 <Submit variant="ghost">Сохранить</Submit>
               </ActionForm>
               <ActionForm action={deleteWorkAction.bind(null, w.id)}>

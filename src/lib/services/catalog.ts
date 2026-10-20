@@ -15,6 +15,10 @@ export const workSchema = z.object({
     .optional()
     .transform((v) => (v === "" || v === undefined ? null : v)),
   price: z.coerce.number().int().min(0).default(0),
+  executorPercent: z
+    .union([z.literal(""), z.coerce.number().int().min(0, "Процент от 0 до 100").max(100, "Процент от 0 до 100")])
+    .optional()
+    .transform((v) => (v === "" || v === undefined ? null : v)),
 });
 
 export const productSchema = z.object({

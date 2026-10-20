@@ -4,9 +4,11 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { orderNo, vehicleTitle } from "../format";
 import { lineTotal } from "../money";
+import { executorReward, managerReward, orderLines } from "../pay-scheme";
 import { addDays, localDate, localToUtc, weekStart } from "../time";
 import { listCashboxes } from "./cash";
 import { stageLabel, STAGES, totalsOf } from "./orders";
+import { orderCosts } from "./payroll";
 import { saleTotals } from "./warehouse";
 
 export type Period = { from: Date; to: Date };
@@ -33,7 +35,7 @@ function postedOrders(companyId: string, p: Period) {
     include: {
       client: true,
       manager: true,
-      works: { include: { executor: true } },
+      works: { include: { executor: true, work: { select: { executorPercent: true } } } },
       items: true,
       payments: true,
     },
@@ -126,21 +128,30 @@ export async function worksReport(companyId: string, p: Period): Promise<ReportT
 
 export async function executorsReport(companyId: string, p: Period): Promise<ReportTable> {
   const orders = await postedOrders(companyId, p);
-  type Acc = { name: string; orders: Set<string>; count: number; hours: number; sum: number; percent: number };
+  type Acc = { name: string; orders: Set<string>; count: number; hours: number; sum: number; percent: number; reward: number };
   const map = new Map<string, Acc>();
-  for (const o of orders)
+  for (const o of orders) {
+    const paid = totalsOf(o).due <= 0;
     for (const w of o.works) {
       const key = w.executorId ?? "";
-      const r = map.get(key) ?? { name: w.executor?.name ?? "Не назначен", orders: new Set(), count: 0, hours: 0, sum: 0, percent: w.executor?.workPercent ?? 0 };
+      const r = map.get(key) ?? {
+        name: w.executor?.name ?? "Не назначен",
+        orders: new Set(),
+        count: 0,
+        hours: 0,
+        sum: 0,
+        percent: w.executor?.workPercent ?? 0,
+        reward: 0,
+      };
       r.orders.add(o.id);
       r.count += 1;
       r.hours += Number(w.normHours);
       r.sum += workSum(w);
+      if (w.executor && (!w.executor.paidOnly || paid)) r.reward += executorReward(w, w.executor).reward;
       map.set(key, r);
     }
-  const rows: Row[] = [...map.values()]
-    .map((r) => ({ ...r, orders: r.orders.size, reward: Math.round((r.sum * r.percent) / 100) }))
-    .sort(byDesc("sum"));
+  }
+  const rows: Row[] = [...map.values()].map((r) => ({ ...r, orders: r.orders.size })).sort(byDesc("sum"));
   return {
     title: "Исполнители",
     columns: [
@@ -161,21 +172,24 @@ export async function executorsReport(companyId: string, p: Period): Promise<Rep
 
 export async function managersReport(companyId: string, p: Period): Promise<ReportTable> {
   const orders = await postedOrders(companyId, p);
-  type Acc = { name: string; orders: number; works: number; items: number; total: number; percent: number };
+  const costs = await orderCosts(
+    companyId,
+    orders.filter((o) => o.manager?.itemsBase === "PROFIT").map((o) => o.id),
+  );
+  type Acc = { name: string; orders: number; works: number; items: number; total: number; percent: number; reward: number };
   const map = new Map<string, Acc>();
   for (const o of orders) {
     const key = o.managerId ?? "";
     const t = totalsOf(o);
-    const r = map.get(key) ?? { name: o.manager?.name ?? "Не указан", orders: 0, works: 0, items: 0, total: 0, percent: o.manager?.salesPercent ?? 0 };
+    const r = map.get(key) ?? { name: o.manager?.name ?? "Не указан", orders: 0, works: 0, items: 0, total: 0, percent: o.manager?.salesPercent ?? 0, reward: 0 };
     r.orders += 1;
     r.works += t.works;
     r.items += t.items;
     r.total += t.total;
+    if (o.manager && (!o.manager.paidOnly || t.due <= 0)) r.reward += managerReward(orderLines(o), costs.get(o.id) ?? 0, o.manager);
     map.set(key, r);
   }
-  const rows: Row[] = [...map.values()]
-    .map((r) => ({ ...r, reward: Math.round((r.total * r.percent) / 100) }))
-    .sort(byDesc("total"));
+  const rows: Row[] = [...map.values()].sort(byDesc("total"));
   return {
     title: "Менеджеры",
     columns: [

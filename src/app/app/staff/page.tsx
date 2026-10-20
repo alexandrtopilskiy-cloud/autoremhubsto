@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
 import { ManagerOnly } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, Select } from "@/components/ui";
@@ -11,6 +12,7 @@ import {
   setMemberRoleAction,
   updateEmployeeAction,
 } from "../manage-actions";
+import { StaffTabs } from "./tabs";
 
 const assignable = ROLES.filter((r) => r.value !== "OWNER");
 
@@ -20,10 +22,11 @@ export default async function StaffPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageTitle>Сотрудники</PageTitle>
+      <StaffTabs active="staff" />
       <ManagerOnly role={s.role}>
         <Card title="Сотрудники и исполнители">
           <p className="mb-3 text-sm text-slate-600">
-            Мастера и менеджеры, которых можно указать в заказ-наряде. Процент от работ начисляется мастеру с выполненных им работ, процент от продаж — менеджеру с суммы его заказ-нарядов (отчёты «Исполнители» и «Менеджеры»).
+            Мастера и менеджеры, которых можно указать в заказ-наряде. Процент от работ начисляется мастеру с выполненных им работ, процент от продаж — менеджеру с суммы его заказ-нарядов. Базу начисления, отдельный процент от товаров и начисление только по оплаченным нарядам можно задать по ссылке «Схема зарплаты».
           </p>
           <div className="mb-4 flex flex-col divide-y">
             {employees.map((e) => (
@@ -40,6 +43,9 @@ export default async function StaffPage() {
                   <input type="checkbox" name="active" defaultChecked={e.active} /> работает
                 </label>
                 <Submit variant="ghost">Сохранить</Submit>
+                <Link className="pb-2 text-sm text-blue-600 hover:underline" href={`/app/staff/${e.id}`}>
+                  Схема зарплаты
+                </Link>
               </ActionForm>
             ))}
           </div>
