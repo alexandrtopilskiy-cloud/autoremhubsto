@@ -6,12 +6,18 @@ import { stageLabel, totalsOf } from "./orders";
 import { requestStatusLabel } from "./parts-requests";
 import type { Period } from "./reports";
 import { receiptTotal } from "./stock";
+import { supplierOrderStatusLabel } from "./supplier-orders";
+import { saleTotals } from "./warehouse";
 
 export const DOC_TYPES = [
   { value: "order", label: "Заказ-наряд" },
   { value: "estimate", label: "Калькуляция" },
   { value: "receipt", label: "Приходная накладная" },
   { value: "request", label: "Требование на запчасти" },
+  { value: "sale", label: "Реализация" },
+  { value: "supplierOrder", label: "Заказ поставщику" },
+  { value: "writeoff", label: "Списание" },
+  { value: "inventory", label: "Инвентаризация" },
 ] as const;
 export type DocType = (typeof DOC_TYPES)[number]["value"];
 
@@ -29,7 +35,7 @@ export type DocRow = {
 
 export async function documentJournal(companyId: string, p: Period, type?: DocType): Promise<DocRow[]> {
   const want = (t: DocType) => !type || type === t;
-  const [orders, estimates, receipts, requests] = await Promise.all([
+  const [orders, estimates, receipts, requests, sales, supplierOrders, writeOffs, inventories] = await Promise.all([
     want("order")
       ? prisma.workOrder.findMany({
           where: { companyId, acceptedAt: { gte: p.from, lt: p.to } },
@@ -48,7 +54,16 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
           include: { order: { select: { number: true, client: { select: { name: true } } } } },
         })
       : [],
+    want("sale")
+      ? prisma.sale.findMany({ where: { companyId, date: { gte: p.from, lt: p.to } }, include: { client: true, lines: true, payments: true } })
+      : [],
+    want("supplierOrder")
+      ? prisma.supplierOrder.findMany({ where: { companyId, createdAt: { gte: p.from, lt: p.to } }, include: { supplier: true, lines: true } })
+      : [],
+    want("writeoff") ? prisma.writeOff.findMany({ where: { companyId, date: { gte: p.from, lt: p.to } } }) : [],
+    want("inventory") ? prisma.inventory.findMany({ where: { companyId, date: { gte: p.from, lt: p.to } } }) : [],
   ]);
+  const posted = (s: string) => (s === "POSTED" ? "Проведён" : "Черновик");
   const rows: DocRow[] = [
     ...orders.map((o) => ({
       id: o.id,
@@ -93,6 +108,50 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       status: requestStatusLabel(r.status),
       posted: r.status === "ISSUED",
       href: `/app/stock/requests`,
+    })),
+    ...sales.map((x) => ({
+      id: x.id,
+      type: "sale" as const,
+      date: x.date,
+      number: `РТ-${x.number}`,
+      party: x.client?.name ?? "Розничный покупатель",
+      total: saleTotals(x).total,
+      status: posted(x.status),
+      posted: x.status === "POSTED",
+      href: `/app/stock/sales/${x.id}`,
+    })),
+    ...supplierOrders.map((x) => ({
+      id: x.id,
+      type: "supplierOrder" as const,
+      date: x.createdAt,
+      number: `ЗП-${x.number}`,
+      party: x.supplier.name,
+      total: receiptTotal(x.lines),
+      status: supplierOrderStatusLabel(x.status),
+      posted: false,
+      href: `/app/stock/orders/${x.id}`,
+    })),
+    ...writeOffs.map((x) => ({
+      id: x.id,
+      type: "writeoff" as const,
+      date: x.date,
+      number: `СП-${x.number}`,
+      party: x.reason ?? "",
+      total: null,
+      status: posted(x.status),
+      posted: x.status === "POSTED",
+      href: `/app/stock/writeoffs/${x.id}`,
+    })),
+    ...inventories.map((x) => ({
+      id: x.id,
+      type: "inventory" as const,
+      date: x.date,
+      number: `ИН-${x.number}`,
+      party: x.comment ?? "",
+      total: null,
+      status: posted(x.status),
+      posted: x.status === "POSTED",
+      href: `/app/stock/inventory/${x.id}`,
     })),
   ];
   return rows.sort((a, b) => b.date.getTime() - a.date.getTime());

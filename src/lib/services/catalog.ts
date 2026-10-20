@@ -83,8 +83,15 @@ export async function updateProduct(companyId: string, id: string, input: unknow
 }
 
 export async function deleteProduct(companyId: string, id: string) {
-  const used = await prisma.receiptLine.count({ where: { productId: id, receipt: { companyId } } });
-  if (used > 0) throw new UserError("Товар есть в приходных накладных, удалить его нельзя");
+  const where = { productId: id, product: { companyId } };
+  const used = await Promise.all([
+    prisma.receiptLine.count({ where }),
+    prisma.saleLine.count({ where }),
+    prisma.writeOffLine.count({ where }),
+    prisma.inventoryLine.count({ where }),
+    prisma.supplierOrderLine.count({ where }),
+  ]);
+  if (used.some((n) => n > 0)) throw new UserError("Товар есть в приходных накладных или других складских документах, удалить его нельзя");
   await prisma.$transaction([
     prisma.workOrderItem.updateMany({ where: { productId: id, order: { companyId } }, data: { productId: null } }),
     prisma.product.deleteMany({ where: { id, companyId } }),
