@@ -3,6 +3,7 @@ import Link from "next/link";
 const tabs = [
   { key: "works", href: "/app/catalog/works", label: "Работы" },
   { key: "products", href: "/app/catalog/products", label: "Товары и материалы" },
+  { key: "prices", href: "/app/catalog/prices", label: "Категории цен" },
 ];
 
 export function CatalogTabs({ active }: { active: string }) {

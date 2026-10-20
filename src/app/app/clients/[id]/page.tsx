@@ -11,9 +11,11 @@ import { listRecommendations } from "@/lib/services/recommendations";
 import { formatRub } from "@/lib/money";
 import { addVehicleAction, archiveClientAction, updateClientAction } from "../actions";
 import { ClientFields } from "../client-fields";
+import { listCategories } from "@/lib/services/prices";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const s = await requireSession();
+  const categories = await listCategories(s.companyId);
   const { id } = await params;
   const client = await getClient(s.companyId, id).catch((e) => {
     if (e instanceof NotFoundError) notFound();
@@ -50,7 +52,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
       <Card title="Данные клиента">
         <ActionForm action={updateClientAction.bind(null, client.id)} className="flex flex-wrap items-end gap-3">
-          <ClientFields c={client} />
+          <ClientFields c={client} categories={categories} />
           <Submit>Сохранить</Submit>
         </ActionForm>
       </Card>

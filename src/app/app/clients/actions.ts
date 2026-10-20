@@ -13,6 +13,7 @@ export async function createClientAction(_: FormState, fd: FormData): Promise<Fo
   const res = await run(async () => {
     assertCan(s.perms, "clients", "CREATE");
     checkDiscount(s.perms, fd.get("discount"));
+    if (fd.get("priceCategoryId")) assertFlag(s.perms, "prices");
     id = (await createClient(s.companyId, fields(fd))).id;
   });
   if (!id) return res;
@@ -23,6 +24,7 @@ export async function updateClientAction(id: string, _: FormState, fd: FormData)
   return guarded("clients", "EDIT", `/app/clients/${id}`, async (c, s) => {
     const before = await getClient(c, id);
     if (Number(fd.get("discount") ?? 0) !== before.discount) assertFlag(s.perms, "discounts");
+    if ((fd.get("priceCategoryId") || null) !== before.priceCategoryId) assertFlag(s.perms, "prices");
     await updateClient(c, id, fields(fd));
   });
 }
