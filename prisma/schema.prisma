@@ -151,6 +151,7 @@ model Company {
   payrollEntries  PayrollEntry[]
   roles           CompanyRole[]
   productGroups   ProductGroup[]
+  priceCategories PriceCategory[]
 }
 
 // Юрлицо или ИП внутри СТО: от его имени оформляются документы.
@@ -240,6 +241,8 @@ model Client {
   inn             String?
   comment         String?
   discount        Int              @default(0) // скидка клиента, %
+  priceCategoryId String?
+  priceCategory   PriceCategory?   @relation(fields: [priceCategoryId], references: [id], onDelete: SetNull)
   source          String? // откуда пришёл: рекламный источник
   archived        Boolean          @default(false)
   createdAt       DateTime         @default(now())
@@ -329,6 +332,7 @@ model Product {
   group              ProductGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
   barcode            String?
   minQty             Decimal?            @db.Decimal(12, 3) // минимальный остаток, ниже — дефицит
+  categoryPrices     ProductPrice[]
   createdAt          DateTime            @default(now())
   orderItems         WorkOrderItem[]
   receiptLines       ReceiptLine[]
@@ -824,4 +828,29 @@ model PayrollEntry {
   createdAt  DateTime         @default(now())
 
   @@index([companyId, date])
+}
+
+/// 9.7 Категория цен: клиенту с категорией товары продаются по своим ценам, работы — по своей цене нормочаса.
+model PriceCategory {
+  id        String         @id @default(cuid())
+  companyId String
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  percent   Int            @default(0) // наценка (+) или скидка (−) к базовой цене товара, %
+  hourPrice Int? // цена нормочаса для категории, коп.; пусто — как у СТО
+  clients   Client[]
+  prices    ProductPrice[]
+
+  @@unique([companyId, name])
+}
+
+/// Своя цена товара в категории; без неё цена считается от базовой по проценту категории.
+model ProductPrice {
+  productId  String
+  product    Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   PriceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  price      Int // коп.
+
+  @@id([productId, categoryId])
 }

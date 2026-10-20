@@ -5,6 +5,7 @@ import { nextNumber } from "../counters";
 import { NotFoundError, UserError } from "../errors";
 import { lineTotal } from "../money";
 import { ownClient, ownVehicle } from "../tenant";
+import { pricing } from "./prices";
 
 type Tx = Prisma.TransactionClient;
 
@@ -130,12 +131,12 @@ export async function addEstimateLine(companyId: string, id: string, input: unkn
 export async function addEstimateLineFromCatalog(companyId: string, id: string, input: unknown) {
   const d = estimateCatalogSchema.parse(input);
   return prisma.$transaction(async (tx) => {
-    await editable(tx, companyId, id);
+    const est = await editable(tx, companyId, id);
+    const prices = await pricing(tx, companyId, est.clientId);
     const position = await tx.estimateLine.count({ where: { estimateId: id } });
     if (d.kind === "WORK") {
       const w = await tx.work.findFirst({ where: { id: d.refId, companyId } });
       if (!w) throw new UserError("Работа не найдена в справочнике");
-      const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
       const fixed = w.price > 0;
       return tx.estimateLine.create({
         data: {
@@ -144,7 +145,7 @@ export async function addEstimateLineFromCatalog(companyId: string, id: string, 
           workId: w.id,
           name: w.name,
           qty: fixed ? d.qty : Number(w.normHours ?? 1) * d.qty,
-          price: fixed ? w.price : company.hourPrice,
+          price: fixed ? w.price : prices.hourPrice,
           discount: d.discount,
           position,
         },
@@ -153,7 +154,7 @@ export async function addEstimateLineFromCatalog(companyId: string, id: string, 
     const p = await tx.product.findFirst({ where: { id: d.refId, companyId } });
     if (!p) throw new UserError("Товар не найден в номенклатуре");
     return tx.estimateLine.create({
-      data: { estimateId: id, kind: "ITEM", productId: p.id, name: p.name, article: p.article, qty: d.qty, price: p.price, discount: d.discount, position },
+      data: { estimateId: id, kind: "ITEM", productId: p.id, name: p.name, article: p.article, qty: d.qty, price: await prices.product(p), discount: d.discount, position },
     });
   });
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "../db";
 import { ownClient, ownVehicle } from "../tenant";
+import { ownCategory } from "./prices";
 
 const opt = z
   .string()
@@ -17,6 +18,7 @@ export const clientSchema = z.object({
   comment: opt,
   discount: z.coerce.number().int().min(0).max(100).default(0),
   source: opt,
+  priceCategoryId: opt,
 });
 
 /** Подсказки для поля «Откуда узнал»; можно ввести и свой вариант. */
@@ -70,12 +72,14 @@ export async function getClient(companyId: string, id: string) {
 
 export async function createClient(companyId: string, input: unknown) {
   const data = clientSchema.parse(input);
+  if (data.priceCategoryId) await ownCategory(prisma, companyId, data.priceCategoryId);
   return prisma.client.create({ data: { ...data, companyId } });
 }
 
 export async function updateClient(companyId: string, id: string, input: unknown) {
   await ownClient(prisma, companyId, id);
   const data = clientSchema.parse(input);
+  if (data.priceCategoryId) await ownCategory(prisma, companyId, data.priceCategoryId);
   return prisma.client.update({ where: { id }, data });
 }
 

@@ -8,6 +8,7 @@ import { NotFoundError, UserError } from "../errors";
 import { formatQty } from "../format";
 import { lineTotal } from "../money";
 import { averageCosts } from "./stock";
+import { pricing } from "./prices";
 
 type Tx = Prisma.TransactionClient;
 
@@ -180,7 +181,7 @@ export async function addSaleLine(companyId: string, saleId: string, input: unkn
         saleId,
         productId: d.productId,
         qty: d.qty,
-        price: d.price ?? product.price,
+        price: d.price ?? (await (await pricing(tx, companyId, client?.id)).product(product)),
         discount: d.discount ?? client?.discount ?? 0,
         position,
       },

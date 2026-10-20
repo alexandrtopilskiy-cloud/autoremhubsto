@@ -8,6 +8,7 @@ import { executorReward, managerReward, orderLines } from "../pay-scheme";
 import { ownClient, ownEmployee, ownOrder, ownOrganization, ownVehicle } from "../tenant";
 import { defaultCashbox } from "./cash";
 import { averageCosts, returnOrderToStock, writeOffOrder } from "./stock";
+import { pricing } from "./prices";
 
 export const STAGES: { value: OrderStage; label: string }[] = [
   { value: "NEW", label: "Новый" },
@@ -276,11 +277,11 @@ export const fromCatalogSchema = z.object({
 export async function addWorkFromCatalog(companyId: string, orderId: string, input: unknown) {
   const data = fromCatalogSchema.parse(input);
   return prisma.$transaction(async (tx) => {
-    await editableOrder(tx, companyId, orderId);
+    const order = await editableOrder(tx, companyId, orderId);
     const w = await tx.work.findFirst({ where: { id: data.refId, companyId } });
     if (!w) throw new UserError("Работа не найдена в справочнике");
     if (data.executorId) await ownEmployee(tx, companyId, data.executorId);
-    const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
+    const prices = await pricing(tx, companyId, order.clientId);
     const fixed = w.price > 0;
     const position = await tx.workOrderWork.count({ where: { orderId } });
     return tx.workOrderWork.create({
@@ -289,7 +290,7 @@ export async function addWorkFromCatalog(companyId: string, orderId: string, inp
         workId: w.id,
         name: w.name,
         normHours: fixed ? data.qty : Number(w.normHours ?? 1) * data.qty,
-        price: fixed ? w.price : company.hourPrice,
+        price: fixed ? w.price : prices.hourPrice,
         discount: data.discount,
         executorId: data.executorId,
         position,
@@ -301,7 +302,7 @@ export async function addWorkFromCatalog(companyId: string, orderId: string, inp
 export async function addItemFromCatalog(companyId: string, orderId: string, input: unknown) {
   const data = fromCatalogSchema.parse(input);
   return prisma.$transaction(async (tx) => {
-    await editableOrder(tx, companyId, orderId);
+    const order = await editableOrder(tx, companyId, orderId);
     const p = await tx.product.findFirst({ where: { id: data.refId, companyId } });
     if (!p) throw new UserError("Товар не найден в номенклатуре");
     const position = await tx.workOrderItem.count({ where: { orderId } });
@@ -312,7 +313,7 @@ export async function addItemFromCatalog(companyId: string, orderId: string, inp
         name: p.name,
         article: p.article,
         qty: data.qty,
-        price: p.price,
+        price: await (await pricing(tx, companyId, order.clientId)).product(p),
         discount: data.discount,
         position,
       },
