@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
@@ -35,7 +35,7 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
   return (
     <div className="flex flex-col gap-4">
       <StockTabs active="orders" />
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="stock" flag="costs">
         <PageTitle
           actions={
             <div className="flex flex-wrap gap-2">
@@ -146,7 +146,7 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
             </ActionForm>
           )}
         </Card>
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

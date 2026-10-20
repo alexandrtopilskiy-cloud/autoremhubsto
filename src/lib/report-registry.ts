@@ -19,8 +19,13 @@ import {
 
 export type ReportKind = "orders" | "works" | "executors" | "managers" | "debts" | "cashflow" | "stock" | "ads";
 
-/** range — период «с … по», date — на дату, none — на сейчас. */
-type Def = { label: string; period: "range" | "date" | "none"; build: (companyId: string, p: Period) => Promise<ReportTable[]> };
+/** range — период «с … по», date — на дату, none — на сейчас; costs — отчёт показывает закупочные цены. */
+type Def = {
+  label: string;
+  period: "range" | "date" | "none";
+  costs?: boolean;
+  build: (companyId: string, p: Period) => Promise<ReportTable[]>;
+};
 
 export const REPORTS: Record<ReportKind, Def> = {
   orders: { label: "Заказ-наряды", period: "range", build: async (c, p) => [await orderRegistry(c, p)] },
@@ -29,7 +34,7 @@ export const REPORTS: Record<ReportKind, Def> = {
   managers: { label: "Менеджеры", period: "range", build: async (c, p) => [await managersReport(c, p)] },
   debts: { label: "Долги", period: "none", build: async (c) => Promise.all([clientDebts(c), supplierDebts(c)]) },
   cashflow: { label: "ДДС", period: "range", build: async (c, p) => [await cashFlow(c, p)] },
-  stock: { label: "Склад на дату", period: "date", build: async (c, p) => [await stockAt(c, p.to)] },
+  stock: { label: "Склад на дату", period: "date", costs: true, build: async (c, p) => [await stockAt(c, p.to)] },
   ads: { label: "Реклама", period: "range", build: async (c, p) => [await adsReport(c, p)] },
 };
 

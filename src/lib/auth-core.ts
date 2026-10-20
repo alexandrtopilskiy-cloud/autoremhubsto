@@ -2,6 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { prisma } from "./db";
+import { parsePermissions, PRESETS, type Permissions } from "./permissions";
+import { roleLabel } from "./roles";
 
 export const SESSION_COOKIE = "sto_session";
 const SESSION_DAYS = 30;
@@ -32,6 +34,9 @@ export type SessionCtx = {
   companyId: string;
   companyName: string;
   role: Role;
+  /** Название роли для шапки: своя роль СТО или встроенная. */
+  roleName: string;
+  perms: Permissions;
 };
 
 export async function resolveSession(token: string | undefined): Promise<SessionCtx | null> {
@@ -48,15 +53,18 @@ export async function resolveSession(token: string | undefined): Promise<Session
   // Доступ к компании мог быть отозван после входа.
   const m = await prisma.membership.findUnique({
     where: { userId_companyId: { userId: s.userId, companyId: s.companyId } },
-    include: { company: true },
+    include: { company: true, customRole: true },
   });
   if (!m) return null;
+  const custom = m.role !== "OWNER" ? m.customRole : null;
   return {
     userId: s.userId,
     userName: s.user.name,
     companyId: s.companyId,
     companyName: m.company.name,
     role: m.role,
+    roleName: custom?.name ?? roleLabel(m.role),
+    perms: custom ? parsePermissions(custom.permissions) : PRESETS[m.role],
   };
 }
 

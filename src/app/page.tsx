@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { currentSession } from "@/lib/auth";
 
 export default async function Home() {
-  if (await currentSession()) redirect("/app/orders");
+  if (await currentSession()) redirect("/app");
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-6 px-4">
       <h1 className="text-3xl font-bold">AutoRemHub</h1>

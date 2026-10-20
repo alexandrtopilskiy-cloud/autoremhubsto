@@ -1,5 +1,5 @@
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { listSuppliers } from "@/lib/services/stock";
@@ -13,7 +13,7 @@ export default async function SuppliersPage() {
     <div className="flex flex-col gap-4">
       <PageTitle>Склад</PageTitle>
       <StockTabs active="suppliers" />
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="stock">
         <Card title="Новый поставщик">
           <ActionForm action={createSupplierAction} reset className="flex flex-wrap items-end gap-3">
             <Field label="Название" className="min-w-64 flex-1">
@@ -45,7 +45,7 @@ export default async function SuppliersPage() {
             {suppliers.length === 0 && <p className="py-2 text-sm text-slate-500">Поставщиков пока нет</p>}
           </div>
         </Card>
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

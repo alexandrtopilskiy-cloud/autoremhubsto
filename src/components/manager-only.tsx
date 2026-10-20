@@ -1,22 +1,31 @@
-import type { Role } from "@prisma/client";
-import { canManage, canOperate } from "@/lib/roles";
+import { can, FLAGS, SECTIONS, type Flag, type Level, type Permissions, type Section } from "@/lib/permissions";
 import { Card } from "./ui";
 
-/** Заглушка для разделов, которые видят только владелец и администратор. */
-export function ManagerOnly({ role, children }: { role: Role; children: React.ReactNode }) {
-  if (canManage(role)) return <>{children}</>;
+/**
+ * Показывает содержимое, если хватает прав на раздел (и флага, если задан).
+ * Иначе — карточка «нет доступа» или ничего (quiet), например для формы создания.
+ */
+export function Allowed({
+  perms,
+  section,
+  level = "VIEW",
+  flag,
+  quiet = false,
+  children,
+}: {
+  perms: Permissions;
+  section: Section;
+  level?: Level;
+  flag?: Flag;
+  quiet?: boolean;
+  children: React.ReactNode;
+}) {
+  if (can(perms, section, level) && (!flag || perms.flags[flag])) return <>{children}</>;
+  if (quiet) return null;
+  const what = flag && can(perms, section, level) ? `«${FLAGS.find((f) => f.key === flag)!.label}»` : `раздел «${SECTIONS.find((s) => s.key === section)!.label}»`;
   return (
     <Card>
-      <p className="text-sm text-slate-600">Этот раздел доступен владельцу и администраторам СТО.</p>
-    </Card>
-  );
-}
-
-export function OperatorOnly({ role, children }: { role: Role; children: React.ReactNode }) {
-  if (canOperate(role)) return <>{children}</>;
-  return (
-    <Card>
-      <p className="text-sm text-slate-600">Этот раздел недоступен для роли «Механик».</p>
+      <p className="text-sm text-slate-600">Нет доступа: {what}. Права выдаёт владелец или администратор СТО.</p>
     </Card>
   );
 }

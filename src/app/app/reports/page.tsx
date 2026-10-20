@@ -59,7 +59,7 @@ export default async function MonitorPage() {
               </tr>
             </thead>
             <tbody>
-              {FIGURES.map((f) => (
+              {FIGURES.filter((f) => s.perms.flags.costs || (f.key !== "cogs" && f.key !== "margin")).map((f) => (
                 <tr key={f.key} className="border-b last:border-0">
                   <td className={td}>{f.label}</td>
                   <td className={`${td} text-right font-medium whitespace-nowrap`}>{f.money ? formatRub(m.today[f.key]) : m.today[f.key]}</td>

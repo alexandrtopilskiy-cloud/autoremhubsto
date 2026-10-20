@@ -1,18 +1,19 @@
 import { currentSession } from "@/lib/auth";
 import { isReportKind, REPORTS, toCsv } from "@/lib/report-registry";
 import { reportPeriod } from "@/lib/report-period";
-import { canOperate } from "@/lib/roles";
+import { can } from "@/lib/permissions";
 import { getCompany } from "@/lib/services/settings";
 
 /** Выгрузка отчёта в CSV для Excel. */
 export async function GET(req: Request, { params }: { params: Promise<{ kind: string }> }) {
   const s = await currentSession();
   if (!s) return new Response("Нужно войти", { status: 401 });
-  if (!canOperate(s.role)) return new Response("Недостаточно прав", { status: 403 });
+  if (!can(s.perms, "reports")) return new Response("Недостаточно прав", { status: 403 });
   const { kind } = await params;
   if (!isReportKind(kind)) return new Response("Нет такого отчёта", { status: 404 });
 
   const def = REPORTS[kind];
+  if (def.costs && !s.perms.flags.costs) return new Response("Недостаточно прав", { status: 403 });
   const url = new URL(req.url);
   const company = await getCompany(s.companyId);
   const { from, to, period } = reportPeriod(

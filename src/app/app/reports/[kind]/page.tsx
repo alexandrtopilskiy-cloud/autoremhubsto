@@ -19,6 +19,7 @@ export default async function ReportPage({
   if (!isReportKind(kind)) notFound();
   const s = await requireSession();
   const def = REPORTS[kind];
+  if (def.costs && !s.perms.flags.costs) notFound();
   const company = await getCompany(s.companyId);
   const sp = await searchParams;
   const { from, to, period } = reportPeriod(sp, company.utcOffset);

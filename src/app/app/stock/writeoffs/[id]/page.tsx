@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
@@ -30,7 +30,7 @@ export default async function WriteOffPage({ params }: { params: Promise<{ id: s
   return (
     <div className="flex flex-col gap-4">
       <StockTabs active="writeoffs" />
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="stock">
         <PageTitle
           actions={
             posted ? (
@@ -111,7 +111,7 @@ export default async function WriteOffPage({ params }: { params: Promise<{ id: s
             </ActionForm>
           )}
         </Card>
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

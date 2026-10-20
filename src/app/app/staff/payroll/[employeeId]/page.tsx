@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/app/app/orders/[id]/print/print-button";
-import { ManagerOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, orderNo } from "@/lib/format";
@@ -29,7 +29,7 @@ export default async function PayslipPage({
   const t = slip.totals;
   const cell = "border border-slate-400 px-2 py-1";
   return (
-    <ManagerOnly role={s.role}>
+    <Allowed perms={s.perms} section="staff">
       <div className="mx-auto max-w-3xl bg-white p-8 text-sm print:p-0">
         <div className="mb-4 flex justify-between print:hidden">
           <Link className="text-blue-600 hover:underline" href={`/app/staff/payroll?month=${month}`}>
@@ -124,6 +124,6 @@ export default async function PayslipPage({
           <div className="border-t border-slate-400 pt-1 text-slate-600">Сотрудник</div>
         </div>
       </div>
-    </ManagerOnly>
+    </Allowed>
   );
 }

@@ -1,10 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
-import { fields, rub, run, type FormState } from "@/lib/actions";
+import { fields, rub, type FormState } from "@/lib/actions";
 import { parseRub } from "@/lib/money";
-import { assertManager } from "@/lib/roles";
+import { guarded } from "@/lib/guard";
+import { FLAGS, LEVELS, SECTIONS, type Level, type Section } from "@/lib/permissions";
 import {
   createProduct,
   createWork,
@@ -17,20 +16,22 @@ import { createOrganization, updateCompany, updateOrganization } from "@/lib/ser
 import {
   addMember,
   createEmployee,
+  createRole,
+  deleteRole,
+  updateRole,
   removeMember,
   setMemberRole,
   updateEmployee,
 } from "@/lib/services/staff";
 
-/** Действия раздела управления: только владелец и администратор. */
-async function manage(path: string, fn: (companyId: string, userId: string) => Promise<unknown>): Promise<FormState> {
-  const s = await requireSession();
-  const res = await run(async () => {
-    assertManager(s.role);
-    await fn(s.companyId, s.userId);
-  });
-  revalidatePath(path);
-  return res;
+/** Справочники, сотрудники и настройки: раздел прав и уровень выводятся из названия действия. */
+async function manage(
+  section: Section,
+  level: Level,
+  path: string,
+  fn: (companyId: string, userId: string) => Promise<unknown>,
+): Promise<FormState> {
+  return guarded(section, level, path, (c, s) => fn(c, s.userId));
 }
 
 const optRub = (fd: FormData, name: string) => parseRub(fd.get(name)?.toString()) ?? 0;
@@ -42,42 +43,42 @@ const workInput = (fd: FormData) => ({
   price: optRub(fd, "price"),
 });
 export async function createWorkAction(_: FormState, fd: FormData) {
-  return manage("/app/catalog/works", (c) => createWork(c, workInput(fd)));
+  return manage("catalog", "CREATE", "/app/catalog/works", (c) => createWork(c, workInput(fd)));
 }
 export async function updateWorkAction(id: string, _: FormState, fd: FormData) {
-  return manage("/app/catalog/works", (c) => updateWork(c, id, workInput(fd)));
+  return manage("catalog", "EDIT", "/app/catalog/works", (c) => updateWork(c, id, workInput(fd)));
 }
 export async function deleteWorkAction(id: string) {
-  return manage("/app/catalog/works", (c) => deleteWork(c, id));
+  return manage("catalog", "FULL", "/app/catalog/works", (c) => deleteWork(c, id));
 }
 
 // --- номенклатура ---
 const productInput = (fd: FormData) => ({ ...fields(fd), price: rub(fd, "price", "Цена") });
 export async function createProductAction(_: FormState, fd: FormData) {
-  return manage("/app/catalog/products", (c) => createProduct(c, productInput(fd)));
+  return manage("catalog", "CREATE", "/app/catalog/products", (c) => createProduct(c, productInput(fd)));
 }
 export async function updateProductAction(id: string, _: FormState, fd: FormData) {
-  return manage("/app/catalog/products", (c) => updateProduct(c, id, productInput(fd)));
+  return manage("catalog", "EDIT", "/app/catalog/products", (c) => updateProduct(c, id, productInput(fd)));
 }
 export async function deleteProductAction(id: string) {
-  return manage("/app/catalog/products", (c) => deleteProduct(c, id));
+  return manage("catalog", "FULL", "/app/catalog/products", (c) => deleteProduct(c, id));
 }
 
 // --- сотрудники и пользователи ---
 export async function createEmployeeAction(_: FormState, fd: FormData) {
-  return manage("/app/staff", (c) => createEmployee(c, fields(fd)));
+  return manage("staff", "CREATE", "/app/staff", (c) => createEmployee(c, fields(fd)));
 }
 export async function updateEmployeeAction(id: string, _: FormState, fd: FormData) {
-  return manage("/app/staff", (c) => updateEmployee(c, id, fields(fd)));
+  return manage("staff", "EDIT", "/app/staff", (c) => updateEmployee(c, id, fields(fd)));
 }
 export async function addMemberAction(_: FormState, fd: FormData) {
-  return manage("/app/staff", (c) => addMember(c, fields(fd)));
+  return manage("settings", "CREATE", "/app/staff", (c) => addMember(c, fields(fd)));
 }
 export async function setMemberRoleAction(id: string, _: FormState, fd: FormData) {
-  return manage("/app/staff", (c, u) => setMemberRole(c, u, id, fd.get("role")));
+  return manage("settings", "EDIT", "/app/staff", (c, u) => setMemberRole(c, u, id, fd.get("role")));
 }
 export async function removeMemberAction(id: string) {
-  return manage("/app/staff", (c, u) => removeMember(c, u, id));
+  return manage("settings", "FULL", "/app/staff", (c, u) => removeMember(c, u, id));
 }
 
 // --- настройки ---
@@ -86,7 +87,7 @@ export async function updateCompanyAction(_: FormState, fd: FormData) {
     const [h, m] = (fields(fd)[name] ?? "").split(":").map(Number);
     return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : undefined;
   };
-  return manage("/app", (c) =>
+  return manage("settings", "EDIT", "/app", (c) =>
     updateCompany(c, {
       ...fields(fd),
       hourPrice: rub(fd, "hourPrice", "Цена нормочаса"),
@@ -96,8 +97,25 @@ export async function updateCompanyAction(_: FormState, fd: FormData) {
   );
 }
 export async function createOrganizationAction(_: FormState, fd: FormData) {
-  return manage("/app/settings", (c) => createOrganization(c, fields(fd)));
+  return manage("settings", "CREATE", "/app/settings", (c) => createOrganization(c, fields(fd)));
 }
 export async function updateOrganizationAction(id: string, _: FormState, fd: FormData) {
-  return manage("/app/settings", (c) => updateOrganization(c, id, fields(fd)));
+  return manage("settings", "EDIT", "/app/settings", (c) => updateOrganization(c, id, fields(fd)));
+}
+
+// --- свои роли ---
+export async function createRoleAction(_: FormState, fd: FormData) {
+  return manage("settings", "CREATE", "/app/settings/roles", (c) => createRole(c, fields(fd)));
+}
+/** Матрица прав из формы: s_<раздел> — уровень, f_<флаг> — галочка. */
+export async function updateRoleAction(id: string, _: FormState, fd: FormData) {
+  const f = fields(fd);
+  const permissions = {
+    sections: Object.fromEntries(SECTIONS.map((x) => [x.key, LEVELS.some((l) => l.key === f[`s_${x.key}`]) ? f[`s_${x.key}`] : "NONE"])),
+    flags: Object.fromEntries(FLAGS.map((x) => [x.key, f[`f_${x.key}`] === "on"])),
+  };
+  return manage("settings", "EDIT", "/app/settings/roles", (c) => updateRole(c, id, { name: f.name, permissions }));
+}
+export async function deleteRoleAction(id: string) {
+  return manage("settings", "FULL", "/app/settings/roles", (c) => deleteRole(c, id));
 }

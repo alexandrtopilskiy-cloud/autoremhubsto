@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -17,7 +17,7 @@ export default async function WriteOffsPage() {
     <div className="flex flex-col gap-4">
       <PageTitle>Склад</PageTitle>
       <StockTabs active="writeoffs" />
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="stock">
         <Card title="Новое списание">
           <ActionForm action={createWriteOffAction} className="flex flex-wrap items-end gap-3">
             <Field label="Причина">
@@ -68,7 +68,7 @@ export default async function WriteOffsPage() {
             </tbody>
           </table>
         </Card>
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

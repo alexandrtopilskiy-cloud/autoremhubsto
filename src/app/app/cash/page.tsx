@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { OperatorOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { formatRub } from "@/lib/money";
-import { canManage } from "@/lib/roles";
+import { can } from "@/lib/permissions";
 import { cashJournal, EXPENSE_CATEGORIES, INCOME_CATEGORIES, listCashboxes } from "@/lib/services/cash";
 import { getCompany } from "@/lib/services/settings";
 import { listSuppliers } from "@/lib/services/stock";
@@ -34,7 +34,7 @@ export default async function CashPage({
   return (
     <div className="flex flex-col gap-4">
       <PageTitle>Касса</PageTitle>
-      <OperatorOnly role={s.role}>
+      <Allowed perms={s.perms} section="cash">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {boxes.map((b) => (
             <Card key={b.id}>
@@ -121,7 +121,7 @@ export default async function CashPage({
               </Field>
               <Submit variant="ghost">Переместить</Submit>
             </ActionForm>
-            {canManage(s.role) && (
+            {can(s.perms, "cash", "FULL") && (
               <>
                 <h3 className="mt-4 mb-2 text-sm font-semibold">Новая касса или счёт</h3>
                 <ActionForm action={createCashboxAction} reset className="flex flex-wrap items-end gap-3">
@@ -195,7 +195,7 @@ export default async function CashPage({
                       {formatRub(r.amount)}
                     </td>
                     <td className={`${td} text-right`}>
-                      {r.operationId && canManage(s.role) && (
+                      {r.operationId && can(s.perms, "cash", "FULL") && (
                         <ActionForm action={deleteOperationAction.bind(null, r.operationId)}>
                           <button className="text-red-600 hover:underline" title="Удалить операцию">
                             ✕
@@ -216,7 +216,7 @@ export default async function CashPage({
             </table>
           </div>
         </Card>
-      </OperatorOnly>
+      </Allowed>
     </div>
   );
 }

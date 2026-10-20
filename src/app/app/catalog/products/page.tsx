@@ -1,5 +1,5 @@
 import { ActionForm, Submit } from "@/components/form";
-import { ManagerOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { listProducts } from "@/lib/services/catalog";
@@ -16,7 +16,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     <div className="flex flex-col gap-4">
       <PageTitle>Справочники</PageTitle>
       <CatalogTabs active="products" />
-      <ManagerOnly role={s.role}>
+      <Allowed perms={s.perms} section="catalog" level="CREATE" quiet>
         <Card title="Новый товар">
           <ActionForm action={createProductAction} reset className="flex flex-wrap items-end gap-3">
             <Field label="Наименование" className="min-w-64 flex-1">
@@ -37,7 +37,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
             <Submit>Добавить</Submit>
           </ActionForm>
         </Card>
-      </ManagerOnly>
+      </Allowed>
       <Card>
         <form className="mb-3 flex gap-2">
           <Input name="q" defaultValue={q} placeholder="Наименование, артикул или бренд" className="min-w-72" />

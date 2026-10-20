@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { ManagerOnly } from "@/components/manager-only";
+import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -44,7 +44,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
     <div className="flex flex-col gap-4">
       <PageTitle>Сотрудники</PageTitle>
       <StaffTabs active="payroll" />
-      <ManagerOnly role={s.role}>
+      <Allowed perms={s.perms} section="staff">
         <Card>
           <form className="mb-4 flex flex-wrap items-end gap-3">
             <Field label="Месяц">
@@ -200,7 +200,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
             <p className="mt-2 text-xs text-slate-500">Выплата проводится расходом из кассы по статье «Зарплата» сегодняшним днём.</p>
           </Card>
         </div>
-      </ManagerOnly>
+      </Allowed>
     </div>
   );
 }
