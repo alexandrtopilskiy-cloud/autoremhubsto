@@ -130,6 +130,8 @@ npm run db:seed               # демо-СТО: demo@autoremhub.local / demo123
 npm run dev                   # http://localhost:3000
 ```
 
+Запуск на сервере (Docker, HTTPS, резервные копии): [DEPLOY.md](DEPLOY.md).
+
 Проверки: `npm run typecheck`, `npm run lint`, `npm test` (нужна отдельная тестовая база, она очищается перед каждым тестом), `npm run build`.
 
 ## Устройство
