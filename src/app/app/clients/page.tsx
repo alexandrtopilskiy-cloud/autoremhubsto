@@ -18,9 +18,14 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
     <div className="flex flex-col gap-4">
       <PageTitle
         actions={
-          <Link href="/app/recommendations" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50">
-            Рекомендации клиентам
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/app/excel" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50">
+              Excel
+            </Link>
+            <Link href="/app/recommendations" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50">
+              Рекомендации клиентам
+            </Link>
+          </div>
         }
       >
         Клиенты
