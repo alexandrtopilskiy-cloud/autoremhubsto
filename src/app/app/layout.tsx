@@ -20,7 +20,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </Link>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm text-slate-600">
+          <form action="/app/search" role="search" className="ml-auto">
+            <input
+              name="q"
+              placeholder="Поиск везде"
+              aria-label="Поиск везде"
+              className="w-44 rounded-md border border-slate-300 px-2.5 py-1 text-sm outline-none focus:w-64 focus:border-blue-500"
+            />
+          </form>
+          <div className="flex items-center gap-3 text-sm text-slate-600">
             <span>
               {s.companyName} · {s.userName} ({s.roleName})
             </span>
