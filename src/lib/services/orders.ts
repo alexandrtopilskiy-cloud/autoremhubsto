@@ -140,6 +140,28 @@ export async function listOrders(companyId: string, f: { stage?: OrderStage; q?:
   return orders.map((o) => ({ ...o, totals: totalsOf(o) }));
 }
 
+/** Свод по клиенту для вкладки наряда: все его наряды с суммами, число визитов, сколько потратил и долг. */
+export async function clientOrderStats(companyId: string, clientId: string) {
+  await ownClient(prisma, companyId, clientId);
+  const orders = (
+    await prisma.workOrder.findMany({
+      where: { companyId, clientId },
+      include: { vehicle: true, works: true, items: true, payments: true },
+      orderBy: { acceptedAt: "desc" },
+    })
+  ).map((o) => ({ ...o, totals: totalsOf(o) }));
+  const total = orders.reduce((s, o) => s + o.totals.total, 0);
+  return {
+    orders,
+    visits: orders.length,
+    total,
+    paid: orders.reduce((s, o) => s + o.totals.paid, 0),
+    due: orders.reduce((s, o) => s + Math.max(0, o.totals.due), 0),
+    average: orders.length ? Math.round(total / orders.length) : 0,
+    first: orders.at(-1)?.acceptedAt ?? null,
+  };
+}
+
 type WithLines = {
   works: { normHours: Prisma.Decimal; price: number; discount: number }[];
   items: { qty: Prisma.Decimal; price: number; discount: number }[];
