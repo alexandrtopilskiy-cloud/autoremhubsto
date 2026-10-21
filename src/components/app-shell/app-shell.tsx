@@ -6,6 +6,8 @@ import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { activeLink, menuLinks, type MenuItem, type MenuLink } from "@/lib/nav";
 import { Icon } from "./icons";
 
+const VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
+
 type User = { name: string; company: string; role: string };
 
 const read = <T,>(key: string, fallback: T): T => {
@@ -114,14 +116,14 @@ function Sidebar({
     ));
   return (
     <>
-      <Link href="/app" className={`flex h-[72px] shrink-0 items-center gap-2.5 ${collapsed ? "px-3" : "px-4"}`} title="AutoRemHub">
+      <Link href="/app" className={`flex h-[72px] shrink-0 items-center gap-2.5 ${collapsed ? "px-3" : "px-4"}`} title={`AutoRemHub, версия ${VERSION}`}>
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-blue-400 text-sm font-bold text-blue-300">
           A
         </span>
         {!collapsed && (
           <span className="leading-tight">
             <span className="block text-[17px] font-semibold tracking-tight">AutoRemHub</span>
-            <span className="block text-[11px] text-blue-300">учёт автосервиса</span>
+            <span className="block text-[11px] text-blue-300">версия {VERSION}</span>
           </span>
         )}
       </Link>

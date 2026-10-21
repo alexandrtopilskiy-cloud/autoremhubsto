@@ -136,13 +136,32 @@ docker compose ps
 
 ## Обновление до новой версии
 
+После настройки автообновления (ниже) сайт обновляется сам. Вручную:
+
 ```bash
-cd /opt/autoremhubsto
-git pull
-docker compose up -d --build
+/opt/autoremhubsto/deploy/update.sh
 ```
 
-Новые таблицы и поля в базе создаются автоматически при запуске. Данные сохраняются.
+Скрипт забирает свежий код, пересобирает сайт и ждёт, пока он ответит. Новые таблицы и поля в базе создаются автоматически при запуске. Данные сохраняются.
+
+## Автообновление
+
+Когда PR влит в `main` и проверки на GitHub зелёные, GitHub сам заходит на сервер и запускает `deploy/update.sh`. Для этого один раз выдайте GitHub отдельный ключ, который умеет только запускать обновление.
+
+1. На сервере под root:
+
+   ```bash
+   cd /opt/autoremhubsto && git pull
+   ssh-keygen -t ed25519 -N "" -C github-deploy -f /root/.ssh/github_deploy
+   echo "command=\"/opt/autoremhubsto/deploy/update.sh\",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding $(cat /root/.ssh/github_deploy.pub)" >> /root/.ssh/authorized_keys
+   cat /root/.ssh/github_deploy
+   ```
+
+2. Скопируйте всё, что вывела последняя команда, от `-----BEGIN` до `-----END ... KEY-----` включительно.
+3. На GitHub откройте репозиторий → Settings → Secrets and variables → Actions → New repository secret. Name: `DEPLOY_SSH_KEY`, Secret: вставьте скопированное, нажмите Add secret.
+4. Проверка: GitHub → Actions → Deploy → Run workflow. Через несколько минут шаг «Обновить сайт» станет зелёным, а внизу лога будет «готово».
+
+Номер версии под логотипом (x.xx.xxx) считается сам при сборке: x — поколение, xx — номер дня с обновлениями, xxx — номер обновления за этот день (см. `src/lib/version.ts`).
 
 ## Резервная копия базы
 

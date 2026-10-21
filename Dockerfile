@@ -1,6 +1,6 @@
 # Образ приложения для сервера: собирается командой `docker compose up -d --build`
 FROM node:22-bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -9,7 +9,8 @@ COPY prisma ./prisma
 RUN npm ci
 
 COPY . .
-RUN npm run build
+# .git нужен только при сборке: по нему считается номер версии (next.config.ts)
+RUN npm run build && rm -rf .git
 
 ENV NODE_ENV=production PORT=3000
 EXPOSE 3000
