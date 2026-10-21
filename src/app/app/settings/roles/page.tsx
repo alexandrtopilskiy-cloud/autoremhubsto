@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
-import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
+import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { can, FLAGS, LEVELS, parsePermissions, PRESETS, SECTIONS, type Permissions } from "@/lib/permissions";
 import { ROLES } from "@/lib/roles";
@@ -95,7 +95,7 @@ export default async function RolesPage() {
   const editable = can(s.perms, "settings", "EDIT");
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
+      <PageTitle create="#new" createLabel="Новая роль"
         actions={
           <Link href="/app/settings" className="text-sm text-blue-600 hover:underline">
             ← Настройки
@@ -143,15 +143,17 @@ export default async function RolesPage() {
       ))}
 
       {can(s.perms, "settings", "CREATE") && (
-        <Card title="Новая роль">
-          <ActionForm action={createRoleAction} reset className="flex flex-wrap items-end gap-3">
-            <Field label="Название" className="min-w-64">
-              <Input name="name" required placeholder="например, Кладовщик" />
-            </Field>
-            <Submit>Создать роль</Submit>
-          </ActionForm>
-          <p className="mt-2 text-xs text-slate-500">Новая роль получает права механика, дальше их можно расширить или сузить.</p>
-        </Card>
+        <NewPanel>
+          <Card title="Новая роль">
+            <ActionForm action={createRoleAction} reset className="flex flex-wrap items-end gap-3">
+              <Field label="Название" className="min-w-64">
+                <Input name="name" required placeholder="например, Кладовщик" />
+              </Field>
+              <Submit>Создать роль</Submit>
+            </ActionForm>
+            <p className="mt-2 text-xs text-slate-500">Новая роль получает права механика, дальше их можно расширить или сузить.</p>
+          </Card>
+        </NewPanel>
       )}
 
       <Card title="Встроенные роли">

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
-import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
+import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { formatRub } from "@/lib/money";
@@ -14,27 +14,29 @@ export default async function ReceiptsPage() {
   const [receipts, suppliers] = await Promise.all([listReceipts(s.companyId), listSuppliers(s.companyId)]);
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Склад</PageTitle>
+      <PageTitle create="#new" createLabel="Новый приход">Склад</PageTitle>
       <StockTabs active="receipts" />
       <Allowed perms={s.perms} section="stock" flag="costs">
-        <Card title="Новый приход">
-          <ActionForm action={createReceiptAction} className="flex flex-wrap items-end gap-3">
-            <Field label="Поставщик">
-              <Select name="supplierId" defaultValue="">
-                <option value="">Не указан</option>
-                {suppliers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Номер документа поставщика">
-              <Input name="supplierDoc" />
-            </Field>
-            <Submit>Создать</Submit>
-          </ActionForm>
-        </Card>
+        <NewPanel>
+          <Card title="Новый приход">
+            <ActionForm action={createReceiptAction} className="flex flex-wrap items-end gap-3">
+              <Field label="Поставщик">
+                <Select name="supplierId" defaultValue="">
+                  <option value="">Не указан</option>
+                  {suppliers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Номер документа поставщика">
+                <Input name="supplierDoc" />
+              </Field>
+              <Submit>Создать</Submit>
+            </ActionForm>
+          </Card>
+        </NewPanel>
         <Card>
           <table className="w-full text-sm">
             <thead>

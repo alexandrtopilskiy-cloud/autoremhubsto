@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
-import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
+import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { formatRub } from "@/lib/money";
@@ -16,28 +16,30 @@ export default async function SalesPage() {
   const [sales, clients] = await Promise.all([listSales(s.companyId), listClients(s.companyId)]);
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Склад</PageTitle>
+      <PageTitle create="#new" createLabel="Новая продажа без ремонта">Склад</PageTitle>
       <StockTabs active="sales" />
       <Allowed perms={s.perms} section="stock">
-        <Card title="Новая продажа без ремонта">
-          <ActionForm action={createSaleAction} className="flex flex-wrap items-end gap-3">
-            <Field label="Покупатель">
-              <Select name="clientId" defaultValue="">
-                <option value="">Розничный покупатель</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.phone && `, ${c.phone}`}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Комментарий">
-              <Input name="comment" />
-            </Field>
-            <Submit>Создать</Submit>
-          </ActionForm>
-        </Card>
+        <NewPanel>
+          <Card title="Новая продажа без ремонта">
+            <ActionForm action={createSaleAction} className="flex flex-wrap items-end gap-3">
+              <Field label="Покупатель">
+                <Select name="clientId" defaultValue="">
+                  <option value="">Розничный покупатель</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.phone && `, ${c.phone}`}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Комментарий">
+                <Input name="comment" />
+              </Field>
+              <Submit>Создать</Submit>
+            </ActionForm>
+          </Card>
+        </NewPanel>
         <Card>
           <table className="w-full text-sm">
             <thead>

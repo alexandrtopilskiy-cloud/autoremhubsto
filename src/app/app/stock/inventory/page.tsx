@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
-import { Badge, Card, Field, Input, PageTitle, td, th } from "@/components/ui";
+import { Badge, Card, Field, Input, NewPanel, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { listInventories } from "@/lib/services/warehouse";
@@ -14,20 +14,22 @@ export default async function InventoriesPage() {
   const list = await listInventories(s.companyId);
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Склад</PageTitle>
+      <PageTitle create="#new" createLabel="Новая инвентаризация">Склад</PageTitle>
       <StockTabs active="inventory" />
       <Allowed perms={s.perms} section="stock">
-        <Card title="Новая инвентаризация">
-          <p className="mb-3 text-sm text-slate-600">
-            В документ попадут все товары с остатком. Впишите, сколько их на самом деле, и проведите: склад выровняется по факту.
-          </p>
-          <ActionForm action={createInventoryAction} className="flex flex-wrap items-end gap-3">
-            <Field label="Комментарий">
-              <Input name="comment" placeholder="Например, стеллаж 1" className="w-64" />
-            </Field>
-            <Submit>Начать</Submit>
-          </ActionForm>
-        </Card>
+        <NewPanel>
+          <Card title="Новая инвентаризация">
+            <p className="mb-3 text-sm text-slate-600">
+              В документ попадут все товары с остатком. Впишите, сколько их на самом деле, и проведите: склад выровняется по факту.
+            </p>
+            <ActionForm action={createInventoryAction} className="flex flex-wrap items-end gap-3">
+              <Field label="Комментарий">
+                <Input name="comment" placeholder="Например, стеллаж 1" className="w-64" />
+              </Field>
+              <Submit>Начать</Submit>
+            </ActionForm>
+          </Card>
+        </NewPanel>
         <Card>
           <table className="w-full text-sm">
             <thead>

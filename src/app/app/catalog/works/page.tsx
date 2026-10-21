@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
-import { Card, Field, Input, PageTitle } from "@/components/ui";
+import { Card, Field, Input, NewPanel, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatRub } from "@/lib/money";
 import { listWorks } from "@/lib/services/catalog";
@@ -17,30 +17,32 @@ export default async function WorksPage({ searchParams }: { searchParams: Promis
   const [works, company] = await Promise.all([listWorks(s.companyId, q), getCompany(s.companyId)]);
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Справочники</PageTitle>
+      <PageTitle create="#new" createLabel="Новая работа">Справочники</PageTitle>
       <CatalogTabs active="works" />
       <Allowed perms={s.perms} section="catalog" level="CREATE" quiet>
-        <Card title="Новая работа">
-          <p className="mb-3 text-sm text-slate-600">
-            Если цена не указана, работа считается по нормочасам: нормочасы × цена нормочаса СТО (
-            {formatRub(company.hourPrice)}, меняется в <Link className="text-blue-600" href="/app/settings">настройках</Link>).
-          </p>
-          <ActionForm action={createWorkAction} reset className="flex flex-wrap items-end gap-3">
-            <Field label="Название" className="min-w-64 flex-1">
-              <Input name="name" required />
-            </Field>
-            <Field label="Нормочасы">
-              <Input name="normHours" inputMode="decimal" className="w-24" />
-            </Field>
-            <Field label="Фикс. цена, ₽">
-              <Input name="price" inputMode="decimal" className="w-28" />
-            </Field>
-            <Field label="% исполнителю">
-              <Input name="executorPercent" type="number" min={0} max={100} placeholder="как у сотрудника" className="w-36" />
-            </Field>
-            <Submit>Добавить</Submit>
-          </ActionForm>
-        </Card>
+        <NewPanel>
+          <Card title="Новая работа">
+            <p className="mb-3 text-sm text-slate-600">
+              Если цена не указана, работа считается по нормочасам: нормочасы × цена нормочаса СТО (
+              {formatRub(company.hourPrice)}, меняется в <Link className="text-blue-600" href="/app/settings">настройках</Link>).
+            </p>
+            <ActionForm action={createWorkAction} reset className="flex flex-wrap items-end gap-3">
+              <Field label="Название" className="min-w-64 flex-1">
+                <Input name="name" required />
+              </Field>
+              <Field label="Нормочасы">
+                <Input name="normHours" inputMode="decimal" className="w-24" />
+              </Field>
+              <Field label="Фикс. цена, ₽">
+                <Input name="price" inputMode="decimal" className="w-28" />
+              </Field>
+              <Field label="% исполнителю">
+                <Input name="executorPercent" type="number" min={0} max={100} placeholder="как у сотрудника" className="w-36" />
+              </Field>
+              <Submit>Добавить</Submit>
+            </ActionForm>
+          </Card>
+        </NewPanel>
       </Allowed>
       <Card>
         <form className="mb-3 flex gap-2">

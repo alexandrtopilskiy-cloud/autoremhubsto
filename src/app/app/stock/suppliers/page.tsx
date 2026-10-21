@@ -1,6 +1,6 @@
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
-import { Card, Field, Input, PageTitle } from "@/components/ui";
+import { Card, Field, Input, NewPanel, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { listSuppliers } from "@/lib/services/stock";
 import { createSupplierAction, updateSupplierAction } from "../actions";
@@ -11,26 +11,28 @@ export default async function SuppliersPage() {
   const suppliers = await listSuppliers(s.companyId);
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Склад</PageTitle>
+      <PageTitle create="#new" createLabel="Новый поставщик">Склад</PageTitle>
       <StockTabs active="suppliers" />
       <Allowed perms={s.perms} section="stock">
-        <Card title="Новый поставщик">
-          <ActionForm action={createSupplierAction} reset className="flex flex-wrap items-end gap-3">
-            <Field label="Название" className="min-w-64 flex-1">
-              <Input name="name" required />
-            </Field>
-            <Field label="ИНН">
-              <Input name="inn" className="w-36" />
-            </Field>
-            <Field label="Телефон">
-              <Input name="phone" />
-            </Field>
-            <Field label="Комментарий">
-              <Input name="comment" />
-            </Field>
-            <Submit>Добавить</Submit>
-          </ActionForm>
-        </Card>
+        <NewPanel>
+          <Card title="Новый поставщик">
+            <ActionForm action={createSupplierAction} reset className="flex flex-wrap items-end gap-3">
+              <Field label="Название" className="min-w-64 flex-1">
+                <Input name="name" required />
+              </Field>
+              <Field label="ИНН">
+                <Input name="inn" className="w-36" />
+              </Field>
+              <Field label="Телефон">
+                <Input name="phone" />
+              </Field>
+              <Field label="Комментарий">
+                <Input name="comment" />
+              </Field>
+              <Submit>Добавить</Submit>
+            </ActionForm>
+          </Card>
+        </NewPanel>
         <Card>
           <div className="flex flex-col divide-y">
             {suppliers.map((p) => (

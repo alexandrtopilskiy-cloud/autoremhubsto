@@ -24,7 +24,13 @@ export function ListFilters({
     <form action={path} className="mb-3 flex flex-wrap items-end gap-2">
       <input type="hidden" name="sort" value={query.sort} />
       <input type="hidden" name="dir" value={query.dir} />
-      <Input name="q" defaultValue={query.q} placeholder={placeholder} className="min-w-64 flex-1" aria-label="Поиск" />
+      <Input
+        name="q"
+        defaultValue={query.q}
+        placeholder={placeholder}
+        className="min-w-64 flex-1 border-transparent bg-slate-100/60 py-2.5 focus:bg-white"
+        aria-label="Поиск"
+      />
       {period && (
         <>
           <label className="flex items-center gap-1 text-sm text-slate-600">
@@ -97,7 +103,7 @@ export function SortTh<S extends string>({
       className={`${th} ${right ? "text-right" : ""}`}
       aria-sort={active ? (query.dir === "asc" ? "ascending" : "descending") : undefined}
     >
-      <Link href={listHref(path, query, { sort, dir })} className="whitespace-nowrap hover:text-blue-600">
+      <Link href={listHref(path, query, { sort, dir })} className="whitespace-nowrap text-blue-600 hover:text-blue-800">
         {children}
         {active && <span aria-hidden> {query.dir === "asc" ? "↑" : "↓"}</span>}
       </Link>
@@ -159,9 +165,12 @@ export function PreviewLink({ path, query, id, label }: { path: string; query: L
 export function WithPreview({ panel, children }: { panel?: ReactNode; children: ReactNode }) {
   if (!panel) return <>{children}</>;
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="min-w-0">{children}</div>
-      <aside className="rounded-lg border border-blue-200 bg-white p-4 shadow-sm lg:sticky lg:top-4" aria-label="Панель просмотра">
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-0">
+      <div className="min-w-0 lg:pr-4">{children}</div>
+      <aside
+        className="rounded-md border border-slate-200 bg-white p-5 lg:sticky lg:top-0 lg:min-h-[60vh] lg:rounded-none lg:border-y-0 lg:border-r-0 lg:pt-1"
+        aria-label="Панель просмотра"
+      >
         {panel}
       </aside>
     </div>
@@ -172,7 +181,7 @@ export function WithPreview({ panel, children }: { panel?: ReactNode; children: 
 export function PreviewHead({ title, href, close }: { title: ReactNode; href: string; close: string }) {
   return (
     <div className="mb-3 flex items-start justify-between gap-2">
-      <h2 className="font-semibold">{title}</h2>
+      <h2 className="text-xl font-semibold">{title}</h2>
       <div className="flex shrink-0 items-center gap-2 text-sm">
         <Link href={href} className="text-blue-600 hover:underline">
           Открыть

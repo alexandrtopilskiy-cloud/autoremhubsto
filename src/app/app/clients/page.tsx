@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm, Submit } from "@/components/form";
 import { FilterSelect, ListFilters, Pager, PreviewHead, PreviewLink, PreviewRow, SortTh, WithPreview } from "@/components/list-view";
-import { Card, PageTitle, td, th } from "@/components/ui";
+import { Card, NewPanel, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate, orderNo, vehicleTitle } from "@/lib/format";
 import { listHref, parseListQuery } from "@/lib/list-query";
@@ -79,7 +79,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const list = await searchClients(s.companyId, query, company.utcOffset);
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
+      <PageTitle create="#new" createLabel="Новый клиент"
         actions={
           <div className="flex flex-wrap gap-2">
             <Link href="/app/excel" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50">
@@ -93,14 +93,16 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       >
         Клиенты
       </PageTitle>
-      <Card title="Новый клиент">
-        <ActionForm action={createClientAction} className="flex flex-wrap items-end gap-3">
-          <ClientFields categories={categories} sources={lists.CLIENT_SOURCE} />
-          <Submit>Добавить</Submit>
-        </ActionForm>
-      </Card>
+      <NewPanel>
+        <Card title="Новый клиент">
+          <ActionForm action={createClientAction} className="flex flex-wrap items-end gap-3">
+            <ClientFields categories={categories} sources={lists.CLIENT_SOURCE} />
+            <Submit>Добавить</Submit>
+          </ActionForm>
+        </Card>
+      </NewPanel>
       <WithPreview panel={query.preview ? <Preview companyId={s.companyId} id={query.preview} query={query} /> : undefined}>
-        <Card>
+        <div>
           <ListFilters path={PATH} query={query} placeholder="Имя, телефон, госномер, VIN, email или ИНН">
             <FilterSelect name="kind" label="Тип" value={query.f.kind} options={CLIENT_KINDS} />
             {sources.length > 0 && (
@@ -131,7 +133,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               </thead>
               <tbody>
                 {list.rows.map((c) => (
-                  <tr key={c.id} className={`border-b last:border-0 hover:bg-slate-50 ${query.preview === c.id ? "bg-blue-50" : ""}`}>
+                  <tr key={c.id} className={`border-b last:border-0 hover:bg-slate-50 ${query.preview === c.id ? "bg-blue-100" : ""}`}>
                     <td className={`${td} w-6`}>
                       <PreviewLink path={PATH} query={query} id={c.id} label={c.name} />
                     </td>
@@ -156,7 +158,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             </table>
           </div>
           <Pager path={PATH} query={query} total={list.total} page={list.page} pages={list.pages} />
-        </Card>
+        </div>
       </WithPreview>
     </div>
   );
