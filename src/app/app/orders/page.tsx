@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { FilterSelect, ListFilters, Pager, PreviewHead, PreviewLink, PreviewRow, SortTh, WithPreview } from "@/components/list-view";
-import { Badge, Card, PageTitle, td, th } from "@/components/ui";
+import { Badge, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { formatDate, orderNo, vehicleTitle } from "@/lib/format";
 import { listHref, parseListQuery } from "@/lib/list-query";
@@ -64,17 +64,11 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const { f } = query;
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
-        actions={
-          <Link href="/app/orders/new" className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            Новый заказ-наряд
-          </Link>
-        }
-      >
+      <PageTitle create="/app/orders/new" createLabel="Новый заказ-наряд">
         Заказ-наряды
       </PageTitle>
       <WithPreview panel={query.preview ? <Preview companyId={s.companyId} id={query.preview} query={query} /> : undefined}>
-        <Card>
+        <div>
           <ListFilters path={PATH} query={query} placeholder="Номер, клиент, телефон, госномер, VIN или причина">
             <FilterSelect name="stage" label="Стадия" value={f.stage} options={STAGES} />
             <FilterSelect
@@ -128,7 +122,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
               </thead>
               <tbody>
                 {list.rows.map((o) => (
-                  <tr key={o.id} className={`border-b last:border-0 hover:bg-slate-50 ${query.preview === o.id ? "bg-blue-50" : ""}`}>
+                  <tr key={o.id} className={`border-b last:border-0 hover:bg-slate-50 ${query.preview === o.id ? "bg-blue-100" : ""}`}>
                     <td className={`${td} w-6`}>
                       <PreviewLink path={PATH} query={query} id={o.id} label={orderNo(o.number)} />
                     </td>
@@ -171,7 +165,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             </table>
           </div>
           <Pager path={PATH} query={query} total={list.total} page={list.page} pages={list.pages} />
-        </Card>
+        </div>
       </WithPreview>
     </div>
   );

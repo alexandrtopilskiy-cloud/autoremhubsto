@@ -1,6 +1,6 @@
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
-import { Card, Field, Input, PageTitle, Select } from "@/components/ui";
+import { Card, Field, Input, NewPanel, PageTitle, Select } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { listGroups, listProducts } from "@/lib/services/catalog";
 import {
@@ -38,40 +38,42 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   const [products, groups] = await Promise.all([listProducts(s.companyId, q, group), listGroups(s.companyId)]);
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Справочники</PageTitle>
+      <PageTitle create="#new" createLabel="Новый товар">Справочники</PageTitle>
       <CatalogTabs active="products" />
       <DictList id="units" items={lists.UNIT} />
       <DictList id="brands" items={lists.BRAND} />
       <Allowed perms={s.perms} section="catalog" level="CREATE" quiet>
-        <Card title="Новый товар">
-          <ActionForm action={createProductAction} reset className="flex flex-wrap items-end gap-3">
-            <Field label="Наименование" className="min-w-64 flex-1">
-              <Input name="name" required />
-            </Field>
-            <Field label="Артикул">
-              <Input name="article" className="w-32" />
-            </Field>
-            <Field label="Бренд">
-              <Input name="brand" list="brands" className="w-32" />
-            </Field>
-            <Field label="Ед.">
-              <Input name="unit" list="units" defaultValue="шт" className="w-16" />
-            </Field>
-            <Field label="Цена, ₽">
-              <Input name="price" inputMode="decimal" className="w-28" required />
-            </Field>
-            <Field label="Группа">
-              <GroupSelect groups={groups} value={group && group !== "none" ? group : ""} />
-            </Field>
-            <Field label="Штрихкод">
-              <Input name="barcode" className="w-36" autoComplete="off" />
-            </Field>
-            <Field label="Мин. остаток">
-              <Input name="minQty" inputMode="decimal" className="w-24" />
-            </Field>
-            <Submit>Добавить</Submit>
-          </ActionForm>
-        </Card>
+        <NewPanel>
+          <Card title="Новый товар">
+            <ActionForm action={createProductAction} reset className="flex flex-wrap items-end gap-3">
+              <Field label="Наименование" className="min-w-64 flex-1">
+                <Input name="name" required />
+              </Field>
+              <Field label="Артикул">
+                <Input name="article" className="w-32" />
+              </Field>
+              <Field label="Бренд">
+                <Input name="brand" list="brands" className="w-32" />
+              </Field>
+              <Field label="Ед.">
+                <Input name="unit" list="units" defaultValue="шт" className="w-16" />
+              </Field>
+              <Field label="Цена, ₽">
+                <Input name="price" inputMode="decimal" className="w-28" required />
+              </Field>
+              <Field label="Группа">
+                <GroupSelect groups={groups} value={group && group !== "none" ? group : ""} />
+              </Field>
+              <Field label="Штрихкод">
+                <Input name="barcode" className="w-36" autoComplete="off" />
+              </Field>
+              <Field label="Мин. остаток">
+                <Input name="minQty" inputMode="decimal" className="w-24" />
+              </Field>
+              <Submit>Добавить</Submit>
+            </ActionForm>
+          </Card>
+        </NewPanel>
       </Allowed>
       <Card>
         <form className="mb-3 flex flex-wrap gap-2">

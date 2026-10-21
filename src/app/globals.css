@@ -1,5 +1,34 @@
 @import "tailwindcss";
 
+/* Палитра как в АвтоДилер Онлайн: тёмно-синее меню, голубой акцент #369BFF, серо-голубые тексты и фоны. */
+@theme {
+  --font-sans: "Proxima Nova", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-menu: #182c4b;
+  --color-menu-sub: #2b4062;
+
+  --color-blue-50: #eef6ff;
+  --color-blue-100: #dceeff;
+  --color-blue-200: #b9dcff;
+  --color-blue-300: #8cc6ff;
+  --color-blue-400: #5eb0ff;
+  --color-blue-500: #369bff;
+  --color-blue-600: #369bff;
+  --color-blue-700: #1d84eb;
+  --color-blue-800: #176abf;
+
+  --color-slate-50: #f5f8fc;
+  --color-slate-100: #e4ecf6;
+  --color-slate-200: #dbe3ee;
+  --color-slate-300: #c3cfdc;
+  --color-slate-400: #9aa9ba;
+  --color-slate-500: #768798;
+  --color-slate-600: #5d6e80;
+  --color-slate-700: #455363;
+  --color-slate-800: #2c3846;
+  --color-slate-900: #111a24;
+}
+
 /* В Tailwind 4 цвет рамки по умолчанию — currentColor; возвращаем светлые разделители. */
 @layer base {
   *,
@@ -12,5 +41,5 @@
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-white text-slate-900 antialiased;
 }

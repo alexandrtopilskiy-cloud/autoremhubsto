@@ -59,13 +59,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
-        actions={
-          <Link href={`/app/schedule/new?date=${date}`} className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            Новая запись
-          </Link>
-        }
-      >
+      <PageTitle create={`/app/schedule/new?date=${date}`} createLabel="Новая запись">
         Запись на сервис
       </PageTitle>
       <div className="flex flex-wrap items-center gap-3">

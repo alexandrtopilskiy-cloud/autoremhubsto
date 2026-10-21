@@ -13,7 +13,7 @@ export default async function ReportsLayout({ children }: { children: React.Reac
       .map(([k, r]) => ({ href: `/app/reports/${k}`, label: r.label })),
   ];
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-4">
       <PageTitle>Отчёты</PageTitle>
       <Allowed perms={s.perms} section="reports">
         <ReportTabs tabs={tabs} />

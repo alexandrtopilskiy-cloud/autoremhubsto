@@ -1,44 +1,18 @@
-import Link from "next/link";
+import { AppShell } from "@/components/app-shell/app-shell";
 import { requireSession } from "@/lib/auth";
-import { allowedNav } from "@/lib/nav";
+import { allowedMenu, MENU, MENU_BOTTOM } from "@/lib/nav";
 import { logoutAction } from "./actions";
-
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const s = await requireSession();
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white print:hidden">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link href="/app" className="font-bold">
-            AutoRemHub
-          </Link>
-          <nav className="flex gap-4 text-sm">
-            {allowedNav(s.perms).map((n) => (
-              <Link key={n.href} href={n.href} className="text-slate-700 hover:text-blue-600">
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-          <form action="/app/search" role="search" className="ml-auto">
-            <input
-              name="q"
-              placeholder="Поиск везде"
-              aria-label="Поиск везде"
-              className="w-44 rounded-md border border-slate-300 px-2.5 py-1 text-sm outline-none focus:w-64 focus:border-blue-500"
-            />
-          </form>
-          <div className="flex items-center gap-3 text-sm text-slate-600">
-            <span>
-              {s.companyName} · {s.userName} ({s.roleName})
-            </span>
-            <form action={logoutAction}>
-              <button className="text-blue-600 hover:underline">Выйти</button>
-            </form>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
-    </div>
+    <AppShell
+      menu={allowedMenu(s.perms, MENU)}
+      bottom={allowedMenu(s.perms, MENU_BOTTOM)}
+      user={{ name: s.userName, company: s.companyName, role: s.roleName }}
+      logout={logoutAction}
+    >
+      {children}
+    </AppShell>
   );
 }
