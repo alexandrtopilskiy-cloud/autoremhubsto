@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
-import { CarScheme } from "@/components/car-scheme";
+import { CarScheme, HAND_FONT } from "@/components/car-scheme";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, orderNo, vehicleTitle } from "@/lib/format";
 import { listAttachments } from "@/lib/services/attachments";
 import { dict } from "@/lib/services/dictionaries";
+import { damageCode, damageTag, damageText, SIZES } from "@/lib/car-body";
 import { getInspection, zoneLabel } from "@/lib/services/inspections";
 import { getOrder } from "@/lib/services/orders";
 import { PrintButton } from "../print/print-button";
@@ -23,6 +24,8 @@ export default async function PrintInspection({ params }: { params: Promise<{ id
     listAttachments(s.companyId, "ORDER", id),
     dict(s.companyId, "KIT_ITEM"),
   ]);
+  // расшифровка только тех кодов, что есть в акте
+  const codes = [...new Map(ins.damages.map((d) => [damageCode(d.type).code, damageCode(d.type).name])).entries()];
   const kit = [...kitList, ...ins.items.filter((x) => !kitList.includes(x))];
   const photos = files.filter((f) => PHOTO.includes(f.mime));
   const org = o.organization;
@@ -67,21 +70,42 @@ export default async function PrintInspection({ params }: { params: Promise<{ id
       </table>
 
       <div className="mb-4 flex gap-6">
-        <div className="w-44 shrink-0">
-          <CarScheme damages={ins.damages} className="w-full" />
-          <p className="text-center text-xs text-slate-500">перед вверху</p>
+        <div className="w-64 shrink-0">
+          <CarScheme damages={ins.damages} className="w-full border border-slate-300" />
+          <table className="mt-2 text-[10px] leading-tight text-slate-600">
+            <tbody>
+              {codes.map(([code, name]) => (
+                <tr key={code}>
+                  <td className="pr-2 font-bold text-red-600" style={{ fontFamily: HAND_FONT }}>
+                    {code}
+                  </td>
+                  <td>{name}</td>
+                </tr>
+              ))}
+              <tr>
+                <td className="pr-2 whitespace-nowrap">1–3</td>
+                <td>размер: {Object.entries(SIZES).map(([n, t]) => `${n} — ${t}`).join(", ")}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <div className="flex-1">
           <h2 className="mb-1 font-semibold">Повреждения</h2>
           {ins.damages.length ? (
-            <ol className="mb-3 list-decimal pl-5">
-              {ins.damages.map((d, i) => (
-                <li key={i}>
-                  {zoneLabel(d.zone)}: {d.type.toLowerCase()}
-                  {d.note && `, ${d.note}`}
-                </li>
-              ))}
-            </ol>
+            <table className="mb-3">
+              <tbody>
+                {ins.damages.map((d, i) => (
+                  <tr key={i}>
+                    <td className="pr-2 align-top font-bold text-red-600" style={{ fontFamily: HAND_FONT }}>
+                      {damageTag(d)}
+                    </td>
+                    <td>
+                      {zoneLabel(d.zone)}: {damageText(d).toLowerCase()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
             <p className="mb-3">Видимых повреждений не отмечено.</p>
           )}

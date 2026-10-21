@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { registerCompany } from "@/lib/services/accounts";
 import { createClient } from "@/lib/services/clients";
-import { addDamage, getInspection, removeDamage, saveInspection } from "@/lib/services/inspections";
+import { addDamage, getInspection, removeDamage, saveInspection, updateDamage } from "@/lib/services/inspections";
 import { addWork, createOrder, postOrder } from "@/lib/services/orders";
 import { contactLinks, normalizePhone } from "@/lib/contact";
-import { NotFoundError } from "@/lib/errors";
+import { NotFoundError, UserError } from "@/lib/errors";
 
 async function setup() {
   const a = (await registerCompany({ companyName: "СТО Альфа", name: "Анна", email: "a@x.ru", password: "password1" })).company.id;
@@ -20,18 +20,26 @@ describe("акт осмотра", () => {
     expect(await getInspection(a, o.id)).toMatchObject({ saved: false, damages: [], items: [] });
     await expect(getInspection(b, o.id)).rejects.toBeInstanceOf(NotFoundError);
 
-    await addDamage(a, o.id, { zone: "hood", type: "Скол", note: "2 мм" });
-    await addDamage(a, o.id, { zone: "lf_door", type: "Вмятина" });
-    await expect(addDamage(a, o.id, { zone: "крыло", type: "Скол" })).rejects.toThrow("место повреждения");
-    await expect(addDamage(b, o.id, { zone: "hood", type: "Скол" })).rejects.toBeInstanceOf(NotFoundError);
+    await addDamage(a, o.id, { zone: "hood", type: "G — Скол на стекле", note: "2 мм" });
+    await addDamage(a, o.id, { zone: "lf_door", type: "U — Вмятина", size: 2, x: 70.4, y: 200 });
+    await expect(addDamage(a, o.id, { zone: "крыло", type: "A — Царапина" })).rejects.toThrow("место повреждения");
+    await expect(addDamage(b, o.id, { zone: "hood", type: "A — Царапина" })).rejects.toBeInstanceOf(NotFoundError);
     await saveInspection(a, o.id, { fuel: "50", items: ["Аптечка", "Домкрат", "Что-то лишнее"], dirty: true, dark: false, notes: "" });
 
     let ins = await getInspection(a, o.id);
     expect(ins).toMatchObject({ fuel: 50, items: ["Аптечка", "Домкрат"], dirty: true, notes: null });
     expect(ins.damages).toEqual([
-      { zone: "hood", type: "Скол", note: "2 мм" },
-      { zone: "lf_door", type: "Вмятина", note: null },
+      { zone: "hood", type: "G — Скол на стекле", note: "2 мм", size: null, x: null, y: null },
+      { zone: "lf_door", type: "U — Вмятина", note: null, size: 2, x: 70, y: 200 },
     ]);
+    await expect(addDamage(a, o.id, { zone: "roof", type: "A — Царапина", size: 4 })).rejects.toThrow();
+    await expect(addDamage(a, o.id, { zone: "roof", type: "A — Царапина", x: 9999, y: 10 })).rejects.toThrow();
+
+    // правка отметки: вид, размер и уточнение меняются, место остаётся
+    await updateDamage(a, o.id, 1, { type: "B — Вмятина с царапиной", size: 3, note: "у ручки", zone: "roof", x: 1, y: 1 });
+    expect((await getInspection(a, o.id)).damages[1]).toEqual({ zone: "lf_door", type: "B — Вмятина с царапиной", note: "у ручки", size: 3, x: 70, y: 200 });
+    await expect(updateDamage(a, o.id, 1, { type: "Выдуманное" })).rejects.toBeInstanceOf(UserError);
+    await expect(updateDamage(a, o.id, 9, { note: "x" })).rejects.toBeInstanceOf(NotFoundError);
     await removeDamage(a, o.id, 0);
     ins = await getInspection(a, o.id);
     expect(ins.damages.map((d) => d.zone)).toEqual(["lf_door"]);
@@ -39,7 +47,7 @@ describe("акт осмотра", () => {
 
     await addWork(a, o.id, { name: "Диагностика", normHours: 1, price: 100000 });
     await postOrder(a, o.id);
-    await expect(addDamage(a, o.id, { zone: "roof", type: "Скол" })).rejects.toThrow("проведён");
+    await expect(addDamage(a, o.id, { zone: "roof", type: "A — Царапина" })).rejects.toThrow("проведён");
   });
 });
 

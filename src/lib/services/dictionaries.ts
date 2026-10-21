@@ -3,6 +3,7 @@
 import { z } from "zod";
 import type { DictKind, Prisma } from "@prisma/client";
 import { prisma } from "../db";
+import { AUCTION_CODES } from "../car-body";
 import { NotFoundError, UserError } from "../errors";
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -30,8 +31,8 @@ export const DICTS: { kind: DictKind; label: string; usage: string; defaults: st
   {
     kind: "DAMAGE_TYPE",
     label: "Типы повреждений",
-    usage: "выбор в акте осмотра",
-    defaults: ["Царапина", "Вмятина", "Скол", "Трещина", "Коррозия", "Разбито или нет детали"],
+    usage: "коды на развёртке в акте осмотра; код пишется перед тире: «A — Царапина»",
+    defaults: AUCTION_CODES,
   },
   {
     kind: "KIT_ITEM",

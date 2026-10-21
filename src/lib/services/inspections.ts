@@ -2,33 +2,12 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { NotFoundError, UserError } from "../errors";
 import { ownOrder } from "../tenant";
+import { ALL_ZONES, BODY_H, BODY_W, type Damage } from "../car-body";
 import { dict } from "./dictionaries";
 
-// Схема кузова (вид сверху, капот вверху): зона → прямоугольник в координатах 240 × 404.
-const LEFT = [
-  { key: "lf_fender", label: "Левое переднее крыло", x: 18, y: 40, w: 40, h: 90 },
-  { key: "lf_door", label: "Левая передняя дверь", x: 18, y: 132, w: 44, h: 90 },
-  { key: "lr_door", label: "Левая задняя дверь", x: 18, y: 224, w: 44, h: 80 },
-  { key: "lr_fender", label: "Левое заднее крыло", x: 18, y: 306, w: 40, h: 62 },
-];
-export const ZONES = [
-  { key: "f_bumper", label: "Передний бампер", x: 50, y: 8, w: 140, h: 26 },
-  { key: "hood", label: "Капот", x: 60, y: 36, w: 120, h: 80 },
-  { key: "windshield", label: "Лобовое стекло", x: 64, y: 118, w: 112, h: 34 },
-  { key: "roof", label: "Крыша", x: 64, y: 154, w: 112, h: 110 },
-  { key: "r_window", label: "Заднее стекло", x: 64, y: 266, w: 112, h: 30 },
-  { key: "trunk", label: "Багажник", x: 60, y: 298, w: 120, h: 70 },
-  { key: "r_bumper", label: "Задний бампер", x: 50, y: 370, w: 140, h: 26 },
-  ...LEFT,
-  ...LEFT.map((z) => ({ ...z, key: z.key.replace(/^l/, "r"), label: z.label.replace("Левое", "Правое").replace("Левая", "Правая"), x: 240 - z.x - z.w })),
-  { key: "wheels", label: "Колёса и диски", x: 0, y: 0, w: 0, h: 0 },
-  { key: "interior", label: "Салон", x: 0, y: 0, w: 0, h: 0 },
-];
-export const zoneLabel = (k: string) => ZONES.find((z) => z.key === k)?.label ?? k;
+export { zoneLabel, type Damage } from "../car-body";
 
 export const FUEL_LEVELS = [0, 25, 50, 75, 100];
-
-export type Damage = { zone: string; type: string; note?: string | null };
 
 export const inspectionSchema = z.object({
   fuel: z
@@ -45,14 +24,28 @@ export const inspectionSchema = z.object({
     .transform((v) => (v ? v : null)),
 });
 
+const point = (max: number) =>
+  z
+    .union([z.literal(""), z.null(), z.coerce.number().min(0).max(max)])
+    .optional()
+    .transform((v) => (v === "" || v === undefined || v === null ? null : Math.round(v)));
+
 export const damageSchema = z.object({
-  zone: z.string().refine((z) => ZONES.some((x) => x.key === z), "Выберите место повреждения"),
+  zone: z.string().refine((z) => ALL_ZONES.some((x) => x.key === z), "Выберите место повреждения"),
   type: z.string().trim().min(1, "Выберите вид повреждения"),
+  // размер по аукционной шкале: 1 — до 3 см, 2 — до 10 см, 3 — больше
+  size: z
+    .union([z.literal(""), z.null(), z.coerce.number().int().min(1).max(3)])
+    .optional()
+    .transform((v) => (v === "" || v === undefined || v === null ? null : v)),
   note: z
     .string()
     .trim()
-    .optional()
+    .nullish()
     .transform((v) => (v ? v : null)),
+  // точка на развёртке, куда ткнули
+  x: point(BODY_W),
+  y: point(BODY_H),
 });
 
 async function editable(companyId: string, orderId: string) {
@@ -91,6 +84,19 @@ export async function addDamage(companyId: string, orderId: string, input: unkno
   const cur = await getInspection(companyId, orderId);
   const damages = [...cur.damages, d];
   return prisma.inspection.upsert({ where: { orderId }, create: { orderId, damages }, update: { damages } });
+}
+
+/** Правка отметки: вид, размер, уточнение. Место не меняется. */
+export async function updateDamage(companyId: string, orderId: string, index: number, input: unknown) {
+  await editable(companyId, orderId);
+  const cur = await getInspection(companyId, orderId);
+  const old = cur.damages[index];
+  if (!old) throw new NotFoundError("Повреждение");
+  const d = damageSchema.parse({ ...old, ...(input as object), zone: old.zone, x: old.x, y: old.y });
+  // старый вид, которого уже нет в справочнике, можно оставить как есть
+  if (d.type !== old.type && !(await dict(companyId, "DAMAGE_TYPE")).includes(d.type)) throw new UserError("Выберите вид повреждения из справочника");
+  const damages = cur.damages.map((x, i) => (i === index ? d : x));
+  return prisma.inspection.update({ where: { orderId }, data: { damages } });
 }
 
 export async function removeDamage(companyId: string, orderId: string, index: number) {

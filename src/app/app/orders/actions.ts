@@ -28,7 +28,7 @@ import {
   recommendationToOrder,
   setRecommendationStatus,
 } from "@/lib/services/recommendations";
-import { addDamage, removeDamage, saveInspection } from "@/lib/services/inspections";
+import { addDamage, removeDamage, saveInspection, updateDamage } from "@/lib/services/inspections";
 
 export async function createOrderAction(_: FormState, fd: FormData): Promise<FormState> {
   const s = await requireSession();
@@ -172,8 +172,15 @@ export async function saveInspectionAction(orderId: string, _: FormState, fd: Fo
   );
 }
 
-export async function addDamageAction(orderId: string, _: FormState, fd: FormData) {
-  return onOrder(orderId, (c) => addDamage(c, orderId, fields(fd)));
+export type DamageInput = { zone?: string; type?: string; size?: number | null; note?: string | null; x?: number; y?: number };
+
+/** Отметка на развёртке: деталь и точка, куда ткнули, вид и размер повреждения. */
+export async function addDamageAction(orderId: string, input: DamageInput) {
+  return onOrder(orderId, (c) => addDamage(c, orderId, input));
+}
+
+export async function updateDamageAction(orderId: string, index: number, input: DamageInput) {
+  return onOrder(orderId, (c) => updateDamage(c, orderId, index, input));
 }
 
 export async function removeDamageAction(orderId: string, index: number) {
