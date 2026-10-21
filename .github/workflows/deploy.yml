@@ -1,0 +1,35 @@
+name: Deploy
+
+# После зелёной проверки main сайт обновляется на сервере сам. Настройка — DEPLOY.md, раздел «Автообновление».
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    env:
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      HOST: ${{ secrets.DEPLOY_HOST || '81.161.118.132' }}
+      SSH_USER: ${{ secrets.DEPLOY_USER || 'root' }}
+    steps:
+      - name: Обновить сайт
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "::warning::Секрет DEPLOY_SSH_KEY не задан, автообновление не настроено (см. DEPLOY.md)."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # на сервере этот ключ привязан к deploy/update.sh и ничего другого запустить не может
+          ssh -i ~/.ssh/deploy -o BatchMode=yes "$SSH_USER@$HOST" /opt/autoremhubsto/deploy/update.sh
