@@ -9,6 +9,9 @@ import { listEmployees, listOrganizations } from "@/lib/services/employees";
 import { ORDER_FILTERS, ORDER_SORTS, searchOrders, type OrderQuery } from "@/lib/services/lists";
 import { getOrder, STAGES, stageLabel } from "@/lib/services/orders";
 import { getCompany } from "@/lib/services/settings";
+import { can } from "@/lib/permissions";
+import { TrashButton } from "@/components/trash-button";
+import { trashDocAction } from "@/app/app/trash-actions";
 
 const PATH = "/app/orders";
 
@@ -62,6 +65,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const [company, orgs, employees] = await Promise.all([getCompany(s.companyId), listOrganizations(s.companyId), listEmployees(s.companyId)]);
   const list = await searchOrders(s.companyId, query, company.utcOffset);
   const { f } = query;
+  const remover = can(s.perms, "orders", "FULL");
   return (
     <div className="flex flex-col gap-4">
       <PageTitle create="/app/orders/new" createLabel="Новый заказ-наряд">
@@ -118,6 +122,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                   <SortTh path={PATH} query={query} sort="due" right>
                     Долг
                   </SortTh>
+                  <th className={`${th} text-right`}>Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -141,11 +146,31 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                     <td className={`${td} text-right whitespace-nowrap ${o.totals.due > 0 ? "text-red-600" : ""}`}>
                       {o.totals.due !== 0 ? formatRub(o.totals.due) : ""}
                     </td>
+                    <td className={`${td} py-1.5`}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          href={`/app/orders/${o.id}/print`}
+                          target="_blank"
+                          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm hover:bg-slate-50"
+                          title="Печатная форма заказ-наряда"
+                        >
+                          Печать
+                        </Link>
+                        {remover && (
+                          <TrashButton
+                            small
+                            action={trashDocAction.bind(null, "ORDER", o.id, PATH)}
+                            disabled={o.status === "POSTED"}
+                            title={o.status === "POSTED" ? "Проведённый наряд: сначала отмените проведение" : "Удалить в корзину"}
+                          />
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {list.rows.length === 0 && (
                   <tr>
-                    <td colSpan={8} className={`${td} text-slate-500`}>
+                    <td colSpan={9} className={`${td} text-slate-500`}>
                       Заказ-нарядов не найдено
                     </td>
                   </tr>
@@ -159,6 +184,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                     </td>
                     <td className={`${td} text-right whitespace-nowrap`}>{formatRub(list.sums.total)}</td>
                     <td className={`${td} text-right whitespace-nowrap`}>{list.sums.due !== 0 ? formatRub(list.sums.due) : ""}</td>
+                    <td className={td} />
                   </tr>
                 </tfoot>
               )}
