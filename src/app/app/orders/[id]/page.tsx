@@ -17,19 +17,17 @@ import { orderPartsRequests, requestStatusLabel } from "@/lib/services/parts-req
 import { listRecommendations, recStatusLabel } from "@/lib/services/recommendations";
 import { can } from "@/lib/permissions";
 import { Attachments } from "@/components/attachments";
-import { CarScheme } from "@/components/car-scheme";
 import { ContactLinks } from "@/components/contact-links";
 import { dicts } from "@/lib/services/dictionaries";
-import { FUEL_LEVELS, getInspection, ZONES, zoneLabel } from "@/lib/services/inspections";
+import { FUEL_LEVELS, getInspection } from "@/lib/services/inspections";
+import { InspectionEditor } from "./inspection-editor";
 import {
   addItemAction,
   addItemFromCatalogAction,
   addPaymentAction,
   addWorkAction,
   addWorkFromCatalogAction,
-  addDamageAction,
   addRecommendationAction,
-  removeDamageAction,
   saveInspectionAction,
   cancelRequestAction,
   issueRequestAction,
@@ -290,57 +288,8 @@ export default async function OrderPage({
               </Link>
             }
           >
-            <div className="flex flex-col gap-4 md:flex-row">
-              <div className="w-40 shrink-0">
-                <CarScheme damages={inspection.damages} className="w-full" />
-                <p className="mt-1 text-center text-xs text-slate-500">перед вверху</p>
-              </div>
-              <div className="flex flex-1 flex-col gap-3">
-                {inspection.damages.length > 0 ? (
-                  <ol className="flex flex-col gap-1 text-sm">
-                    {inspection.damages.map((d, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <b className="w-5 text-red-700">{i + 1}.</b>
-                        {zoneLabel(d.zone)}: {d.type.toLowerCase()}
-                        {d.note && <span className="text-slate-500">· {d.note}</span>}
-                        {!posted && (
-                          <ActionForm action={removeDamageAction.bind(null, o.id, i)}>
-                            <button className="text-red-600 hover:underline" title="Убрать">
-                              ✕
-                            </button>
-                          </ActionForm>
-                        )}
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <p className="text-sm text-slate-500">Повреждений не отмечено</p>
-                )}
-                {!posted && (
-                  <ActionForm action={addDamageAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-2 rounded-md bg-slate-50 p-3">
-                    <Field label="Где">
-                      <Select name="zone" defaultValue="">
-                        <option value="">Выберите</option>
-                        {ZONES.map((z) => (
-                          <option key={z.key} value={z.key}>
-                            {z.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Повреждение">
-                      <Select name="type">
-                        {lists.DAMAGE_TYPE.map((t) => (
-                          <option key={t}>{t}</option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Уточнение" className="min-w-40 flex-1">
-                      <Input name="note" placeholder="например, 5 см" />
-                    </Field>
-                    <Submit variant="ghost">Отметить</Submit>
-                  </ActionForm>
-                )}
+            <InspectionEditor orderId={o.id} damages={inspection.damages} types={lists.DAMAGE_TYPE} readOnly={posted} />
+            <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4">
                 <ActionForm action={saveInspectionAction.bind(null, o.id)} className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-end gap-4">
                     <Field label="Топливо">
@@ -378,7 +327,6 @@ export default async function OrderPage({
                   )}
                 </ActionForm>
                 <p className="text-xs text-slate-500">Фото автомобиля прикрепите ниже в «Файлы и фото», они попадут в печатный акт.</p>
-              </div>
             </div>
           </Card>
 

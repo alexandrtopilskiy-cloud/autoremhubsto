@@ -26,7 +26,7 @@ describe("корзина", () => {
     const o = await createOrder(a, { clientId: c.id });
     await addWork(a, o.id, { name: "Замена масла", normHours: 1, price: 150000 });
     await addItemFromCatalog(a, o.id, { refId: oil.id, qty: 4 });
-    await addDamage(a, o.id, { zone: "hood", type: "Скол" });
+    await addDamage(a, o.id, { zone: "hood", type: "A — Царапина" });
     const rec = await addRecommendation(a, o.id, { kind: "WORK", name: "Замена колодок", price: 200000 });
     const before = await getOrder(a, o.id);
 
