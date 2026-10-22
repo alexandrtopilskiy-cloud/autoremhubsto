@@ -1,11 +1,7 @@
 import Link from "next/link";
 
-const tabs = [
-  { key: "staff", href: "/app/staff", label: "Сотрудники и доступ" },
-  { key: "payroll", href: "/app/staff/payroll", label: "Зарплата" },
-];
-
-export function StaffTabs({ active }: { active: string }) {
+/** Внутренние вкладки: справочник сотрудников (Менеджеры / Исполнители) или карточка сотрудника. */
+export function StaffTabs({ tabs, active }: { tabs: { key: string; href: string; label: string }[]; active: string }) {
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-1 border-b border-slate-200">
       {tabs.map((t) => (

@@ -28,7 +28,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const recs = await listRecommendations(s.companyId, { clientId: client.id, status: "OPEN" });
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
+      <PageTitle tab={client.name}
         actions={
           <div className="flex gap-2">
             <Link

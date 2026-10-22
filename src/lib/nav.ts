@@ -18,7 +18,6 @@ export const MENU: MenuItem[] = [
     ],
   },
   { key: "schedule", label: "Запись", icon: "schedule", href: "/app/schedule", section: "schedule" },
-  { key: "clients", label: "Клиенты", icon: "clients", href: "/app/clients", section: "clients" },
   {
     key: "stock",
     label: "Склад",
@@ -49,6 +48,8 @@ export const MENU: MenuItem[] = [
     label: "Справочники",
     icon: "catalog",
     children: [
+      { href: "/app/clients", section: "clients", label: "Клиенты" },
+      { href: "/app/staff", section: "staff", label: "Сотрудники" },
       { href: "/app/catalog/works", section: "catalog", label: "Работы" },
       { href: "/app/catalog/products", section: "catalog", label: "Товары и материалы" },
       { href: "/app/catalog/prices", section: "catalog", label: "Категории цен" },
@@ -65,7 +66,7 @@ export const MENU_BOTTOM: MenuItem[] = [
     label: "Управление",
     icon: "manage",
     children: [
-      { href: "/app/staff", section: "staff", label: "Сотрудники и доступ" },
+      { href: "/app/settings/users", section: "settings", label: "Пользователи и доступ" },
       { href: "/app/settings", section: "settings", label: "Настройки компании" },
       { href: "/app/settings/roles", section: "settings", label: "Роли и права" },
       { href: "/app/documents/trash", section: "documents", label: "Корзина" },
@@ -96,3 +97,12 @@ export function activeLink(links: MenuLink[], pathname: string): MenuLink | unde
 }
 
 export const allowedNav = (p: Permissions) => menuLinks(allowedMenu(p, [...MENU, ...MENU_BOTTOM]));
+
+/**
+ * Ключ вкладки рабочей области: у списка — ссылка меню, у документа или карточки — ссылка меню и id
+ * (/app/orders/abc), так что каждый документ открывается своей вкладкой, а его подстраницы (печать, акт) — в ней же.
+ */
+export function tabKey(link: MenuLink, pathname: string): string {
+  if (pathname === link.href) return link.href;
+  return `${link.href}/${pathname.slice(link.href.length + 1).split("/")[0]}`;
+}

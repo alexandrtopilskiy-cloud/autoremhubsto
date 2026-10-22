@@ -40,7 +40,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
+      <PageTitle tab={`К-${e.number} ${e.client.name}`}
         actions={
           <div className="flex flex-wrap gap-2">
             {!e.order && can(s.perms, "orders", "FULL") && <TrashButton action={trashDocAction.bind(null, "ESTIMATE", e.id, "/app/estimates")} />}

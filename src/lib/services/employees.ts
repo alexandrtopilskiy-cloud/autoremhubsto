@@ -1,7 +1,8 @@
 import { prisma } from "../db";
 
-export function listEmployees(companyId: string) {
-  return prisma.employee.findMany({ where: { companyId, active: true }, orderBy: { name: "asc" } });
+/** Работающие сотрудники для выбора в документах; kind — только менеджеры или только исполнители. */
+export function listEmployees(companyId: string, kind?: "MANAGER" | "EXECUTOR") {
+  return prisma.employee.findMany({ where: { companyId, active: true, OR: [{ firedAt: null }, { firedAt: { gt: new Date() } }], ...(kind && { kind }) }, orderBy: { name: "asc" } });
 }
 
 export function listOrganizations(companyId: string) {

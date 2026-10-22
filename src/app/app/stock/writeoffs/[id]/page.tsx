@@ -37,7 +37,7 @@ export default async function WriteOffPage({ params }: { params: Promise<{ id: s
     <div className="flex flex-col gap-4">
       <StockTabs active="writeoffs" />
       <Allowed perms={s.perms} section="stock">
-        <PageTitle
+        <PageTitle tab={`СП-${w.number}`}
           actions={
             <div className="flex flex-wrap gap-2">
               {!posted && can(s.perms, "stock", "FULL") && (

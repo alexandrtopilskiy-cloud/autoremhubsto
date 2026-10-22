@@ -12,7 +12,6 @@ import { listOrganizations } from "@/lib/services/employees";
 import { getCompany } from "@/lib/services/settings";
 import { monthTitle, pageMonth } from "../month";
 import { addPayrollEntryAction, deletePayrollEntryAction, payEmployeeAction } from "../payroll-actions";
-import { StaffTabs } from "../tabs";
 
 const money = (kop: number) => (kop / 100).toFixed(2).replace(".", ",");
 
@@ -42,8 +41,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   ));
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle>Сотрудники</PageTitle>
-      <StaffTabs active="payroll" />
+      <PageTitle>Зарплата</PageTitle>
       <Allowed perms={s.perms} section="staff">
         <Card>
           <form className="mb-4 flex flex-wrap items-end gap-3">

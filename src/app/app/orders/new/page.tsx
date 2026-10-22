@@ -43,7 +43,7 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
     );
   }
 
-  const employees = await listEmployees(s.companyId);
+  const employees = await listEmployees(s.companyId, "MANAGER");
   return (
     <div className="flex flex-col gap-4">
       <PageTitle>Новый заказ-наряд</PageTitle>

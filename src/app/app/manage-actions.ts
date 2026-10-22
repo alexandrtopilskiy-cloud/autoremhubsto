@@ -20,6 +20,7 @@ import {
   addMember,
   createEmployee,
   createRole,
+  linkMemberEmployee,
   deleteRole,
   updateRole,
   removeMember,
@@ -78,20 +79,24 @@ export async function deleteGroupAction(id: string) {
 }
 
 // --- сотрудники и пользователи ---
+const USERS = "/app/settings/users";
 export async function createEmployeeAction(_: FormState, fd: FormData) {
   return manage("staff", "CREATE", "/app/staff", (c) => createEmployee(c, fields(fd)));
 }
 export async function updateEmployeeAction(id: string, _: FormState, fd: FormData) {
-  return manage("staff", "EDIT", "/app/staff", (c) => updateEmployee(c, id, fields(fd)));
+  return manage("staff", "EDIT", `/app/staff/${id}`, (c) => updateEmployee(c, id, fields(fd)));
 }
 export async function addMemberAction(_: FormState, fd: FormData) {
-  return manage("settings", "CREATE", "/app/staff", (c) => addMember(c, fields(fd)));
+  return manage("settings", "CREATE", USERS, (c) => addMember(c, fields(fd)));
 }
 export async function setMemberRoleAction(id: string, _: FormState, fd: FormData) {
-  return manage("settings", "EDIT", "/app/staff", (c, u) => setMemberRole(c, u, id, fd.get("role")));
+  return manage("settings", "EDIT", USERS, (c, u) => setMemberRole(c, u, id, fd.get("role")));
 }
 export async function removeMemberAction(id: string) {
-  return manage("settings", "FULL", "/app/staff", (c, u) => removeMember(c, u, id));
+  return manage("settings", "FULL", USERS, (c, u) => removeMember(c, u, id));
+}
+export async function linkMemberEmployeeAction(id: string, _: FormState, fd: FormData) {
+  return manage("settings", "EDIT", USERS, (c) => linkMemberEmployee(c, id, String(fd.get("employeeId") ?? "")));
 }
 
 // --- настройки ---

@@ -40,7 +40,7 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
     <div className="flex flex-col gap-4">
       <StockTabs active="orders" />
       <Allowed perms={s.perms} section="stock" flag="costs">
-        <PageTitle
+        <PageTitle tab={`ЗП-${o.number} ${o.supplier.name}`}
           actions={
             <div className="flex flex-wrap gap-2">
               {(o.status === "NEW" || o.status === "CANCELLED") && can(s.perms, "stock", "FULL") && (

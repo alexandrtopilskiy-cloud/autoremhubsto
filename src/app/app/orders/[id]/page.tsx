@@ -84,8 +84,9 @@ export default async function OrderPage({
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const [employees, works, products, company, cashboxes, summary, recs, requests, stats] = await Promise.all([
-    listEmployees(s.companyId),
+  const [managers, executors, works, products, company, cashboxes, summary, recs, requests, stats] = await Promise.all([
+    listEmployees(s.companyId, "MANAGER"),
+    listEmployees(s.companyId, "EXECUTOR"),
     listWorks(s.companyId),
     stockBalances(s.companyId),
     getCompany(s.companyId),
@@ -112,7 +113,7 @@ export default async function OrderPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
+      <PageTitle tab={`${orderNo(o.number)} ${o.client.name}`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -258,7 +259,7 @@ export default async function OrderPage({
               <Field label="Менеджер">
                 <Select name="managerId" defaultValue={o.managerId ?? ""} disabled={posted}>
                   <option value="">Не указан</option>
-                  {employees.map((e) => (
+                  {(o.manager && !managers.some((e) => e.id === o.managerId) ? [o.manager, ...managers] : managers).map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.name}
                     </option>
@@ -401,7 +402,7 @@ export default async function OrderPage({
                 <Field label="Исполнитель">
                   <Select name="executorId" defaultValue="">
                     <option value="">Не указан</option>
-                    {employees.map((e) => (
+                    {executors.map((e) => (
                       <option key={e.id} value={e.id}>
                         {e.name}
                       </option>
@@ -428,7 +429,7 @@ export default async function OrderPage({
                 <Field label="Исполнитель">
                   <Select name="executorId" defaultValue="">
                     <option value="">Не указан</option>
-                    {employees.map((e) => (
+                    {executors.map((e) => (
                       <option key={e.id} value={e.id}>
                         {e.name}
                       </option>

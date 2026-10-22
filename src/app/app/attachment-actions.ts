@@ -6,10 +6,8 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { run, type FormState } from "@/lib/actions";
 import { UserError } from "@/lib/errors";
-import { assertCan, type Section } from "@/lib/permissions";
-
-const SECTION: Record<DocKind, Section> = { ORDER: "orders", ESTIMATE: "orders", RECEIPT: "stock" };
-import { addAttachment, deleteAttachment } from "@/lib/services/attachments";
+import { assertCan } from "@/lib/permissions";
+import { addAttachment, ATTACHMENT_SECTION as SECTION, deleteAttachment } from "@/lib/services/attachments";
 
 export async function uploadAttachmentAction(kind: DocKind, docId: string, path: string, _: FormState, fd: FormData) {
   const s = await requireSession();

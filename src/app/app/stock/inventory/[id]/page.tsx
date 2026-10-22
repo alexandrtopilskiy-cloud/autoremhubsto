@@ -36,7 +36,7 @@ export default async function InventoryPage({ params }: { params: Promise<{ id: 
     <div className="flex flex-col gap-4">
       <StockTabs active="inventory" />
       <Allowed perms={s.perms} section="stock">
-        <PageTitle
+        <PageTitle tab={`ИН-${inv.number}`}
           actions={
             <div className="flex flex-wrap gap-2">
               {!posted && can(s.perms, "stock", "FULL") && (

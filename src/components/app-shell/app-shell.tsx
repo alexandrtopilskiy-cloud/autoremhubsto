@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
-import { activeLink, menuLinks, type MenuItem, type MenuLink } from "@/lib/nav";
+import { activeLink, menuLinks, tabKey, type MenuItem, type MenuLink } from "@/lib/nav";
 import { Icon } from "./icons";
+import { TAB_TITLE_EVENT, tabTitles } from "./tab-title";
 
 const VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
@@ -247,47 +248,75 @@ function MenuEntry({
   );
 }
 
-type Tab = { key: string; label: string; href: string };
+type Tab = { key: string; label: string; href: string; doc?: boolean };
 
-/** Полоса открытых разделов: как вкладки документов в АвтоДилере, запоминается в браузере. */
+const MAX_TABS = 15;
+const STORE = "ar.tabs.v2";
+const save = (tabs: Tab[]) => write(STORE, tabs);
+/** Вкладка, к которой относится адрес: сама вкладка или её подстраница. */
+const owns = (key: string, path: string) => path === key || path.startsWith(key + "/");
+
+/**
+ * Полоса вкладок рабочей области, как в АвтоДилере: каждый список, справочник и документ открывается
+ * своей вкладкой, повторный переход возвращает в уже открытую. Запоминается в браузере.
+ */
 function TabBar({ active, onMenu }: { active?: MenuLink; onMenu: () => void }) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const router = useRouter();
   const [tabs, setTabs] = useState<Tab[]>([]);
   const current = pathname + (search ? `?${search}` : "");
+  const key = active ? tabKey(active, pathname) : undefined;
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !key) return;
     setTabs(() => {
-      const list = read<Tab[]>("ar.tabs", []);
-      const i = list.findIndex((t) => t.key === active.href);
-      const tab = { key: active.href, label: active.label, href: current };
-      const next = i >= 0 ? list.map((t, j) => (j === i ? tab : t)) : [...list, tab].slice(-8);
-      write("ar.tabs", next);
+      const list = read<Tab[]>(STORE, []);
+      const i = list.findIndex((t) => t.key === key);
+      const fallback = key === active.href ? active.label : key.endsWith("/new") ? `${active.label}: новый` : active.label;
+      const label = key === active.href ? active.label : (tabTitles.get(pathname) ?? (i >= 0 ? list[i].label : fallback));
+      const tab = { key, label, href: current, doc: key !== active.href };
+      const next = i >= 0 ? list.map((t, j) => (j === i ? tab : t)) : [...list, tab].slice(-MAX_TABS);
+      save(next);
       return next;
     });
-  }, [active, current]);
+  }, [active, key, current, pathname]);
 
-  const close = (key: string) => {
-    const i = tabs.findIndex((t) => t.key === key);
-    const next = tabs.filter((t) => t.key !== key);
+  // название документа приходит со страницы (TabTitle)
+  useEffect(() => {
+    const onTitle = (e: Event) => {
+      const { path, title } = (e as CustomEvent<{ path: string; title: string }>).detail;
+      setTabs((list) => {
+        const own = list.find((t) => t.doc && owns(t.key, path));
+        if (!own || own.label === title) return list;
+        const next = list.map((t) => (t === own ? { ...t, label: title } : t));
+        save(next);
+        return next;
+      });
+    };
+    window.addEventListener(TAB_TITLE_EVENT, onTitle);
+    return () => window.removeEventListener(TAB_TITLE_EVENT, onTitle);
+  }, []);
+
+  const close = (k: string) => {
+    const i = tabs.findIndex((t) => t.key === k);
+    const next = tabs.filter((t) => t.key !== k);
     setTabs(next);
-    write("ar.tabs", next);
-    if (key === active?.href && next.length) router.push(next[Math.min(i, next.length - 1)].href);
+    save(next);
+    if (k === key && next.length) router.push(next[Math.min(i, next.length - 1)].href);
   };
 
   // до чтения из браузера показываем хотя бы текущий раздел
-  const shown = tabs.length ? tabs : active ? [{ key: active.href, label: active.label, href: current }] : [];
+  const shown = tabs.length ? tabs : active && key ? [{ key, label: active.label, href: current }] : [];
 
   return (
     <div className="flex h-9 shrink-0 items-stretch bg-slate-100 print:hidden">
       <button type="button" onClick={onMenu} className="px-3 text-slate-600 md:hidden" aria-label="Открыть меню">
         <Icon name="burger" />
       </button>
-      <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto" role="tablist" aria-label="Открытые разделы">
+      <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto" role="tablist" aria-label="Открытые вкладки">
         {shown.map((t) => {
-          const on = t.key === active?.href;
+          const on = t.key === key;
           return (
             <div
               key={t.key}
