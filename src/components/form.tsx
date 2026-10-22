@@ -4,6 +4,9 @@ import { useActionState, useEffect, useRef, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import type { FormState } from "@/lib/actions";
 
+/** Форма документа сообщила результат сохранения. */
+export const DOC_SAVED_EVENT = "ar:doc-saved";
+
 type Action = (state: FormState, fd: FormData) => Promise<FormState>;
 
 export function ActionForm({
@@ -12,20 +15,24 @@ export function ActionForm({
   children,
   className,
   reset = false,
+  doc = false,
 }: {
   id?: string;
   action: Action;
   children: ReactNode;
   className?: string;
   reset?: boolean;
+  /** форма полей документа: её сохраняют кнопки панели документа (DocToolbar) */
+  doc?: boolean;
 }) {
   const [state, formAction] = useActionState(action, undefined);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (reset && state?.ok) ref.current?.reset();
-  }, [state, reset]);
+    if (doc && state && ref.current) window.dispatchEvent(new CustomEvent(DOC_SAVED_EVENT, { detail: { form: ref.current, ok: !state.error } }));
+  }, [state, reset, doc]);
   return (
-    <form id={id} ref={ref} action={formAction} className={className}>
+    <form id={id} ref={ref} action={formAction} className={className} {...(doc ? { "data-doc-form": "" } : {})}>
       {children}
       {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
     </form>

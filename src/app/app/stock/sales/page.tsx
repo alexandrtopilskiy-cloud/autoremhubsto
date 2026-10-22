@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconLink } from "@/components/icon-button";
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
@@ -89,6 +90,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
                     <th className={th}>Статус</th>
                     <th className={`${th} text-right`}>Сумма</th>
                     <th className={`${th} text-right`}>Долг</th>
+                    <th className={th} />
                   </tr>
                 </thead>
                 <tbody>
@@ -108,11 +110,16 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
                       <td className={`${td} text-right whitespace-nowrap ${x.totals.due > 0 ? "text-red-600" : ""}`}>
                         {x.totals.due !== 0 && formatRub(x.totals.due)}
                       </td>
+                      <td className={`${td} py-1.5`}>
+                        <div className="flex justify-end">
+                          <IconLink small newTab icon="print" label="Печать" href={`${PATH}/${x.id}/print`} />
+                        </div>
+                      </td>
                     </ListRow>
                   ))}
                   {sales.length === 0 && (
                     <tr>
-                      <td colSpan={6} className={`${td} text-slate-500`}>
+                      <td colSpan={7} className={`${td} text-slate-500`}>
                         Продаж пока нет
                       </td>
                     </tr>

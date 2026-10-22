@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconLink } from "@/components/icon-button";
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
@@ -101,6 +102,7 @@ export default async function SupplierOrdersPage({ searchParams }: { searchParam
                     <th className={th}>Статус</th>
                     <th className={th}>Приход</th>
                     <th className={`${th} text-right`}>Сумма</th>
+                    <th className={th} />
                   </tr>
                 </thead>
                 <tbody>
@@ -124,11 +126,16 @@ export default async function SupplierOrdersPage({ searchParams }: { searchParam
                         )}
                       </td>
                       <td className={`${td} text-right whitespace-nowrap`}>{formatRub(o.total)}</td>
+                      <td className={`${td} py-1.5`}>
+                        <div className="flex justify-end">
+                          <IconLink small newTab icon="print" label="Печать" href={`${PATH}/${o.id}/print`} />
+                        </div>
+                      </td>
                     </ListRow>
                   ))}
                   {orders.length === 0 && (
                     <tr>
-                      <td colSpan={6} className={`${td} text-slate-500`}>
+                      <td colSpan={7} className={`${td} text-slate-500`}>
                         Заказов поставщикам пока нет
                       </td>
                     </tr>

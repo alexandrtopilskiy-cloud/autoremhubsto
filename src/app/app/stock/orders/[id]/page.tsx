@@ -23,6 +23,7 @@ import {
   updateSupplierOrderAction,
 } from "../../warehouse-actions";
 import { TrashButton } from "@/components/trash-button";
+import { DocToolbar } from "@/components/doc-toolbar";
 import { trashDocAction } from "@/app/app/trash-actions";
 import { can } from "@/lib/permissions";
 
@@ -42,13 +43,14 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
       <Allowed perms={s.perms} section="stock" flag="costs">
         <PageTitle tab={`ЗП-${o.number} ${o.supplier.name}`}
           actions={
-            <div className="flex flex-wrap gap-2">
-              {(o.status === "NEW" || o.status === "CANCELLED") && can(s.perms, "stock", "FULL") && (
-                <TrashButton action={trashDocAction.bind(null, "SUPPLIER_ORDER", o.id, "/app/stock/orders")} />
-              )}
-              <Link href={`/app/stock/orders/${o.id}/print`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                Печать
-              </Link>
+            <DocToolbar
+              exitHref="/app/stock/orders"
+              editable={editable}
+              trash={
+                (o.status === "NEW" || o.status === "CANCELLED") &&
+                can(s.perms, "stock", "FULL") && <TrashButton icon action={trashDocAction.bind(null, "SUPPLIER_ORDER", o.id, "/app/stock/orders")} />
+              }
+            >
               {o.status === "NEW" && (
                 <ActionForm action={sendSupplierOrderAction.bind(null, o.id)}>
                   <Submit variant="ghost">Отметить отправленным</Submit>
@@ -69,7 +71,7 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
                   <Submit variant="danger">Отменить</Submit>
                 </ActionForm>
               )}
-            </div>
+            </DocToolbar>
           }
         >
           Заказ поставщику ЗП-{o.number} от {formatDate(o.createdAt)}{" "}
@@ -87,7 +89,7 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
           </p>
         )}
         <Card>
-          <ActionForm action={updateSupplierOrderAction.bind(null, o.id)} className="flex flex-wrap items-end gap-3">
+          <ActionForm doc action={updateSupplierOrderAction.bind(null, o.id)} className="flex flex-wrap items-end gap-3">
             <Field label="Поставщик">
               <Select name="supplierId" defaultValue={o.supplierId} disabled={!editable}>
                 {suppliers.map((p) => (
@@ -100,7 +102,6 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
             <Field label="Комментарий" className="min-w-64 flex-1">
               <Input name="comment" defaultValue={o.comment ?? ""} disabled={!editable} />
             </Field>
-            {editable && <Submit variant="ghost">Сохранить</Submit>}
           </ActionForm>
         </Card>
         <Card title={`Товары · ${formatRub(o.total)}`}>

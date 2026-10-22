@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 export const TAB_TITLE_EVENT = "ar:tab-title";
+/** Документ закрыт кнопкой «Выйти»: каркас убирает его вкладку. */
+export const CLOSE_TAB_EVENT = "ar:close-tab";
 /** Последние названия по адресу страницы: вкладка может появиться позже, чем страница сообщила название. */
 export const tabTitles = new Map<string, string>();
 

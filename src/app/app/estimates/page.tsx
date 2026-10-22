@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconLink } from "@/components/icon-button";
 import { FilterSelect, ListFilters, Pager, PreviewHead, PreviewRow, SortTh } from "@/components/list-view";
 import { Badge, PageTitle, td, th } from "@/components/ui";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
@@ -110,6 +111,7 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
                     <SortTh path={PATH} query={query} sort="total" right>
                       Сумма
                     </SortTh>
+                    <th className={th} />
                   </tr>
                 </thead>
                 <tbody>
@@ -128,11 +130,16 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
                         {e.order && <span className="ml-2 text-slate-500">{orderNo(e.order.number)}</span>}
                       </td>
                       <td className={`${td} text-right whitespace-nowrap`}>{formatRub(e.totals.total)}</td>
+                      <td className={`${td} py-1.5`}>
+                        <div className="flex justify-end">
+                          <IconLink small newTab icon="print" label="Печать" href={`/app/estimates/${e.id}/print`} />
+                        </div>
+                      </td>
                     </ListRow>
                   ))}
                   {list.rows.length === 0 && (
                     <tr>
-                      <td colSpan={6} className={`${td} text-slate-500`}>
+                      <td colSpan={7} className={`${td} text-slate-500`}>
                         Калькуляций не найдено
                       </td>
                     </tr>

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
@@ -22,6 +21,7 @@ import {
   updateSaleAction,
 } from "../../warehouse-actions";
 import { TrashButton } from "@/components/trash-button";
+import { DocToolbar } from "@/components/doc-toolbar";
 import { trashDocAction } from "@/app/app/trash-actions";
 import { can } from "@/lib/permissions";
 
@@ -47,29 +47,20 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
       <Allowed perms={s.perms} section="stock">
         <PageTitle tab={`РТ-${sale.number}`}
           actions={
-            <div className="flex gap-2">
-              {!posted && can(s.perms, "stock", "FULL") && (
-                <TrashButton action={trashDocAction.bind(null, "SALE", sale.id, "/app/stock/sales")} />
-              )}
-              <Link href={`/app/stock/sales/${sale.id}/print`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
-                Товарный чек
-              </Link>
-              {posted ? (
-                <ActionForm action={unpostSaleAction.bind(null, sale.id)}>
-                  <Submit variant="ghost">Отменить проведение</Submit>
-                </ActionForm>
-              ) : (
-                <ActionForm action={postSaleAction.bind(null, sale.id)}>
-                  <Submit>Провести: списать товар</Submit>
-                </ActionForm>
-              )}
-            </div>
+            <DocToolbar
+              exitHref="/app/stock/sales"
+              editable={!posted}
+              post={postSaleAction.bind(null, sale.id)}
+              postLabel="Провести: списать товар"
+              unpost={unpostSaleAction.bind(null, sale.id)}
+              trash={!posted && can(s.perms, "stock", "FULL") && <TrashButton icon action={trashDocAction.bind(null, "SALE", sale.id, "/app/stock/sales")} />}
+            />
           }
         >
           Продажа РТ-{sale.number} от {formatDate(sale.date)} <Badge tone={posted ? "green" : "amber"}>{docStatus(posted)}</Badge>
         </PageTitle>
         <Card>
-          <ActionForm action={updateSaleAction.bind(null, sale.id)} className="flex flex-wrap items-end gap-3">
+          <ActionForm doc action={updateSaleAction.bind(null, sale.id)} className="flex flex-wrap items-end gap-3">
             <Field label="Покупатель">
               <Select name="clientId" defaultValue={sale.clientId ?? ""} disabled={posted}>
                 <option value="">Розничный покупатель</option>
@@ -84,7 +75,6 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
             <Field label="Комментарий" className="min-w-64 flex-1">
               <Input name="comment" defaultValue={sale.comment ?? ""} disabled={posted} />
             </Field>
-            {!posted && <Submit variant="ghost">Сохранить</Submit>}
           </ActionForm>
         </Card>
         <Card title={`Товары · ${formatRub(t.total)}`}>

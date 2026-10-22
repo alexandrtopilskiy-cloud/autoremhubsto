@@ -12,6 +12,7 @@ import { getOrder, STAGES, stageLabel } from "@/lib/services/orders";
 import { getCompany } from "@/lib/services/settings";
 import { can } from "@/lib/permissions";
 import { TrashButton } from "@/components/trash-button";
+import { IconLink } from "@/components/icon-button";
 import { trashDocAction } from "@/app/app/trash-actions";
 
 const PATH = "/app/orders";
@@ -154,17 +155,11 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                       </td>
                       <td className={`${td} py-1.5`}>
                         <div className="flex items-center justify-end gap-1.5">
-                          <Link
-                            href={`/app/orders/${o.id}/print`}
-                            target="_blank"
-                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm hover:bg-slate-50"
-                            title="Печатная форма заказ-наряда"
-                          >
-                            Печать
-                          </Link>
+                          <IconLink small newTab icon="print" label="Печать" href={`/app/orders/${o.id}/print`} />
                           {remover && (
                             <TrashButton
                               small
+                              icon
                               action={trashDocAction.bind(null, "ORDER", o.id, PATH)}
                               disabled={o.status === "POSTED"}
                               title={o.status === "POSTED" ? "Проведённый наряд: сначала отмените проведение" : "Удалить в корзину"}
