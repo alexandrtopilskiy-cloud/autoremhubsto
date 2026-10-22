@@ -19,6 +19,7 @@ import {
   updateEstimateAction,
 } from "../actions";
 import { TrashButton } from "@/components/trash-button";
+import { DocToolbar } from "@/components/doc-toolbar";
 import { trashDocAction } from "@/app/app/trash-actions";
 import { can } from "@/lib/permissions";
 
@@ -42,15 +43,11 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
     <div className="flex flex-col gap-4">
       <PageTitle tab={`К-${e.number} ${e.client.name}`}
         actions={
-          <div className="flex flex-wrap gap-2">
-            {!e.order && can(s.perms, "orders", "FULL") && <TrashButton action={trashDocAction.bind(null, "ESTIMATE", e.id, "/app/estimates")} />}
-            <Link
-              href={`/app/estimates/${e.id}/print`}
-              target="_blank"
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
-            >
-              Печать
-            </Link>
+          <DocToolbar
+            exitHref="/app/estimates"
+            editable={!locked}
+            trash={!e.order && can(s.perms, "orders", "FULL") && <TrashButton icon action={trashDocAction.bind(null, "ESTIMATE", e.id, "/app/estimates")} />}
+          >
             {e.order ? (
               <Link href={`/app/orders/${e.order.id}`} className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white">
                 Открыть {orderNo(e.order.number)}
@@ -60,7 +57,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
                 <Submit>Создать заказ-наряд</Submit>
               </ActionForm>
             )}
-          </div>
+          </DocToolbar>
         }
       >
         Калькуляция К-{e.number} от {formatDate(e.createdAt)}{" "}
@@ -88,7 +85,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
           </Link>{" "}
           {e.client.phone}
         </p>
-        <ActionForm action={updateEstimateAction.bind(null, e.id)} className="flex flex-wrap items-end gap-3">
+        <ActionForm doc action={updateEstimateAction.bind(null, e.id)} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="clientId" value={e.clientId} />
           <Field label="Автомобиль">
             <Select name="vehicleId" defaultValue={e.vehicleId ?? ""} disabled={locked}>
@@ -103,7 +100,6 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
           <Field label="Комментарий" className="min-w-64 flex-1">
             <Input name="comment" defaultValue={e.comment ?? ""} disabled={locked} />
           </Field>
-          {!locked && <Submit variant="ghost">Сохранить</Submit>}
         </ActionForm>
       </Card>
 

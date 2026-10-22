@@ -44,6 +44,7 @@ import {
   updateHeaderAction,
 } from "../actions";
 import { DictList } from "@/components/dict-list";
+import { DocToolbar } from "@/components/doc-toolbar";
 
 const METHODS = { CASH: "Наличные", CARD: "Карта", BANK_TRANSFER: "Безнал", SBP: "СБП" } as const;
 
@@ -115,24 +116,7 @@ export default async function OrderPage({
     <div className="flex flex-col gap-4">
       <PageTitle tab={`${orderNo(o.number)} ${o.client.name}`}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/app/orders/${o.id}/print`}
-              target="_blank"
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
-            >
-              Печать
-            </Link>
-            {posted ? (
-              <ActionForm action={unpostAction.bind(null, o.id)}>
-                <Submit variant="ghost">Отменить проведение</Submit>
-              </ActionForm>
-            ) : (
-              <ActionForm action={postAction.bind(null, o.id)}>
-                <Submit>Провести и закрыть</Submit>
-              </ActionForm>
-            )}
-          </div>
+          <DocToolbar exitHref="/app/orders" editable={!posted} post={postAction.bind(null, o.id)} unpost={unpostAction.bind(null, o.id)} />
         }
       >
         {orderNo(o.number)} от {formatDate(o.acceptedAt)}{" "}
@@ -244,7 +228,7 @@ export default async function OrderPage({
           </Card>
 
           <Card title="Автомобиль и обращение">
-            <ActionForm action={updateHeaderAction.bind(null, o.id)} className="flex flex-wrap items-end gap-3">
+            <ActionForm doc action={updateHeaderAction.bind(null, o.id)} className="flex flex-wrap items-end gap-3">
               <input type="hidden" name="clientId" value={o.clientId} />
               <input type="hidden" name="organizationId" value={o.organizationId ?? ""} />
               <Field label="Автомобиль">
@@ -277,7 +261,6 @@ export default async function OrderPage({
               <Field label="Комментарий" className="w-full">
                 <Input name="comment" defaultValue={o.comment ?? ""} disabled={posted} />
               </Field>
-              {!posted && <Submit variant="ghost">Сохранить</Submit>}
             </ActionForm>
           </Card>
         </>
@@ -295,7 +278,7 @@ export default async function OrderPage({
           >
             <InspectionEditor orderId={o.id} damages={inspection.damages} types={lists.DAMAGE_TYPE} readOnly={posted} />
             <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4">
-                <ActionForm action={saveInspectionAction.bind(null, o.id)} className="flex flex-col gap-3">
+                <ActionForm doc action={saveInspectionAction.bind(null, o.id)} className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-end gap-4">
                     <Field label="Топливо">
                       <Select name="fuel" defaultValue={inspection.fuel ?? ""} disabled={posted}>

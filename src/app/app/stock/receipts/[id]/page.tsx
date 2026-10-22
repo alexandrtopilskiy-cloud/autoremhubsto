@@ -19,6 +19,7 @@ import {
 import { ProductSelect } from "../../product-select";
 import { StockTabs } from "../../tabs";
 import { TrashButton } from "@/components/trash-button";
+import { DocToolbar } from "@/components/doc-toolbar";
 import { trashDocAction } from "@/app/app/trash-actions";
 import { can } from "@/lib/permissions";
 
@@ -37,27 +38,21 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       <Allowed perms={s.perms} section="stock" flag="costs">
         <PageTitle tab={`ПН-${r.number}`}
           actions={
-            <div className="flex flex-wrap gap-2">
-              {!posted && can(s.perms, "stock", "FULL") && (
-                <TrashButton action={trashDocAction.bind(null, "RECEIPT", r.id, "/app/stock/receipts")} />
-              )}
-              {posted ? (
-                <ActionForm action={unpostReceiptAction.bind(null, r.id)}>
-                  <Submit variant="ghost">Отменить проведение</Submit>
-                </ActionForm>
-              ) : (
-                <ActionForm action={postReceiptAction.bind(null, r.id)}>
-                  <Submit>Провести: оприходовать товар</Submit>
-                </ActionForm>
-              )}
-            </div>
+            <DocToolbar
+              exitHref="/app/stock/receipts"
+              editable={!posted}
+              post={postReceiptAction.bind(null, r.id)}
+              postLabel="Провести: оприходовать товар"
+              unpost={unpostReceiptAction.bind(null, r.id)}
+              trash={!posted && can(s.perms, "stock", "FULL") && <TrashButton icon action={trashDocAction.bind(null, "RECEIPT", r.id, "/app/stock/receipts")} />}
+            />
           }
         >
           Приход ПН-{r.number} от {formatDate(r.date)}{" "}
           <Badge tone={posted ? "green" : "amber"}>{posted ? "Проведён" : "Черновик"}</Badge>
         </PageTitle>
         <Card>
-          <ActionForm action={updateReceiptAction.bind(null, r.id)} className="flex flex-wrap items-end gap-3">
+          <ActionForm doc action={updateReceiptAction.bind(null, r.id)} className="flex flex-wrap items-end gap-3">
             <Field label="Поставщик">
               <Select name="supplierId" defaultValue={r.supplierId ?? ""} disabled={posted}>
                 <option value="">Не указан</option>
@@ -74,7 +69,6 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
             <Field label="Комментарий" className="min-w-64 flex-1">
               <Input name="comment" defaultValue={r.comment ?? ""} disabled={posted} />
             </Field>
-            {!posted && <Submit variant="ghost">Сохранить</Submit>}
           </ActionForm>
         </Card>
         <Card title={`Товары · ${formatRub(r.total)}`}>

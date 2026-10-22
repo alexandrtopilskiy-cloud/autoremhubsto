@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { FormState } from "@/lib/actions";
+import { IconButton } from "./icon-button";
 
 /** Кнопка «Удалить в корзину» с подтверждением; ошибка (например, документ проведён) показывается рядом. */
 export function TrashButton({
@@ -11,6 +12,7 @@ export function TrashButton({
   small,
   disabled,
   title,
+  icon,
 }: {
   action: () => Promise<FormState>;
   label?: string;
@@ -19,6 +21,8 @@ export function TrashButton({
   small?: boolean;
   disabled?: boolean;
   title?: string;
+  /** иконка корзины с подсказкой вместо надписи */
+  icon?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   return (
@@ -29,6 +33,9 @@ export function TrashButton({
       }}
       className="flex items-center gap-2"
     >
+      {icon ? (
+        <IconButton type="submit" icon="trash" tone="danger" label={pending ? "Удаление…" : (title ?? label)} small={small} disabled={pending || disabled} />
+      ) : (
       <button
         disabled={pending || disabled}
         title={title}
@@ -36,6 +43,7 @@ export function TrashButton({
       >
         {pending ? "…" : label}
       </button>
+      )}
       {state?.error && <span className="text-sm text-red-600">{state.error}</span>}
     </form>
   );

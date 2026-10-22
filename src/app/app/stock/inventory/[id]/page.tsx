@@ -19,6 +19,7 @@ import {
   updateInventoryCommentAction,
 } from "../../warehouse-actions";
 import { TrashButton } from "@/components/trash-button";
+import { DocToolbar } from "@/components/doc-toolbar";
 import { trashDocAction } from "@/app/app/trash-actions";
 import { can } from "@/lib/permissions";
 
@@ -38,30 +39,23 @@ export default async function InventoryPage({ params }: { params: Promise<{ id: 
       <Allowed perms={s.perms} section="stock">
         <PageTitle tab={`ИН-${inv.number}`}
           actions={
-            <div className="flex flex-wrap gap-2">
-              {!posted && can(s.perms, "stock", "FULL") && (
-                <TrashButton action={trashDocAction.bind(null, "INVENTORY", inv.id, "/app/stock/inventory")} />
-              )}
-              {posted ? (
-                <ActionForm action={unpostInventoryAction.bind(null, inv.id)}>
-                  <Submit variant="ghost">Отменить проведение</Submit>
-                </ActionForm>
-              ) : (
-                <ActionForm action={postInventoryAction.bind(null, inv.id)}>
-                  <Submit>Провести: выровнять склад по факту</Submit>
-                </ActionForm>
-              )}
-            </div>
+            <DocToolbar
+              exitHref="/app/stock/inventory"
+              editable={!posted}
+              post={postInventoryAction.bind(null, inv.id)}
+              postLabel="Провести: выровнять склад по факту"
+              unpost={unpostInventoryAction.bind(null, inv.id)}
+              trash={!posted && can(s.perms, "stock", "FULL") && <TrashButton icon action={trashDocAction.bind(null, "INVENTORY", inv.id, "/app/stock/inventory")} />}
+            />
           }
         >
           Инвентаризация ИН-{inv.number} от {formatDate(inv.date)} <Badge tone={posted ? "green" : "amber"}>{docStatus(posted)}</Badge>
         </PageTitle>
         <Card>
-          <ActionForm action={updateInventoryCommentAction.bind(null, inv.id)} className="flex flex-wrap items-end gap-3">
+          <ActionForm doc action={updateInventoryCommentAction.bind(null, inv.id)} className="flex flex-wrap items-end gap-3">
             <Field label="Комментарий" className="min-w-64 flex-1">
               <Input name="comment" defaultValue={inv.comment ?? ""} disabled={posted} />
             </Field>
-            {!posted && <Submit variant="ghost">Сохранить</Submit>}
           </ActionForm>
         </Card>
         <Card title={`Товары · излишек ${formatRub(inv.surplus)} · недостача ${formatRub(inv.shortage)}`}>
@@ -70,7 +64,7 @@ export default async function InventoryPage({ params }: { params: Promise<{ id: 
               Учётный остаток пересчитается при проведении, если после начала инвентаризации были продажи или приходы.
             </p>
           )}
-          <ActionForm action={saveInventoryCountsAction.bind(null, inv.id)}>
+          <ActionForm doc action={saveInventoryCountsAction.bind(null, inv.id)}>
             <table className="mb-3 w-full text-sm">
               <thead>
                 <tr className="border-b">

@@ -20,6 +20,7 @@ import {
 import { dicts } from "@/lib/services/dictionaries";
 import { DictList } from "@/components/dict-list";
 import { TrashButton } from "@/components/trash-button";
+import { DocToolbar } from "@/components/doc-toolbar";
 import { trashDocAction } from "@/app/app/trash-actions";
 import { can } from "@/lib/permissions";
 
@@ -39,31 +40,24 @@ export default async function WriteOffPage({ params }: { params: Promise<{ id: s
       <Allowed perms={s.perms} section="stock">
         <PageTitle tab={`СП-${w.number}`}
           actions={
-            <div className="flex flex-wrap gap-2">
-              {!posted && can(s.perms, "stock", "FULL") && (
-                <TrashButton action={trashDocAction.bind(null, "WRITE_OFF", w.id, "/app/stock/writeoffs")} />
-              )}
-              {posted ? (
-                <ActionForm action={unpostWriteOffAction.bind(null, w.id)}>
-                  <Submit variant="ghost">Отменить проведение</Submit>
-                </ActionForm>
-              ) : (
-                <ActionForm action={postWriteOffAction.bind(null, w.id)}>
-                  <Submit>Провести: списать со склада</Submit>
-                </ActionForm>
-              )}
-            </div>
+            <DocToolbar
+              exitHref="/app/stock/writeoffs"
+              editable={!posted}
+              post={postWriteOffAction.bind(null, w.id)}
+              postLabel="Провести: списать со склада"
+              unpost={unpostWriteOffAction.bind(null, w.id)}
+              trash={!posted && can(s.perms, "stock", "FULL") && <TrashButton icon action={trashDocAction.bind(null, "WRITE_OFF", w.id, "/app/stock/writeoffs")} />}
+            />
           }
         >
           Списание СП-{w.number} от {formatDate(w.date)} <Badge tone={posted ? "green" : "amber"}>{docStatus(posted)}</Badge>
         </PageTitle>
         <Card>
-          <ActionForm action={updateWriteOffAction.bind(null, w.id)} className="flex flex-wrap items-end gap-3">
+          <ActionForm doc action={updateWriteOffAction.bind(null, w.id)} className="flex flex-wrap items-end gap-3">
             <Field label="Причина" className="min-w-64 flex-1">
               <Input name="reason" list="writeoff-reasons" defaultValue={w.reason ?? ""} disabled={posted} />
             </Field>
             <DictList id="writeoff-reasons" items={lists.WRITE_OFF_REASON} />
-            {!posted && <Submit variant="ghost">Сохранить</Submit>}
           </ActionForm>
         </Card>
         <Card title={`Товары · себестоимость ${formatRub(w.cost)}`}>

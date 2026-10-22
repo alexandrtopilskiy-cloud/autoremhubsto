@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { activeLink, menuLinks, tabKey, type MenuItem, type MenuLink } from "@/lib/nav";
 import { Icon } from "./icons";
-import { TAB_TITLE_EVENT, tabTitles } from "./tab-title";
+import { CLOSE_TAB_EVENT, TAB_TITLE_EVENT, tabTitles } from "./tab-title";
 
 const VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
@@ -296,6 +296,21 @@ function TabBar({ active, onMenu }: { active?: MenuLink; onMenu: () => void }) {
     };
     window.addEventListener(TAB_TITLE_EVENT, onTitle);
     return () => window.removeEventListener(TAB_TITLE_EVENT, onTitle);
+  }, []);
+
+  // «Выйти» из документа: вкладку документа закрываем, переход к списку делает сам документ
+  useEffect(() => {
+    const onClose = (e: Event) => {
+      const { path } = (e as CustomEvent<{ path: string }>).detail;
+      setTabs((list) => {
+        const next = list.filter((t) => !(t.doc && owns(t.key, path)));
+        if (next.length === list.length) return list;
+        save(next);
+        return next;
+      });
+    };
+    window.addEventListener(CLOSE_TAB_EVENT, onClose);
+    return () => window.removeEventListener(CLOSE_TAB_EVENT, onClose);
   }, []);
 
   const close = (k: string) => {
