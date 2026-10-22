@@ -3,16 +3,51 @@ import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { formatDate } from "@/lib/format";
+import { PreviewHint, PreviewLines, PreviewRow, PreviewTitle } from "@/components/list-view";
+import { ListRow, PreviewPane } from "@/components/preview-pane";
+import { previewHref, previewId } from "@/lib/list-query";
+import { formatDate, formatQty } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listClients } from "@/lib/services/clients";
-import { listSales } from "@/lib/services/warehouse";
+import { getSale, listSales } from "@/lib/services/warehouse";
 import { docStatus } from "../product-select";
 import { StockTabs } from "../tabs";
 import { createSaleAction } from "../warehouse-actions";
 
-export default async function SalesPage() {
+const PATH = "/app/stock/sales";
+
+async function Preview({ companyId, id }: { companyId: string; id: string }) {
+  const x = await getSale(companyId, id).catch(() => null);
+  if (!x) return <p className="text-sm text-slate-500">Продажа не найдена.</p>;
+  return (
+    <>
+      <PreviewTitle title={`РТ-${x.number} от ${formatDate(x.date)}`} href={`${PATH}/${x.id}`} />
+      <PreviewRow label="Статус">{docStatus(x.status === "POSTED")}</PreviewRow>
+      <PreviewRow label="Покупатель">
+        {x.client ? (
+          <Link href={`/app/clients/${x.client.id}`} className="text-blue-600 hover:underline">
+            {x.client.name}
+          </Link>
+        ) : (
+          "Розничный покупатель"
+        )}
+      </PreviewRow>
+      <PreviewRow label="Комментарий">{x.comment}</PreviewRow>
+      <PreviewRow label="Сумма">{formatRub(x.totals.total)}</PreviewRow>
+      <PreviewRow label="Оплачено">{formatRub(x.totals.paid)}</PreviewRow>
+      <PreviewRow label="Долг">{x.totals.due > 0 ? <span className="text-red-600">{formatRub(x.totals.due)}</span> : "нет"}</PreviewRow>
+      <PreviewLines
+        title="Товары"
+        lines={x.lines.map((l) => ({ key: l.id, name: l.product.name, right: `${formatQty(Number(l.qty))} ${l.product.unit} × ${formatRub(l.price)}` }))}
+      />
+    </>
+  );
+}
+
+export default async function SalesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
+  const sp = await searchParams;
+  const preview = previewId(sp);
   const [sales, clients] = await Promise.all([listSales(s.companyId), listClients(s.companyId)]);
   return (
     <div className="flex flex-col gap-4">
@@ -40,47 +75,53 @@ export default async function SalesPage() {
             </ActionForm>
           </Card>
         </NewPanel>
-        <Card>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className={th}>Номер</th>
-                <th className={th}>Дата</th>
-                <th className={th}>Покупатель</th>
-                <th className={th}>Статус</th>
-                <th className={`${th} text-right`}>Сумма</th>
-                <th className={`${th} text-right`}>Долг</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sales.map((x) => (
-                <tr key={x.id} className="border-b last:border-0">
-                  <td className={td}>
-                    <Link className="text-blue-600 hover:underline" href={`/app/stock/sales/${x.id}`}>
-                      РТ-{x.number}
-                    </Link>
-                  </td>
-                  <td className={td}>{formatDate(x.date)}</td>
-                  <td className={td}>{x.client?.name ?? "Розничный покупатель"}</td>
-                  <td className={td}>
-                    <Badge tone={x.status === "POSTED" ? "green" : "amber"}>{docStatus(x.status === "POSTED")}</Badge>
-                  </td>
-                  <td className={`${td} text-right whitespace-nowrap`}>{formatRub(x.totals.total)}</td>
-                  <td className={`${td} text-right whitespace-nowrap ${x.totals.due > 0 ? "text-red-600" : ""}`}>
-                    {x.totals.due !== 0 && formatRub(x.totals.due)}
-                  </td>
-                </tr>
-              ))}
-              {sales.length === 0 && (
-                <tr>
-                  <td colSpan={6} className={`${td} text-slate-500`}>
-                    Продаж пока нет
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </Card>
+        <PreviewPane
+          selected={preview}
+          panel={preview ? <Preview companyId={s.companyId} id={preview} /> : <PreviewHint what="продажу" open="документ" />}
+          list={
+            <Card>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className={th}>Номер</th>
+                    <th className={th}>Дата</th>
+                    <th className={th}>Покупатель</th>
+                    <th className={th}>Статус</th>
+                    <th className={`${th} text-right`}>Сумма</th>
+                    <th className={`${th} text-right`}>Долг</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.map((x) => (
+                    <ListRow key={x.id} previewHref={previewHref(PATH, sp, x.id)} openHref={`${PATH}/${x.id}`} selected={preview === x.id}>
+                      <td className={td}>
+                        <span className="text-blue-600">
+                          РТ-{x.number}
+                        </span>
+                      </td>
+                      <td className={td}>{formatDate(x.date)}</td>
+                      <td className={td}>{x.client?.name ?? "Розничный покупатель"}</td>
+                      <td className={td}>
+                        <Badge tone={x.status === "POSTED" ? "green" : "amber"}>{docStatus(x.status === "POSTED")}</Badge>
+                      </td>
+                      <td className={`${td} text-right whitespace-nowrap`}>{formatRub(x.totals.total)}</td>
+                      <td className={`${td} text-right whitespace-nowrap ${x.totals.due > 0 ? "text-red-600" : ""}`}>
+                        {x.totals.due !== 0 && formatRub(x.totals.due)}
+                      </td>
+                    </ListRow>
+                  ))}
+                  {sales.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className={`${td} text-slate-500`}>
+                        Продаж пока нет
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Card>
+          }
+        />
       </Allowed>
     </div>
   );

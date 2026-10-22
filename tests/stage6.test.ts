@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { registerCompany } from "@/lib/services/accounts";
 import { addAttachment, deleteAttachment, getAttachment, listAttachments } from "@/lib/services/attachments";
 import { createProduct, createWork, deleteWork } from "@/lib/services/catalog";
+import { wg } from "./work-group";
 import { addVehicle, createClient } from "@/lib/services/clients";
 import { documentJournal } from "@/lib/services/documents";
 import {
@@ -61,7 +62,7 @@ describe("вложения", () => {
 describe("калькуляции", () => {
   it("строки из справочника и вручную, перевод в заказ-наряд закрывает калькуляцию", async () => {
     const { a, b, c, v, oil } = await setup();
-    const w = await createWork(a, { name: "Замена масла", normHours: 0.5 });
+    const w = await createWork(a, { groupId: await wg(a), name: "Замена масла", normHours: 0.5 });
     const e = await createEstimate(a, { clientId: c.id, vehicleId: v.id });
     await expect(createEstimate(b, { clientId: c.id })).rejects.toBeInstanceOf(NotFoundError);
     await addEstimateLineFromCatalog(a, e.id, { kind: "WORK", refId: w.id, discount: 10 });

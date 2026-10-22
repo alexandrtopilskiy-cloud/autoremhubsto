@@ -35,6 +35,17 @@ export async function updateSupplier(companyId: string, id: string, input: unkno
   return prisma.supplier.update({ where: { id }, data: supplierSchema.parse(input) });
 }
 
+/** Поставщик с последними приходами и заказами — для панели просмотра и карточки. */
+export async function supplierPreview(companyId: string, id: string) {
+  const p = await prisma.supplier.findFirst({ where: { id, companyId } });
+  if (!p) return null;
+  const [receipts, orders] = await Promise.all([
+    prisma.receipt.findMany({ where: { companyId, supplierId: id }, include: { lines: true }, orderBy: { number: "desc" }, take: 10 }),
+    prisma.supplierOrder.findMany({ where: { companyId, supplierId: id }, orderBy: { number: "desc" }, take: 10 }),
+  ]);
+  return { ...p, receipts: receipts.map((r) => ({ ...r, total: receiptTotal(r.lines) })), orders };
+}
+
 // --- приходные накладные ---
 
 export const receiptHeaderSchema = z.object({
@@ -192,6 +203,21 @@ export async function stockBalances(companyId: string, q?: string, opts: { group
     return { ...p, minQty, qty: q, cost, value: Math.round(q * cost), shortage };
   });
   return opts.deficit ? rows.filter((r) => r.shortage > 0) : rows;
+}
+
+const MOVE_KINDS = { RECEIPT: "Приход", ORDER: "Заказ-наряд", SALE: "Продажа", WRITE_OFF: "Списание", INVENTORY: "Инвентаризация" } as const;
+export const moveKindLabel = (k: keyof typeof MOVE_KINDS) => MOVE_KINDS[k];
+
+/** Товар для панели просмотра и карточки: остаток, средняя закупка и последние движения по складу. */
+export async function productPreview(companyId: string, id: string) {
+  const p = await prisma.product.findFirst({ where: { id, companyId }, include: { group: true } });
+  if (!p) return null;
+  const [sum, costs, moves] = await Promise.all([
+    prisma.stockMove.aggregate({ where: { companyId, productId: id }, _sum: { qty: true } }),
+    averageCosts(prisma, companyId, [id]),
+    prisma.stockMove.findMany({ where: { companyId, productId: id }, orderBy: { date: "desc" }, take: 10 }),
+  ]);
+  return { ...p, qty: Number(sum._sum.qty ?? 0), cost: costs.get(id) ?? 0, moves };
 }
 
 /** Списание товаров заказ-наряда со склада. Вызывается при проведении. */

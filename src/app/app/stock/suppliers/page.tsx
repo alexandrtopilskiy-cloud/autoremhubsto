@@ -1,13 +1,44 @@
 import { ActionForm, Submit } from "@/components/form";
+import { PreviewHint, PreviewLines, PreviewRow, PreviewTitle } from "@/components/list-view";
 import { Allowed } from "@/components/manager-only";
-import { Card, Field, Input, NewPanel, PageTitle } from "@/components/ui";
+import { ListRow, PreviewPane } from "@/components/preview-pane";
+import { Card, Field, Input, NewPanel, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { listSuppliers } from "@/lib/services/stock";
-import { createSupplierAction, updateSupplierAction } from "../actions";
+import { formatDate } from "@/lib/format";
+import { previewHref, previewId } from "@/lib/list-query";
+import { formatRub } from "@/lib/money";
+import { listSuppliers, supplierPreview } from "@/lib/services/stock";
+import { createSupplierAction } from "../actions";
 import { StockTabs } from "../tabs";
 
-export default async function SuppliersPage() {
+const PATH = "/app/stock/suppliers";
+
+async function Preview({ companyId, id, costs }: { companyId: string; id: string; costs: boolean }) {
+  const p = await supplierPreview(companyId, id);
+  if (!p) return <p className="text-sm text-slate-500">Поставщик не найден.</p>;
+  return (
+    <>
+      <PreviewTitle title={p.name} href={`${PATH}/${p.id}`} open="Открыть карточку" />
+      <PreviewRow label="ИНН">{p.inn}</PreviewRow>
+      <PreviewRow label="Телефон">{p.phone}</PreviewRow>
+      <PreviewRow label="Комментарий">{p.comment}</PreviewRow>
+      {costs && (
+        <>
+          <PreviewLines
+            title="Последние приходы"
+            lines={p.receipts.map((r) => ({ key: r.id, name: `ПН-${r.number} от ${formatDate(r.date)}`, right: formatRub(r.total) }))}
+          />
+          <PreviewLines title="Последние заказы" lines={p.orders.map((o) => ({ key: o.id, name: `ЗП-${o.number} от ${formatDate(o.createdAt)}` }))} />
+        </>
+      )}
+    </>
+  );
+}
+
+export default async function SuppliersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
+  const sp = await searchParams;
+  const preview = previewId(sp);
   const suppliers = await listSuppliers(s.companyId);
   return (
     <div className="flex flex-col gap-4">
@@ -33,20 +64,41 @@ export default async function SuppliersPage() {
             </ActionForm>
           </Card>
         </NewPanel>
-        <Card>
-          <div className="flex flex-col divide-y">
-            {suppliers.map((p) => (
-              <ActionForm key={p.id} action={updateSupplierAction.bind(null, p.id)} className="flex flex-wrap items-end gap-3 py-2">
-                <Input name="name" defaultValue={p.name} className="min-w-64 flex-1" aria-label="Название" />
-                <Input name="inn" defaultValue={p.inn ?? ""} placeholder="ИНН" className="w-36" aria-label="ИНН" />
-                <Input name="phone" defaultValue={p.phone ?? ""} placeholder="телефон" aria-label="Телефон" />
-                <Input name="comment" defaultValue={p.comment ?? ""} placeholder="комментарий" aria-label="Комментарий" />
-                <Submit variant="ghost">Сохранить</Submit>
-              </ActionForm>
-            ))}
-            {suppliers.length === 0 && <p className="py-2 text-sm text-slate-500">Поставщиков пока нет</p>}
-          </div>
-        </Card>
+        <PreviewPane
+          selected={preview}
+          panel={preview ? <Preview companyId={s.companyId} id={preview} costs={s.perms.flags.costs} /> : <PreviewHint what="поставщика" open="его карточку" />}
+          list={
+            <Card>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className={th}>Название</th>
+                    <th className={th}>ИНН</th>
+                    <th className={th}>Телефон</th>
+                    <th className={th}>Комментарий</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suppliers.map((p) => (
+                    <ListRow key={p.id} previewHref={previewHref(PATH, sp, p.id)} openHref={`${PATH}/${p.id}`} selected={preview === p.id}>
+                      <td className={td}>{p.name}</td>
+                      <td className={td}>{p.inn}</td>
+                      <td className={td}>{p.phone}</td>
+                      <td className={`${td} text-slate-600`}>{p.comment}</td>
+                    </ListRow>
+                  ))}
+                  {suppliers.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className={`${td} text-slate-500`}>
+                        Поставщиков пока нет
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Card>
+          }
+        />
       </Allowed>
     </div>
   );

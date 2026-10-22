@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
 import { formatRub, lineTotal } from "@/lib/money";
-import { listWorks } from "@/lib/services/catalog";
+import { groupWorks, worksForPicker } from "@/lib/services/catalog";
 import { listEmployees } from "@/lib/services/employees";
 import { getCompany } from "@/lib/services/settings";
 import { listCashboxes } from "@/lib/services/cash";
@@ -87,7 +87,7 @@ export default async function OrderPage({
   const [managers, executors, works, products, company, cashboxes, summary, recs, requests, stats] = await Promise.all([
     listEmployees(s.companyId, "MANAGER"),
     listEmployees(s.companyId, "EXECUTOR"),
-    listWorks(s.companyId),
+    worksForPicker(s.companyId),
     stockBalances(s.companyId),
     getCompany(s.companyId),
     listCashboxes(s.companyId),
@@ -390,10 +390,14 @@ export default async function OrderPage({
                 <Field label="Из справочника" className="min-w-64 flex-1">
                   <Select name="refId" defaultValue="">
                     <option value="">Выберите работу</option>
-                    {works.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} · {w.price ? formatRub(w.price) : `${formatQty(Number(w.normHours ?? 1))} н/ч`}
-                      </option>
+                    {groupWorks(works).map(([group, list]) => (
+                      <optgroup key={group} label={group}>
+                        {list.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.name} · {w.price ? formatRub(w.price) : `${formatQty(Number(w.normHours ?? 1))} н/ч`}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </Select>
                 </Field>

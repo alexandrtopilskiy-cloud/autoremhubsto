@@ -61,6 +61,21 @@ export function listHref(
   return `${path}?${p.toString()}`;
 }
 
+/**
+ * Адрес простого списка (без ListQuery) с открытой в просмотре записью id; без id — с закрытым просмотром.
+ * Остальные параметры адреса (поиск, фильтры) сохраняются.
+ */
+export function previewHref(path: string, sp: Raw, id?: string) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) if (k !== "preview" && one(v)) p.set(k, one(v));
+  if (id) p.set("preview", id);
+  const qs = p.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+/** id записи, открытой в панели просмотра простого списка. */
+export const previewId = (sp: Raw) => one(sp.preview) || undefined;
+
 /** Период по датам СТО → условие для поля даты. */
 export function periodWhere(q: Pick<ListQuery, "from" | "to">, tz: number): { gte?: Date; lt?: Date } | undefined {
   if (!q.from && !q.to) return undefined;

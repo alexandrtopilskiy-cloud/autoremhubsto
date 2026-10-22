@@ -22,6 +22,11 @@ export const workSchema = z.object({
     .transform((v) => (v === "" || v === undefined ? null : v)),
 });
 
+/** Работа из формы: группа обязательна. */
+export const workFormSchema = workSchema.extend({
+  groupId: z.string({ required_error: "Выберите группу" }).trim().min(1, "Выберите группу"),
+});
+
 export const productSchema = z.object({
   name: z.string().trim().min(1, "Укажите наименование"),
   article: opt,
@@ -47,13 +52,38 @@ export function listWorks(companyId: string, q?: string) {
   });
 }
 
+/** Все работы для выбора в документе: по группам в их порядке, внутри группы по алфавиту. */
+export async function worksForPicker(companyId: string) {
+  const works = await prisma.work.findMany({ where: { companyId }, include: { group: true }, orderBy: { name: "asc" } });
+  const pos = (w: (typeof works)[number]) => (w.group ? w.group.position : Number.MAX_SAFE_INTEGER);
+  return works.sort((a, b) => pos(a) - pos(b));
+}
+
+/** Работы по группам для выпадающего списка: [название группы, работы]. */
+export function groupWorks<T extends { group: { name: string } | null }>(works: T[]): [string, T[]][] {
+  const out = new Map<string, T[]>();
+  for (const w of works) {
+    const k = w.group?.name ?? "Без группы";
+    out.set(k, [...(out.get(k) ?? []), w]);
+  }
+  return [...out];
+}
+
+async function checkWorkGroup(companyId: string, groupId: string) {
+  if (!(await prisma.workGroup.findFirst({ where: { id: groupId, companyId } }))) throw new NotFoundError("Группа работ");
+}
+
 export async function createWork(companyId: string, input: unknown) {
-  return prisma.work.create({ data: { ...workSchema.parse(input), companyId } });
+  const d = workFormSchema.parse(input);
+  await checkWorkGroup(companyId, d.groupId);
+  return prisma.work.create({ data: { ...d, companyId } });
 }
 
 export async function updateWork(companyId: string, id: string, input: unknown) {
   if (!(await prisma.work.findFirst({ where: { id, companyId } }))) throw new NotFoundError("Работа");
-  return prisma.work.update({ where: { id }, data: workSchema.parse(input) });
+  const d = workFormSchema.parse(input);
+  await checkWorkGroup(companyId, d.groupId);
+  return prisma.work.update({ where: { id }, data: d });
 }
 
 export async function deleteWork(companyId: string, id: string) {
@@ -62,6 +92,78 @@ export async function deleteWork(companyId: string, id: string) {
     prisma.workOrderWork.updateMany({ where: { workId: id, order: { companyId } }, data: { workId: null } }),
     prisma.work.deleteMany({ where: { id, companyId } }),
   ]);
+}
+
+export function getWork(companyId: string, id: string) {
+  return prisma.work.findFirst({ where: { id, companyId }, include: { group: true } });
+}
+
+/** Работа для панели просмотра: сколько раз попала в наряды и последний наряд. */
+export async function workPreview(companyId: string, id: string) {
+  const w = await getWork(companyId, id);
+  if (!w) return null;
+  const where = { workId: id, order: { companyId } };
+  const [used, last] = await Promise.all([
+    prisma.workOrderWork.count({ where }),
+    prisma.workOrderWork.findFirst({ where, orderBy: { order: { acceptedAt: "desc" } }, select: { order: { select: { id: true, number: true, acceptedAt: true } } } }),
+  ]);
+  return { ...w, used, lastOrder: last?.order ?? null };
+}
+
+// --- группы работ ---
+
+const groupName = z.string().trim().min(1, "Укажите название группы").max(100, "Слишком длинное название");
+
+/** Группы в порядке добавления и сколько в каждой работ; ungrouped — работы без группы (заведённые до групп). */
+export async function listWorkGroups(companyId: string) {
+  const [groups, ungrouped, total] = await Promise.all([
+    prisma.workGroup.findMany({ where: { companyId }, orderBy: [{ position: "asc" }, { name: "asc" }], include: { _count: { select: { works: true } } } }),
+    prisma.work.count({ where: { companyId, groupId: null } }),
+    prisma.work.count({ where: { companyId } }),
+  ]);
+  return { groups: groups.map((g) => ({ id: g.id, name: g.name, count: g._count.works })), ungrouped, total };
+}
+
+async function uniqueWorkGroupName(companyId: string, name: string, id?: string) {
+  const same = await prisma.workGroup.findFirst({ where: { companyId, name: { equals: name, mode: "insensitive" }, ...(id ? { id: { not: id } } : {}) } });
+  if (same) throw new UserError(`Группа «${same.name}» уже есть`);
+}
+
+export async function createWorkGroup(companyId: string, input: unknown) {
+  const name = groupName.parse(input);
+  await uniqueWorkGroupName(companyId, name);
+  const last = await prisma.workGroup.aggregate({ where: { companyId }, _max: { position: true } });
+  return prisma.workGroup.create({ data: { companyId, name, position: (last._max.position ?? -1) + 1 } });
+}
+
+export async function renameWorkGroup(companyId: string, id: string, input: unknown) {
+  if (!(await prisma.workGroup.findFirst({ where: { id, companyId } }))) throw new NotFoundError("Группа работ");
+  const name = groupName.parse(input);
+  await uniqueWorkGroupName(companyId, name, id);
+  return prisma.workGroup.update({ where: { id }, data: { name } });
+}
+
+/** Удаление группы; работы из неё переносятся в moveTo, без него удаляется только пустая группа. */
+export async function deleteWorkGroup(companyId: string, id: string, moveTo?: string) {
+  if (!(await prisma.workGroup.findFirst({ where: { id, companyId } }))) throw new NotFoundError("Группа работ");
+  const count = await prisma.work.count({ where: { companyId, groupId: id } });
+  if (count > 0) {
+    if (!moveTo) throw new UserError("Выберите группу, в которую перенести работы");
+    if (moveTo === id) throw new UserError("Работы нужно перенести в другую группу");
+    await checkWorkGroup(companyId, moveTo);
+  }
+  await prisma.$transaction([
+    prisma.work.updateMany({ where: { companyId, groupId: id }, data: { groupId: moveTo } }),
+    prisma.workGroup.deleteMany({ where: { id, companyId } }),
+  ]);
+}
+
+/** Перенос отмеченных работ в группу. */
+export async function moveWorks(companyId: string, ids: string[], groupId: string) {
+  if (!groupId) throw new UserError("Выберите группу");
+  await checkWorkGroup(companyId, groupId);
+  const r = await prisma.work.updateMany({ where: { companyId, id: { in: ids } }, data: { groupId } });
+  return r.count;
 }
 
 /** Поиск по наименованию, артикулу, бренду и штрихкоду; groupId сужает до группы, «none» — товары без группы. */

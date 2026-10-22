@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
 import { formatRub } from "@/lib/money";
-import { listProducts, listWorks } from "@/lib/services/catalog";
+import { groupWorks, listProducts, worksForPicker } from "@/lib/services/catalog";
 import { ESTIMATE_STATUSES, estimateStatusLabel, estLineTotal, getEstimate } from "@/lib/services/estimates";
 import { getCompany } from "@/lib/services/settings";
 import {
@@ -31,7 +31,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
     if (err instanceof NotFoundError) notFound();
     throw err;
   });
-  const [works, products, company] = await Promise.all([listWorks(s.companyId), listProducts(s.companyId), getCompany(s.companyId)]);
+  const [works, products, company] = await Promise.all([worksForPicker(s.companyId), listProducts(s.companyId), getCompany(s.companyId)]);
   const locked = !!e.orderId;
   const sections = [
     { kind: "WORK" as const, title: "Работы", total: e.totals.works, unit: "Н/ч", lines: e.lines.filter((l) => l.kind === "WORK") },
@@ -150,10 +150,14 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
                 <Select name="refId" defaultValue="">
                   <option value="">Выберите</option>
                   {sec.kind === "WORK"
-                    ? works.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name} · {w.price ? formatRub(w.price) : `${formatQty(Number(w.normHours ?? 1))} н/ч`}
-                        </option>
+                    ? groupWorks(works).map(([group, list]) => (
+                        <optgroup key={group} label={group}>
+                          {list.map((w) => (
+                            <option key={w.id} value={w.id}>
+                              {w.name} · {w.price ? formatRub(w.price) : `${formatQty(Number(w.normHours ?? 1))} н/ч`}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))
                     : products.map((p) => (
                         <option key={p.id} value={p.id}>

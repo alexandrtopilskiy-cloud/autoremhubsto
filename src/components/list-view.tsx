@@ -145,38 +145,6 @@ export function Pager({ path, query, total, page, pages }: { path: string; query
   );
 }
 
-/** Ссылка, открывающая запись в панели просмотра справа. */
-export function PreviewLink({ path, query, id, label }: { path: string; query: ListQuery; id: string; label: string }) {
-  const open = query.preview === id;
-  return (
-    <Link
-      href={listHref(path, query, { preview: open ? undefined : id })}
-      scroll={false}
-      className={`rounded px-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 ${open ? "bg-blue-50 text-blue-600" : ""}`}
-      aria-label={`Просмотр: ${label}`}
-      title="Просмотр"
-    >
-      ▸
-    </Link>
-  );
-}
-
-/** Список и панель просмотра рядом; без панели список во всю ширину. */
-export function WithPreview({ panel, children }: { panel?: ReactNode; children: ReactNode }) {
-  if (!panel) return <>{children}</>;
-  return (
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-0">
-      <div className="min-w-0 lg:pr-4">{children}</div>
-      <aside
-        className="rounded-md border border-slate-200 bg-white p-5 lg:sticky lg:top-0 lg:min-h-[60vh] lg:rounded-none lg:border-y-0 lg:border-r-0 lg:pt-1"
-        aria-label="Панель просмотра"
-      >
-        {panel}
-      </aside>
-    </div>
-  );
-}
-
 /** Шапка панели просмотра: заголовок, «Открыть» и закрытие. */
 export function PreviewHead({ title, href, close }: { title: ReactNode; href: string; close: string }) {
   return (
@@ -191,6 +159,51 @@ export function PreviewHead({ title, href, close }: { title: ReactNode; href: st
         </Link>
       </div>
     </div>
+  );
+}
+
+/** Заголовок панели просмотра в простых списках: название, пояснение и кнопка «Открыть». */
+export function PreviewTitle({ title, sub, href, open = "Открыть" }: { title: ReactNode; sub?: ReactNode; href?: string; open?: string }) {
+  return (
+    <div className="mb-3 flex flex-col gap-1">
+      <h2 className="text-xl font-semibold">{title}</h2>
+      {sub && <span className="text-sm text-slate-500">{sub}</span>}
+      {href && (
+        <Link href={href} className="mt-1 self-start rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50">
+          {open}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/** Строки документа в панели просмотра: первые max и «и ещё N». */
+export function PreviewLines({ title, lines, max = 10 }: { title: string; lines: { key: string; name: ReactNode; right?: ReactNode }[]; max?: number }) {
+  if (lines.length === 0) return null;
+  return (
+    <div className="mt-3 text-sm">
+      <div className="mb-1 text-slate-500">
+        {title} ({lines.length})
+      </div>
+      <ul className="flex flex-col gap-0.5">
+        {lines.slice(0, max).map((l) => (
+          <li key={l.key} className="flex justify-between gap-3">
+            <span>{l.name}</span>
+            {l.right !== undefined && <span className="text-right whitespace-nowrap text-slate-600 tabular-nums">{l.right}</span>}
+          </li>
+        ))}
+        {lines.length > max && <li className="text-slate-500">и ещё {lines.length - max}</li>}
+      </ul>
+    </div>
+  );
+}
+
+/** Подсказка в пустой панели просмотра. */
+export function PreviewHint({ what, open }: { what: string; open?: string }) {
+  return (
+    <p className="text-sm text-slate-500">
+      Нажмите на {what} в списке, чтобы увидеть подробности.{open && ` Двойной клик откроет ${open}.`}
+    </p>
   );
 }
 

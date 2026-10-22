@@ -11,7 +11,7 @@ import { CLIENT_FILTERS, CLIENT_SORTS, clientPreview, clientSources, searchClien
 import { stageLabel } from "@/lib/services/orders";
 import { createClientAction } from "./actions";
 import { ClientFields, ContactFields } from "./client-fields";
-import { ClientRow, PreviewPane, SearchBox } from "./list-client";
+import { ListRow, PreviewPane, SearchBox } from "@/components/preview-pane";
 import { listCategories } from "@/lib/services/prices";
 import { dicts } from "@/lib/services/dictionaries";
 
@@ -104,6 +104,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             <SearchBox
               form={FORM}
               defaultValue={query.q}
+              label="Поиск клиента"
               placeholder="Поиск: имя, телефон, ID, госномер, VIN, марка, ИНН, адрес… можно несколько слов"
             />
             <Link href="/app/excel" className={btn}>
@@ -185,13 +186,13 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 </thead>
                 <tbody>
                   {list.rows.map((c) => (
-                    <ClientRow key={c.id} id={c.id} previewHref={listHref(PATH, query, { preview: c.id })} selected={query.preview === c.id}>
+                    <ListRow key={c.id} openHref={`/app/clients/${c.id}`} previewHref={listHref(PATH, query, { preview: c.id })} selected={query.preview === c.id}>
                       <td className={`${td} text-slate-500 tabular-nums`}>{c.code}</td>
                       <td className={`${td} text-blue-600`}>{c.name}</td>
                       <td className={td}>{KIND_SHORT[c.kind]}</td>
                       <td className={td}>{c.phone}</td>
                       <td className={td}>{c.vehicles.map((v) => [v.make, v.model, v.plate].filter(Boolean).join(" ")).join(", ")}</td>
-                    </ClientRow>
+                    </ListRow>
                   ))}
                   {list.rows.length === 0 && (
                     <tr>

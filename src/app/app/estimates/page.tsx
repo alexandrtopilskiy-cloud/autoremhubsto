@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { FilterSelect, ListFilters, Pager, PreviewHead, PreviewLink, PreviewRow, SortTh, WithPreview } from "@/components/list-view";
+import { FilterSelect, ListFilters, Pager, PreviewHead, PreviewRow, SortTh } from "@/components/list-view";
 import { Badge, PageTitle, td, th } from "@/components/ui";
+import { ListRow, PreviewPane } from "@/components/preview-pane";
 import { requireSession } from "@/lib/auth";
 import { formatDate, orderNo, vehicleTitle } from "@/lib/format";
 import { listHref, parseListQuery } from "@/lib/list-query";
@@ -65,78 +66,84 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
       <PageTitle create="/app/estimates/new" createLabel="Новая калькуляция">
         Калькуляции
       </PageTitle>
-      <WithPreview panel={query.preview ? <Preview companyId={s.companyId} id={query.preview} query={query} /> : undefined}>
-        <div>
-          <p className="mb-3 text-sm text-slate-600">
-            Предварительный расчёт ремонта для клиента. Когда клиент согласен, калькуляция одним нажатием превращается в заказ-наряд.
-          </p>
-          <ListFilters path={PATH} query={query} placeholder="Номер, клиент, телефон, госномер или комментарий">
-            <FilterSelect name="status" label="Статус" value={query.f.status} options={ESTIMATE_STATUSES} />
-            <FilterSelect
-              name="converted"
-              label="Заказ-наряд"
-              value={query.f.converted}
-              options={[
-                { value: "1", label: "Создан" },
-                { value: "0", label: "Не создан" },
-              ]}
-            />
-          </ListFilters>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className={th} />
-                  <SortTh path={PATH} query={query} sort="number">
-                    Номер
-                  </SortTh>
-                  <SortTh path={PATH} query={query} sort="date">
-                    Дата
-                  </SortTh>
-                  <SortTh path={PATH} query={query} sort="client">
-                    Клиент
-                  </SortTh>
-                  <th className={th}>Автомобиль</th>
-                  <th className={th}>Статус</th>
-                  <SortTh path={PATH} query={query} sort="total" right>
-                    Сумма
-                  </SortTh>
-                </tr>
-              </thead>
-              <tbody>
-                {list.rows.map((e) => (
-                  <tr key={e.id} className={`border-b last:border-0 hover:bg-slate-50 ${query.preview === e.id ? "bg-blue-100" : ""}`}>
-                    <td className={`${td} w-6`}>
-                      <PreviewLink path={PATH} query={query} id={e.id} label={`К-${e.number}`} />
-                    </td>
-                    <td className={td}>
-                      <Link className="text-blue-600 hover:underline" href={`/app/estimates/${e.id}`}>
-                        К-{e.number}
-                      </Link>
-                    </td>
-                    <td className={td}>{formatDate(e.createdAt)}</td>
-                    <td className={td}>{e.client.name}</td>
-                    <td className={td}>{e.vehicle ? vehicleTitle(e.vehicle) : ""}</td>
-                    <td className={td}>
-                      <Badge tone={e.status === "ACCEPTED" ? "green" : e.status === "SENT" ? "blue" : "slate"}>{estimateStatusLabel(e.status)}</Badge>
-                      {e.order && <span className="ml-2 text-slate-500">{orderNo(e.order.number)}</span>}
-                    </td>
-                    <td className={`${td} text-right whitespace-nowrap`}>{formatRub(e.totals.total)}</td>
+      <PreviewPane
+        selected={query.preview}
+        panel={
+          query.preview ? (
+            <Preview companyId={s.companyId} id={query.preview} query={query} />
+          ) : (
+            <p className="text-sm text-slate-500">Нажмите на калькуляцию в списке, чтобы увидеть её кратко. Двойной клик откроет калькуляцию.</p>
+          )
+        }
+        list={
+          <>
+            <p className="mb-3 text-sm text-slate-600">
+              Предварительный расчёт ремонта для клиента. Когда клиент согласен, калькуляция одним нажатием превращается в заказ-наряд.
+            </p>
+            <ListFilters path={PATH} query={query} placeholder="Номер, клиент, телефон, госномер или комментарий">
+              <FilterSelect name="status" label="Статус" value={query.f.status} options={ESTIMATE_STATUSES} />
+              <FilterSelect
+                name="converted"
+                label="Заказ-наряд"
+                value={query.f.converted}
+                options={[
+                  { value: "1", label: "Создан" },
+                  { value: "0", label: "Не создан" },
+                ]}
+              />
+            </ListFilters>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <SortTh path={PATH} query={query} sort="number">
+                      Номер
+                    </SortTh>
+                    <SortTh path={PATH} query={query} sort="date">
+                      Дата
+                    </SortTh>
+                    <SortTh path={PATH} query={query} sort="client">
+                      Клиент
+                    </SortTh>
+                    <th className={th}>Автомобиль</th>
+                    <th className={th}>Статус</th>
+                    <SortTh path={PATH} query={query} sort="total" right>
+                      Сумма
+                    </SortTh>
                   </tr>
-                ))}
-                {list.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className={`${td} text-slate-500`}>
-                      Калькуляций не найдено
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <Pager path={PATH} query={query} total={list.total} page={list.page} pages={list.pages} />
-        </div>
-      </WithPreview>
+                </thead>
+                <tbody>
+                  {list.rows.map((e) => (
+                    <ListRow key={e.id} previewHref={listHref(PATH, query, { preview: e.id })} openHref={`/app/estimates/${e.id}`} selected={query.preview === e.id}>
+                      <td className={td}>
+                        <span className="text-blue-600">
+                          К-{e.number}
+                        </span>
+                      </td>
+                      <td className={td}>{formatDate(e.createdAt)}</td>
+                      <td className={td}>{e.client.name}</td>
+                      <td className={td}>{e.vehicle ? vehicleTitle(e.vehicle) : ""}</td>
+                      <td className={td}>
+                        <Badge tone={e.status === "ACCEPTED" ? "green" : e.status === "SENT" ? "blue" : "slate"}>{estimateStatusLabel(e.status)}</Badge>
+                        {e.order && <span className="ml-2 text-slate-500">{orderNo(e.order.number)}</span>}
+                      </td>
+                      <td className={`${td} text-right whitespace-nowrap`}>{formatRub(e.totals.total)}</td>
+                    </ListRow>
+                  ))}
+                  {list.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className={`${td} text-slate-500`}>
+                        Калькуляций не найдено
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pager path={PATH} query={query} total={list.total} page={list.page} pages={list.pages} />
+          </>
+        }
+      />
     </div>
   );
 }

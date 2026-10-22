@@ -1,21 +1,36 @@
 "use client";
-// Список клиентов: один клик по строке — просмотр справа, двойной — карточка в новой вкладке.
+// Списки: один клик по строке — просмотр справа, двойной — карточка или документ в новой вкладке.
 // Панель просмотра: ширина меняется перетаскиванием левой границы, «Скрыть» и клик мимо панели её сворачивают.
+// Ширина и «скрыто» запоминаются одни на все списки.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 const ROW = "data-preview-row";
-const STORE = "ar.clientPreview";
+const STORE = "ar.preview";
 const MIN = 260;
 const MAX = 760;
 
-export function ClientRow({ id, previewHref, selected, children }: { id: string; previewHref: string; selected: boolean; children: ReactNode }) {
+// клики по кнопкам, ссылкам и полям внутри строки строку не открывают
+const inControl = (e: React.MouseEvent) => !!(e.target as Element).closest("a,button,input,select,textarea,label");
+
+/** Строка списка: клик — просмотр справа, двойной клик — открыть (без openHref строка только показывает просмотр). */
+export function ListRow({
+  previewHref,
+  openHref,
+  selected,
+  children,
+}: {
+  previewHref: string;
+  openHref?: string;
+  selected: boolean;
+  children: ReactNode;
+}) {
   const router = useRouter();
   return (
     <tr
       {...{ [ROW]: "" }}
-      onClick={() => router.replace(previewHref, { scroll: false })}
-      onDoubleClick={() => router.push(`/app/clients/${id}`)}
+      onClick={(e) => !inControl(e) && router.replace(previewHref, { scroll: false })}
+      onDoubleClick={(e) => openHref && !inControl(e) && router.push(openHref)}
       className={`cursor-pointer border-b select-none last:border-0 ${selected ? "bg-blue-100" : "hover:bg-slate-50"}`}
     >
       {children}
@@ -46,12 +61,12 @@ export function PreviewPane({ list, panel, selected }: { list: ReactNode; panel:
       localStorage.setItem(STORE, JSON.stringify(next));
     } catch {}
   };
-  // выбор клиента в списке снова показывает панель
+  // выбор записи в списке снова показывает панель
   useEffect(() => {
     if (selected) setS((x) => (x.hidden ? { ...x, hidden: false } : x));
   }, [selected]);
 
-  // клик мимо панели и мимо строк клиентов сворачивает просмотр
+  // клик мимо панели и мимо строк списка сворачивает просмотр
   useEffect(() => {
     if (s.hidden) return;
     const onDown = (e: MouseEvent) => {
@@ -126,8 +141,28 @@ export function PreviewPane({ list, panel, selected }: { list: ReactNode; panel:
   );
 }
 
+/** Показывает список с условиями из формы фильтров без перезагрузки страницы. */
+function applyFilters(router: ReturnType<typeof useRouter>, form: string) {
+  const f = document.getElementById(form) as HTMLFormElement | null;
+  if (!f) return;
+  const p = new URLSearchParams();
+  for (const [k, v] of new FormData(f)) if (typeof v === "string" && v) p.set(k, v);
+  router.replace(`${f.getAttribute("action")}?${p}`, { scroll: false });
+}
+
+/** Галочка-фильтр: список обновляется сразу при нажатии. */
+export function FilterCheck({ form, name, checked, label }: { form: string; name: string; checked: boolean; label: string }) {
+  const router = useRouter();
+  return (
+    <label className="flex items-center gap-1.5 text-sm text-slate-600">
+      <input type="checkbox" name={name} value="1" form={form} defaultChecked={checked} onChange={() => applyFilters(router, form)} className="h-4 w-4" />
+      {label}
+    </label>
+  );
+}
+
 /** Поле поиска: ищет, когда перестали печатать (без перезагрузки страницы, курсор остаётся в поле), или по Enter. */
-export function SearchBox({ form, defaultValue, placeholder }: { form: string; defaultValue?: string; placeholder: string }) {
+export function SearchBox({ form, defaultValue, placeholder, label = "Поиск" }: { form: string; defaultValue?: string; placeholder: string; label?: string }) {
   const router = useRouter();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   return (
@@ -137,17 +172,11 @@ export function SearchBox({ form, defaultValue, placeholder }: { form: string; d
       form={form}
       defaultValue={defaultValue}
       placeholder={placeholder}
-      aria-label="Поиск клиента"
+      aria-label={label}
       autoComplete="off"
       onChange={() => {
         clearTimeout(timer.current);
-        timer.current = setTimeout(() => {
-          const f = document.getElementById(form) as HTMLFormElement | null;
-          if (!f) return;
-          const p = new URLSearchParams();
-          for (const [k, v] of new FormData(f)) if (typeof v === "string" && v) p.set(k, v);
-          router.replace(`${f.getAttribute("action")}?${p}`, { scroll: false });
-        }, 400);
+        timer.current = setTimeout(() => applyFilters(router, form), 400);
       }}
       className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[15px] outline-none focus:border-blue-500"
     />
