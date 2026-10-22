@@ -157,6 +157,7 @@ model Company {
   supplierOrders  SupplierOrder[]
   payrollEntries  PayrollEntry[]
   roles           CompanyRole[]
+  workGroups      WorkGroup[]
   productGroups   ProductGroup[]
   priceCategories PriceCategory[]
   dictItems       DictionaryItem[]
@@ -242,11 +243,11 @@ model Counter {
 }
 
 model Client {
-  id              String           @id @default(cuid())
+  id              String              @id @default(cuid())
   companyId       String
-  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   code            String? // ID клиента: из файла при загрузке, иначе присваивается сам (000001…)
-  kind            ClientKind       @default(PERSON)
+  kind            ClientKind          @default(PERSON)
   name            String // наименование для документов
   phone           String?
   email           String?
@@ -257,14 +258,14 @@ model Client {
   actualAddress   String?
   postalAddress   String?
   comment         String?
-  discount        Int              @default(0) // скидка на работы, %
-  partsDiscount   Int              @default(0) // скидка на товары, %
+  discount        Int                 @default(0) // скидка на работы, %
+  partsDiscount   Int                 @default(0) // скидка на товары, %
   hourPrice       Int? // своя стоимость нормочаса, коп.; пусто — по категории или как у СТО
   priceCategoryId String?
-  priceCategory   PriceCategory?   @relation(fields: [priceCategoryId], references: [id], onDelete: SetNull)
+  priceCategory   PriceCategory?      @relation(fields: [priceCategoryId], references: [id], onDelete: SetNull)
   source          String? // откуда пришёл: рекламный источник
-  archived        Boolean          @default(false)
-  createdAt       DateTime         @default(now())
+  archived        Boolean             @default(false)
+  createdAt       DateTime            @default(now())
   vehicles        Vehicle[]
   workOrders      WorkOrder[]
   appointments    Appointment[]
@@ -384,10 +385,26 @@ model Work {
   normHours       Decimal?        @db.Decimal(8, 2)
   price           Int             @default(0) // фиксированная цена, коп.; 0 = считать по нормочасам
   executorPercent Int? // свой % исполнителю за эту работу вместо % сотрудника
+  groupId         String? // обязательна у новых работ; пусто только у работ, заведённых до групп
+  group           WorkGroup?      @relation(fields: [groupId], references: [id])
   createdAt       DateTime        @default(now())
   orderWorks      WorkOrderWork[]
 
   @@index([companyId, name])
+  @@index([groupId])
+}
+
+// Группа работ (Подвеска, Двигатель…); порядок — как добавляли.
+model WorkGroup {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  works     Work[]
+
+  @@unique([companyId, name])
 }
 
 // Номенклатура (запчасти и материалы).

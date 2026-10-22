@@ -3,10 +3,13 @@ import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { formatDate } from "@/lib/format";
+import { PreviewHint, PreviewLines, PreviewRow, PreviewTitle } from "@/components/list-view";
+import { ListRow, PreviewPane } from "@/components/preview-pane";
+import { previewHref, previewId } from "@/lib/list-query";
+import { formatDate, formatQty } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listSuppliers } from "@/lib/services/stock";
-import { listSupplierOrders, supplierOrderStatusLabel } from "@/lib/services/supplier-orders";
+import { getSupplierOrder, listSupplierOrders, supplierOrderStatusLabel } from "@/lib/services/supplier-orders";
 import { StockTabs } from "../tabs";
 import { createSupplierOrderAction } from "../warehouse-actions";
 
@@ -17,8 +20,37 @@ const tone = {
   CANCELLED: "slate",
 } as const;
 
-export default async function SupplierOrdersPage() {
+const PATH = "/app/stock/orders";
+
+async function Preview({ companyId, id }: { companyId: string; id: string }) {
+  const o = await getSupplierOrder(companyId, id).catch(() => null);
+  if (!o) return <p className="text-sm text-slate-500">Заказ не найден.</p>;
+  return (
+    <>
+      <PreviewTitle title={`ЗП-${o.number} от ${formatDate(o.createdAt)}`} href={`${PATH}/${o.id}`} />
+      <PreviewRow label="Статус">{supplierOrderStatusLabel(o.status)}</PreviewRow>
+      <PreviewRow label="Поставщик">{o.supplier.name}</PreviewRow>
+      <PreviewRow label="Телефон">{o.supplier.phone}</PreviewRow>
+      <PreviewRow label="Комментарий">{o.comment}</PreviewRow>
+      <PreviewRow label="Приход">
+        {o.receipt ? (
+          <Link className="text-blue-600 hover:underline" href={`/app/stock/receipts/${o.receipt.id}`}>
+            ПН-{o.receipt.number}
+          </Link>
+        ) : null}
+      </PreviewRow>
+      <PreviewLines
+        title="Товары"
+        lines={o.lines.map((l) => ({ key: l.id, name: l.product.name, right: `${formatQty(Number(l.qty))} ${l.product.unit} × ${formatRub(l.cost)}` }))}
+      />
+    </>
+  );
+}
+
+export default async function SupplierOrdersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
+  const sp = await searchParams;
+  const preview = previewId(sp);
   const [orders, suppliers] = await Promise.all([listSupplierOrders(s.companyId), listSuppliers(s.companyId)]);
   return (
     <div className="flex flex-col gap-4">
@@ -55,51 +87,57 @@ export default async function SupplierOrdersPage() {
             )}
           </Card>
         </NewPanel>
-        <Card>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className={th}>Номер</th>
-                <th className={th}>Дата</th>
-                <th className={th}>Поставщик</th>
-                <th className={th}>Статус</th>
-                <th className={th}>Приход</th>
-                <th className={`${th} text-right`}>Сумма</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id} className="border-b last:border-0">
-                  <td className={td}>
-                    <Link className="text-blue-600 hover:underline" href={`/app/stock/orders/${o.id}`}>
-                      ЗП-{o.number}
-                    </Link>
-                  </td>
-                  <td className={td}>{formatDate(o.createdAt)}</td>
-                  <td className={td}>{o.supplier.name}</td>
-                  <td className={td}>
-                    <Badge tone={tone[o.status]}>{supplierOrderStatusLabel(o.status)}</Badge>
-                  </td>
-                  <td className={td}>
-                    {o.receipt && (
-                      <Link className="text-blue-600 hover:underline" href={`/app/stock/receipts/${o.receipt.id}`}>
-                        ПН-{o.receipt.number}
-                      </Link>
-                    )}
-                  </td>
-                  <td className={`${td} text-right whitespace-nowrap`}>{formatRub(o.total)}</td>
-                </tr>
-              ))}
-              {orders.length === 0 && (
-                <tr>
-                  <td colSpan={6} className={`${td} text-slate-500`}>
-                    Заказов поставщикам пока нет
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </Card>
+        <PreviewPane
+          selected={preview}
+          panel={preview ? <Preview companyId={s.companyId} id={preview} /> : <PreviewHint what="заказ" open="заказ поставщику" />}
+          list={
+            <Card>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className={th}>Номер</th>
+                    <th className={th}>Дата</th>
+                    <th className={th}>Поставщик</th>
+                    <th className={th}>Статус</th>
+                    <th className={th}>Приход</th>
+                    <th className={`${th} text-right`}>Сумма</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((o) => (
+                    <ListRow key={o.id} previewHref={previewHref(PATH, sp, o.id)} openHref={`${PATH}/${o.id}`} selected={preview === o.id}>
+                      <td className={td}>
+                        <span className="text-blue-600">
+                          ЗП-{o.number}
+                        </span>
+                      </td>
+                      <td className={td}>{formatDate(o.createdAt)}</td>
+                      <td className={td}>{o.supplier.name}</td>
+                      <td className={td}>
+                        <Badge tone={tone[o.status]}>{supplierOrderStatusLabel(o.status)}</Badge>
+                      </td>
+                      <td className={td}>
+                        {o.receipt && (
+                          <span className="text-blue-600">
+                            ПН-{o.receipt.number}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`${td} text-right whitespace-nowrap`}>{formatRub(o.total)}</td>
+                    </ListRow>
+                  ))}
+                  {orders.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className={`${td} text-slate-500`}>
+                        Заказов поставщикам пока нет
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Card>
+          }
+        />
       </Allowed>
     </div>
   );

@@ -35,7 +35,7 @@ export async function createSupplierAction(_: FormState, fd: FormData) {
   return op("/app/stock/suppliers", (c) => createSupplier(c, fields(fd)), "CREATE");
 }
 export async function updateSupplierAction(id: string, _: FormState, fd: FormData) {
-  return op("/app/stock/suppliers", (c) => updateSupplier(c, id, fields(fd)));
+  return op(`/app/stock/suppliers/${id}`, (c) => updateSupplier(c, id, fields(fd)));
 }
 
 export async function createReceiptAction(_: FormState, fd: FormData): Promise<FormState> {

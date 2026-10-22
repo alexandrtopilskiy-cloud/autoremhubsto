@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { registerCompany } from "@/lib/services/accounts";
 import { listCashboxes } from "@/lib/services/cash";
 import { createProduct, createWork, updateWork } from "@/lib/services/catalog";
+import { wg } from "./work-group";
 import { createClient } from "@/lib/services/clients";
 import { addItemFromCatalog, addPayment, addWork, createOrder, orderSummary, postOrder } from "@/lib/services/orders";
 import { addPayrollEntry, monthPeriod, payEmployee, payroll, payslip, updatePayScheme } from "@/lib/services/payroll";
@@ -23,8 +24,8 @@ async function setup() {
   const r = await createReceipt(a, {});
   await addReceiptLine(a, r.id, { productId: oil.id, qty: 10, cost: 50000 });
   await postReceipt(a, r.id);
-  const change = await createWork(a, { name: "Замена масла", price: 300000 });
-  await updateWork(a, change.id, { name: "Замена масла", price: 300000, executorPercent: 50 });
+  const change = await createWork(a, { groupId: await wg(a), name: "Замена масла", price: 300000 });
+  await updateWork(a, change.id, { groupId: await wg(a), name: "Замена масла", price: 300000, executorPercent: 50 });
   const c = await createClient(a, { name: "Иванов" });
   const o = await createOrder(a, { clientId: c.id, managerId: manager.id });
   await addWork(a, o.id, { workId: change.id, name: "Замена масла", normHours: 1, price: 300000, discount: 10, executorId: master.id });

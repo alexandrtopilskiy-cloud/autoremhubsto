@@ -62,8 +62,9 @@ export const EXCEL_KINDS = {
     label: "Работы",
     file: "Работы",
     section: "catalog",
-    keys: "Работа ищется по наименованию.",
+    keys: "Работа ищется по наименованию. Группа обязательна для новой работы; если такой группы нет, она создаётся.",
     cols: [
+      { key: "group", title: "Группа", hint: "Например Подвеска; новая группа создаётся автоматически. Обязательна для новой работы", width: 22 },
       { key: "name", title: "Наименование", hint: "", width: 40, required: true },
       { key: "normHours", title: "Нормочасы", hint: "Например 1,5", width: 11 },
       { key: "price", title: "Цена, ₽", hint: "Фиксированная цена; пусто или 0 — по нормочасам", width: 12 },
@@ -118,8 +119,9 @@ async function exportRows(companyId: string, kind: ExcelKind): Promise<Record<st
       minQty: dec(p.minQty),
     }));
   }
-  const works = await prisma.work.findMany({ where: { companyId }, orderBy: { name: "asc" } });
-  return works.map((w) => ({ name: w.name, normHours: dec(w.normHours), price: rub(w.price), executorPercent: w.executorPercent }));
+  const works = await prisma.work.findMany({ where: { companyId }, include: { group: true }, orderBy: { name: "asc" } });
+  const pos = (w: (typeof works)[number]) => w.group?.position ?? Number.MAX_SAFE_INTEGER;
+  return works.sort((a, b) => pos(a) - pos(b)).map((w) => ({ group: w.group?.name, name: w.name, normHours: dec(w.normHours), price: rub(w.price), executorPercent: w.executorPercent }));
 }
 
 /** Файл Excel со справочником СТО; empty — пустой шаблон для заполнения. */
@@ -267,7 +269,7 @@ function parseWork(v: Values) {
     price: money(v.price, "Цена"),
     executorPercent: decimal(v.executorPercent, "% исполнителю"),
   });
-  return { d, has: (k: string) => !blank(v[k]) };
+  return { d, group: v.group?.trim() || null, has: (k: string) => !blank(v[k]) };
 }
 
 function parseClient(v: Values) {
@@ -340,10 +342,26 @@ async function applyProducts(tx: Tx, companyId: string, rows: Parsed<typeof pars
 
 async function applyWorks(tx: Tx, companyId: string, rows: Parsed<typeof parseWork>, out: Counts) {
   const all = await tx.work.findMany({ where: { companyId }, select: { id: true, name: true } });
-  for (const { x: w } of rows) {
+  const groupList = await tx.workGroup.findMany({ where: { companyId } });
+  const groups = new Map(groupList.map((g) => [low(g.name), g.id]));
+  let position = Math.max(-1, ...groupList.map((g) => g.position));
+  for (const { row, x: w } of rows) {
     const { d } = w;
     const found = all.find((x) => low(x.name) === low(d.name));
-    const fields = { name: d.name, ...pick({ normHours: d.normHours, executorPercent: d.executorPercent }) };
+    if (!found && !w.group) {
+      out.errors.push({ row, message: "Укажите группу: новая работа без группы не сохраняется" });
+      continue;
+    }
+    let groupId: string | undefined;
+    if (w.group) {
+      groupId = groups.get(low(w.group));
+      if (!groupId) {
+        // группы создаются в порядке строк файла — так они и стоят в справочнике
+        groupId = (await tx.workGroup.create({ data: { companyId, name: w.group, position: ++position } })).id;
+        groups.set(low(w.group), groupId);
+      }
+    }
+    const fields = { name: d.name, ...pick({ normHours: d.normHours, executorPercent: d.executorPercent, groupId }) };
     if (found) {
       await tx.work.update({ where: { id: found.id }, data: { ...fields, ...(w.has("price") ? { price: d.price } : {}) } });
       out.updated++;

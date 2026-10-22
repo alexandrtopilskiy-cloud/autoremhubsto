@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { registerCompany } from "@/lib/services/accounts";
 import { createGroup, createProduct, createWork, listProducts, listWorks } from "@/lib/services/catalog";
+import { wg } from "./work-group";
 import { addVehicle, createClient, listClients } from "@/lib/services/clients";
 import { exportExcel, importExcel } from "@/lib/services/excel";
 
@@ -157,8 +158,8 @@ describe("загрузка и выгрузка Excel", () => {
 
   it("выгрузка совпадает с шаблоном и загружается обратно без изменений", async () => {
     const { a, b } = await companies();
-    await createWork(a, { name: "Замена масла", normHours: 0.5, price: 0, executorPercent: 30 });
-    await createWork(a, { name: "Диагностика", price: 150000 });
+    await createWork(a, { groupId: await wg(a), name: "Замена масла", normHours: 0.5, price: 0, executorPercent: 30 });
+    await createWork(a, { groupId: await wg(a), name: "Диагностика", price: 150000 });
     const c = await createClient(a, { name: "Иванов", phone: "+79161234567", discount: 10 });
     await addVehicle(a, c.id, { make: "Kia", model: "Rio", vin: "VIN1" });
     await addVehicle(a, c.id, { make: "Lada", model: "Vesta" });
@@ -166,9 +167,9 @@ describe("загрузка и выгрузка Excel", () => {
 
     const works = await read(await exportExcel(a, "works"));
     expect(works).toEqual([
-      ["Наименование *", "Нормочасы", "Цена, ₽", "% исполнителю"],
-      ["Диагностика", null, 1500],
-      ["Замена масла", 0.5, null, 30],
+      ["Группа", "Наименование *", "Нормочасы", "Цена, ₽", "% исполнителю"],
+      ["Общие работы", "Диагностика", null, 1500],
+      ["Общие работы", "Замена масла", 0.5, null, 30],
     ]);
     expect(await read(await exportExcel(a, "works", true))).toHaveLength(1);
     expect(await read(await exportExcel(b, "works"))).toHaveLength(1);

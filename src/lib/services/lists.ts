@@ -220,6 +220,28 @@ export async function clientSources(companyId: string) {
   return rows.map((r) => r.source!);
 }
 
+// ---------- справочник работ ----------
+
+export const WORK_SORTS = ["name", "hours", "price"] as const;
+export const WORK_FILTERS = ["group", "all"] as const;
+export type WorkQuery = ListQuery<(typeof WORK_SORTS)[number]>;
+
+/**
+ * Работы выбранной группы (group = id, «none» — без группы, пусто — все).
+ * Поиск по нескольким словам в любом порядке; all = «1» ищет во всех группах.
+ */
+export async function searchWorks(companyId: string, q: WorkQuery) {
+  const words = q.q.split(/\s+/).filter(Boolean);
+  const { group, all } = q.f;
+  const inGroup = group && !(all === "1" && words.length) ? { groupId: group === "none" ? null : group } : {};
+  const rows = await prisma.work.findMany({
+    where: { companyId, ...inGroup, ...(words.length ? { AND: words.map((w) => ({ name: ci(w) })) } : {}) },
+    include: { group: true },
+  });
+  const key = (w: (typeof rows)[number]) => (q.sort === "name" ? w.name : q.sort === "hours" ? (w.normHours === null ? null : Number(w.normHours)) : w.price || null);
+  return paginate(sortBy(rows, key, q.dir), q);
+}
+
 // ---------- поиск «Везде» ----------
 
 const FOUND = 10;

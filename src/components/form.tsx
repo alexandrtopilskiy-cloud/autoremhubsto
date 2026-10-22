@@ -7,11 +7,13 @@ import type { FormState } from "@/lib/actions";
 type Action = (state: FormState, fd: FormData) => Promise<FormState>;
 
 export function ActionForm({
+  id,
   action,
   children,
   className,
   reset = false,
 }: {
+  id?: string;
   action: Action;
   children: ReactNode;
   className?: string;
@@ -23,7 +25,7 @@ export function ActionForm({
     if (reset && state?.ok) ref.current?.reset();
   }, [state, reset]);
   return (
-    <form ref={ref} action={formAction} className={className}>
+    <form id={id} ref={ref} action={formAction} className={className}>
       {children}
       {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
     </form>

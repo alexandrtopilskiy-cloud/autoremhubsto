@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { registerCompany } from "@/lib/services/accounts";
 import { createProduct, createWork, deleteProduct } from "@/lib/services/catalog";
+import { wg } from "./work-group";
 import { createClient, getClient, updateClient } from "@/lib/services/clients";
 import { addEstimateLineFromCatalog, createEstimate, getEstimate } from "@/lib/services/estimates";
 import { addItemFromCatalog, addWorkFromCatalog, createOrder, getOrder } from "@/lib/services/orders";
@@ -24,7 +25,7 @@ async function setup() {
   const opt = await createCategory(a, { name: "Опт", percent: -10, hourPrice: 150000 });
   const oil = await createProduct(a, { name: "Масло", price: 99900 });
   const filter = await createProduct(a, { name: "Фильтр", price: 50000 });
-  const diag = await createWork(a, { name: "Диагностика", normHours: 2, price: 0 });
+  const diag = await createWork(a, { groupId: await wg(a), name: "Диагностика", normHours: 2, price: 0 });
   const wholesale = await createClient(a, { name: "ООО Автопарк", priceCategoryId: opt.id });
   const retail = await createClient(a, { name: "Иванов" });
   return { a, b, opt, oil, filter, diag, wholesale, retail };

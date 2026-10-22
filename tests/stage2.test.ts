@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { authenticate, registerCompany } from "@/lib/services/accounts";
 import { createSession, resolveSession } from "@/lib/auth-core";
 import { createProduct, createWork, deleteWork, listProducts, listWorks, updateWork } from "@/lib/services/catalog";
+import { wg } from "./work-group";
 import { createClient } from "@/lib/services/clients";
 import { addItemFromCatalog, addWorkFromCatalog, createOrder, getOrder } from "@/lib/services/orders";
 import { createOrganization, updateCompany } from "@/lib/services/settings";
@@ -52,8 +53,8 @@ describe("справочники и подбор в заказ-наряд", () =
   it("работа по нормочасам берёт цену нормочаса СТО, фиксированная — свою цену", async () => {
     const { a, b } = await setup();
     await updateCompany(a, { name: "СТО Альфа", hourPrice: 200000 });
-    const byHours = await createWork(a, { name: "Замена колодок", normHours: "1,5".replace(",", ".") });
-    const fixed = await createWork(a, { name: "Диагностика", price: 150000 });
+    const byHours = await createWork(a, { groupId: await wg(a), name: "Замена колодок", normHours: "1,5".replace(",", ".") });
+    const fixed = await createWork(a, { groupId: await wg(a), name: "Диагностика", price: 150000 });
     const oil = await createProduct(a, { name: "Масло 5W-30", article: "OIL-1", price: 90000, unit: "л" });
     const mech = await createEmployee(a, { name: "Пётр", position: "Механик", workPercent: 40 });
 

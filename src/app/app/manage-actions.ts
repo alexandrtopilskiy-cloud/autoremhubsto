@@ -1,6 +1,7 @@
 "use server";
 
 import { fields, num, rub, type FormState } from "@/lib/actions";
+import { redirect } from "next/navigation";
 import { parseRub } from "@/lib/money";
 import { guarded } from "@/lib/guard";
 import { FLAGS, LEVELS, SECTIONS, type Level, type Section } from "@/lib/permissions";
@@ -8,6 +9,10 @@ import {
   createGroup,
   createProduct,
   createWork,
+  createWorkGroup,
+  deleteWorkGroup,
+  moveWorks,
+  renameWorkGroup,
   deleteGroup,
   deleteProduct,
   deleteWork,
@@ -49,11 +54,28 @@ const workInput = (fd: FormData) => ({
 export async function createWorkAction(_: FormState, fd: FormData) {
   return manage("catalog", "CREATE", "/app/catalog/works", (c) => createWork(c, workInput(fd)));
 }
-export async function updateWorkAction(id: string, _: FormState, fd: FormData) {
-  return manage("catalog", "EDIT", "/app/catalog/works", (c) => updateWork(c, id, workInput(fd)));
+export async function updateWorkCardAction(id: string, _: FormState, fd: FormData) {
+  return manage("catalog", "EDIT", `/app/catalog/works/${id}`, (c) => updateWork(c, id, workInput(fd)));
 }
 export async function deleteWorkAction(id: string) {
-  return manage("catalog", "FULL", "/app/catalog/works", (c) => deleteWork(c, id));
+  const res = await manage("catalog", "FULL", "/app/catalog/works", (c) => deleteWork(c, id));
+  if (res?.ok) redirect("/app/catalog/works");
+  return res;
+}
+
+// --- группы работ ---
+export async function createWorkGroupAction(_: FormState, fd: FormData) {
+  return manage("catalog", "CREATE", "/app/catalog/works", (c) => createWorkGroup(c, fd.get("name")?.toString()));
+}
+export async function renameWorkGroupAction(id: string, _: FormState, fd: FormData) {
+  return manage("catalog", "EDIT", "/app/catalog/works", (c) => renameWorkGroup(c, id, fd.get("name")?.toString()));
+}
+export async function deleteWorkGroupAction(id: string, _: FormState, fd: FormData) {
+  return manage("catalog", "FULL", "/app/catalog/works", (c) => deleteWorkGroup(c, id, fd.get("moveTo")?.toString() || undefined));
+}
+export async function moveWorksAction(_: FormState, fd: FormData) {
+  const ids = fd.getAll("ids").map(String);
+  return manage("catalog", "EDIT", "/app/catalog/works", (c) => moveWorks(c, ids, fd.get("groupId")?.toString() ?? ""));
 }
 
 // --- номенклатура ---
@@ -61,11 +83,13 @@ const productInput = (fd: FormData) => ({ ...fields(fd), price: rub(fd, "price",
 export async function createProductAction(_: FormState, fd: FormData) {
   return manage("catalog", "CREATE", "/app/catalog/products", (c) => createProduct(c, productInput(fd)));
 }
-export async function updateProductAction(id: string, _: FormState, fd: FormData) {
-  return manage("catalog", "EDIT", "/app/catalog/products", (c) => updateProduct(c, id, productInput(fd)));
+export async function updateProductCardAction(id: string, _: FormState, fd: FormData) {
+  return manage("catalog", "EDIT", `/app/catalog/products/${id}`, (c) => updateProduct(c, id, productInput(fd)));
 }
 export async function deleteProductAction(id: string) {
-  return manage("catalog", "FULL", "/app/catalog/products", (c) => deleteProduct(c, id));
+  const res = await manage("catalog", "FULL", "/app/catalog/products", (c) => deleteProduct(c, id));
+  if (res?.ok) redirect("/app/catalog/products");
+  return res;
 }
 
 export async function createGroupAction(_: FormState, fd: FormData) {
