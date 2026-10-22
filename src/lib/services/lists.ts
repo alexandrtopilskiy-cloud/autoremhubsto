@@ -21,6 +21,52 @@ function clientMatch(q: string): Prisma.ClientWhereInput[] {
   ];
 }
 
+/**
+ * Поиск в справочнике клиентов: каждое слово запроса должно найтись хотя бы в одном поле клиента,
+ * его контактов или автомобилей («иванов kia 78» — Ивановы с Kia и «78» в номере, телефоне или ID).
+ */
+export function clientWords(q: string): Prisma.ClientWhereInput[] {
+  return q
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 8)
+    .map((w) => ({
+      OR: [
+        { name: ci(w) },
+        { code: { contains: w } },
+        { phone: { contains: w } },
+        { email: ci(w) },
+        { inn: { contains: w } },
+        { kpp: { contains: w } },
+        { ogrn: { contains: w } },
+        { legalAddress: ci(w) },
+        { actualAddress: ci(w) },
+        { postalAddress: ci(w) },
+        { comment: ci(w) },
+        { source: ci(w) },
+        {
+          contacts: {
+            some: { OR: [{ phone: { contains: w } }, { lastName: ci(w) }, { firstName: ci(w) }, { middleName: ci(w) }, { note: ci(w) }] },
+          },
+        },
+        {
+          vehicles: {
+            some: {
+              OR: [
+                { plate: { contains: plate(w) } },
+                { vin: { contains: w.toUpperCase() } },
+                { make: ci(w) },
+                { model: ci(w) },
+                { frame: ci(w) },
+                { note: ci(w) },
+              ],
+            },
+          },
+        },
+      ],
+    }));
+}
+
 // ---------- заказ-наряды ----------
 
 export const ORDER_SORTS = ["number", "date", "client", "total", "due"] as const;
@@ -118,15 +164,14 @@ export const CLIENT_SORTS = ["name", "code", "created"] as const;
 export const CLIENT_FILTERS = ["archived", "source", "kind"] as const;
 export type ClientQuery = ListQuery<(typeof CLIENT_SORTS)[number]>;
 
-export async function searchClients(companyId: string, q: ClientQuery, tz: number) {
+export async function searchClients(companyId: string, q: ClientQuery) {
   const { archived, source, kind } = q.f;
   const where: Prisma.ClientWhereInput = {
     companyId,
     archived: archived === "1",
     ...(source ? { source: source === "none" ? null : source } : {}),
     ...(kind === "PERSON" || kind === "ENTREPRENEUR" || kind === "LEGAL" ? { kind } : {}),
-    ...(periodWhere(q, tz) ? { createdAt: periodWhere(q, tz) } : {}),
-    ...(q.q ? { OR: [...clientMatch(q.q), { email: ci(q.q) }, { inn: { contains: q.q } }] } : {}),
+    ...(q.q ? { AND: clientWords(q.q) } : {}),
   };
   // сначала только id для сортировки (имена — по алфавиту без учёта регистра), затем строки нужной страницы
   const keys = await prisma.client.findMany({
@@ -146,7 +191,7 @@ export async function searchClients(companyId: string, q: ClientQuery, tz: numbe
 
 /** Клиент для панели просмотра: автомобили, последние заказ-наряды и общий долг. */
 export async function clientPreview(companyId: string, id: string) {
-  const c = await prisma.client.findFirst({ where: { id, companyId }, include: { vehicles: { orderBy: { createdAt: "asc" } } } });
+  const c = await prisma.client.findFirst({ where: { id, companyId }, include: { vehicles: { orderBy: [{ code: "asc" }, { createdAt: "asc" }] }, contacts: { orderBy: [{ sort: "asc" }, { code: "asc" }] } } });
   if (!c) return null;
   const orders = (
     await prisma.workOrder.findMany({

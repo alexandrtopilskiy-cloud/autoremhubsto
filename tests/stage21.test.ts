@@ -222,3 +222,32 @@ describe("загрузка выгрузки АвтоДилера", () => {
     expect(await prisma.client.count({ where: { companyId: a } })).toBe(0);
   });
 });
+
+describe("поиск в справочнике клиентов", () => {
+  it("по всем полям и по нескольким словам сразу", async () => {
+    const { searchClients } = await import("@/lib/services/lists");
+    const { parseListQuery } = await import("@/lib/list-query");
+    const { CLIENT_FILTERS, CLIENT_SORTS } = await import("@/lib/services/lists");
+    const a = await company();
+    const q = (text: string) => parseListQuery({ q: text }, { sorts: CLIENT_SORTS, sort: "name", dir: "asc", filters: CLIENT_FILTERS });
+    const names = async (text: string) => (await searchClients(a, q(text))).rows.map((c) => c.name);
+
+    const ivanovKia = await createClient(a, { name: "", legalAddress: "Санкт-Петербург, Невский 1" }, { lastName: "Иванов", firstName: "Пётр", phone: "+79110000001" });
+    await addVehicle(a, ivanovKia.id, { make: "Kia", model: "Rio", plate: "A777AA78" });
+    const ivanovLada = await createClient(a, { name: "Иванов Сергей" });
+    await addVehicle(a, ivanovLada.id, { make: "Lada", model: "Vesta", vin: "XTA21099071234567" });
+    const romashka = await createClient(a, { name: "ООО Ромашка", kind: "LEGAL", inn: "7701234567" }, { lastName: "Смирнова", phone: "+79220000002" });
+    await addContact(a, romashka.id, { lastName: "Кузнецов", phone: "+79330000003" });
+
+    expect(await names("иванов")).toEqual(["Иванов Пётр", "Иванов Сергей"]);
+    expect(await names("иванов kia")).toEqual(["Иванов Пётр"]);
+    expect(await names("  ИВАНОВ   xta2109 ")).toEqual(["Иванов Сергей"]);
+    expect(await names("a777")).toEqual(["Иванов Пётр"]);
+    expect(await names("невский")).toEqual(["Иванов Пётр"]);
+    expect(await names("кузнецов")).toEqual(["ООО Ромашка"]);
+    expect(await names("79330000003")).toEqual(["ООО Ромашка"]);
+    expect(await names("770123 смирнова")).toEqual(["ООО Ромашка"]);
+    expect(await names(romashka.code!)).toEqual(["ООО Ромашка"]);
+    expect(await names("иванов ромашка")).toEqual([]);
+  });
+});

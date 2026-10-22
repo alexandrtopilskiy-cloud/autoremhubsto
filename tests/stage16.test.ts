@@ -139,7 +139,7 @@ describe("единые списки", () => {
     await setClientArchived(a, gone.id, true);
     await createClient(b, { name: "Чужой" });
 
-    const names = async (sp: Record<string, string>) => (await searchClients(a, clients(sp), TZ)).rows.map((c) => c.name);
+    const names = async (sp: Record<string, string>) => (await searchClients(a, clients(sp))).rows.map((c) => c.name);
     expect(await names({})).toEqual(["алексеев", "Борисов", "Ворошилов", "ООО Ромашка"]);
     expect(await names({ dir: "desc" })).toEqual(["ООО Ромашка", "Ворошилов", "Борисов", "алексеев"]);
     expect(await names({ archived: "1" })).toEqual(["Архивный"]);
