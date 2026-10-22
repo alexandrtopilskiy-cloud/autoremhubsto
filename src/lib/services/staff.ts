@@ -6,34 +6,83 @@ import { NotFoundError, UserError } from "../errors";
 import { parsePermissions, PRESETS } from "../permissions";
 import { ownEmployee } from "../tenant";
 
+const optText = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? v : null));
+const optDate = z
+  .union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Неверная дата")])
+  .optional()
+  .transform((v) => (v ? new Date(`${v}T00:00:00Z`) : null));
+
+export const EMPLOYEE_KINDS = [
+  { value: "MANAGER", label: "Менеджеры", one: "менеджер" },
+  { value: "EXECUTOR", label: "Исполнители", one: "исполнитель" },
+] as const;
+
+/** Карточка сотрудника: справочные данные и даты работы. Проценты задаются отдельно (updatePayScheme). */
 export const employeeSchema = z.object({
-  name: z.string().trim().min(2, "Укажите имя сотрудника"),
-  position: z
+  kind: z.enum(["MANAGER", "EXECUTOR"]).optional(),
+  name: z.string().trim().min(2, "Укажите ФИО сотрудника"),
+  position: optText,
+  phone: optText,
+  address: optText,
+  passportSeries: z
     .string()
     .trim()
     .optional()
-    .transform((v) => (v ? v : null)),
-  workPercent: z.coerce.number().int().min(0).max(100).default(0),
-  salesPercent: z.coerce.number().int().min(0).max(100).default(0),
-  active: z
-    .union([z.boolean(), z.literal("on"), z.literal("")])
+    .transform((v) => v?.replace(/\s+/g, "") || null)
+    .refine((v) => v === null || /^\d{4}$/.test(v), "Серия паспорта — 4 цифры"),
+  passportNumber: z
+    .string()
+    .trim()
     .optional()
-    .transform((v) => v === true || v === "on"),
+    .transform((v) => v?.replace(/\s+/g, "") || null)
+    .refine((v) => v === null || /^\d{6}$/.test(v), "Номер паспорта — 6 цифр"),
+  hiredAt: optDate,
+  firedAt: optDate,
 });
 
-export function listAllEmployees(companyId: string) {
-  return prisma.employee.findMany({ where: { companyId }, orderBy: [{ active: "desc" }, { name: "asc" }] });
+/** Уволенный с наступившей даты не выбирается в новых документах. */
+const withActive = <T extends { firedAt: Date | null }>(d: T) => ({ ...d, active: !d.firedAt || d.firedAt > new Date() });
+
+/** Работает ли сотрудник сегодня: дата увольнения не наступила. */
+export const isWorking = (e: { active: boolean; firedAt: Date | null }) => e.active && (!e.firedAt || e.firedAt > new Date());
+
+export function listAllEmployees(companyId: string, kind?: "MANAGER" | "EXECUTOR") {
+  return prisma.employee.findMany({
+    where: { companyId, ...(kind && { kind }) },
+    include: { user: { select: { email: true } } },
+    orderBy: [{ active: "desc" }, { name: "asc" }],
+  });
 }
 
 export async function createEmployee(companyId: string, input: unknown) {
-  const data = employeeSchema.parse({ active: true, ...(input as object) });
-  return prisma.employee.create({ data: { ...data, companyId } });
+  const { workPercent, salesPercent, ...rest } = input as Record<string, unknown>;
+  const data = withActive(employeeSchema.parse(rest));
+  const pct = (v: unknown) => Math.min(100, Math.max(0, Math.trunc(Number(v) || 0)));
+  return prisma.employee.create({ data: { ...data, workPercent: pct(workPercent), salesPercent: pct(salesPercent), companyId } });
 }
 
 export async function updateEmployee(companyId: string, id: string, input: unknown) {
   await ownEmployee(prisma, companyId, id);
-  const data = employeeSchema.parse(input);
+  const { kind: _kind, ...data } = withActive(employeeSchema.parse(input));
   return prisma.employee.update({ where: { id }, data });
+}
+
+/** Связывает пользователя (логин) с менеджером из справочника сотрудников; пустой employeeId снимает связь. */
+export async function linkMemberEmployee(companyId: string, membershipId: string, employeeId: string) {
+  const m = await prisma.membership.findFirst({ where: { id: membershipId, companyId } });
+  if (!m) throw new UserError("Пользователь не найден");
+  return prisma.$transaction(async (tx) => {
+    await tx.employee.updateMany({ where: { companyId, userId: m.userId }, data: { userId: null } });
+    if (employeeId) {
+      const e = await ownEmployee(tx, companyId, employeeId);
+      if (e.kind !== "MANAGER") throw new UserError("Связать с логином можно только менеджера");
+      await tx.employee.update({ where: { id: e.id }, data: { userId: m.userId } });
+    }
+  });
 }
 
 export const memberSchema = z.object({

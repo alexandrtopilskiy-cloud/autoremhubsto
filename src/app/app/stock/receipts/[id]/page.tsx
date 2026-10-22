@@ -35,7 +35,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     <div className="flex flex-col gap-4">
       <StockTabs active="receipts" />
       <Allowed perms={s.perms} section="stock" flag="costs">
-        <PageTitle
+        <PageTitle tab={`ПН-${r.number}`}
           actions={
             <div className="flex flex-wrap gap-2">
               {!posted && can(s.perms, "stock", "FULL") && (

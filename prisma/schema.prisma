@@ -86,6 +86,13 @@ enum DocKind {
   ORDER
   ESTIMATE
   RECEIPT
+  EMPLOYEE // личные документы сотрудника (скан паспорта и т. п.), доступ только с правом «staff»
+}
+
+// Менеджер работает в программе (приёмщик, % менеджера), исполнитель выполняет работы (% исполнителя).
+enum EmployeeKind {
+  MANAGER
+  EXECUTOR
 }
 
 enum EstimateStatus {
@@ -183,6 +190,7 @@ model User {
   memberships   Membership[]
   sessions      Session[]
   partsRequests PartsRequest[]
+  employees     Employee[]
 }
 
 model Membership {
@@ -287,8 +295,17 @@ model Employee {
   id             String          @id @default(cuid())
   companyId      String
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name           String
+  kind           EmployeeKind    @default(EXECUTOR)
+  name           String // ФИО
   position       String?
+  phone          String?
+  address        String? // адрес проживания
+  passportSeries String?
+  passportNumber String?
+  hiredAt        DateTime?       @db.Date
+  firedAt        DateTime?       @db.Date // заполнена — уволен, в новые документы не выбирается
+  userId         String? // логин в программу (для менеджеров), связывается в «Пользователи и доступ»
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   workPercent    Int             @default(0) // % исполнителя от его работ
   workBase       PayBase         @default(FINAL) // PRICE или FINAL
   salesPercent   Int             @default(0) // % менеджера от работ его заказ-нарядов (и от товаров, если itemsPercent пуст)

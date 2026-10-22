@@ -45,7 +45,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
     <div className="flex flex-col gap-4">
       <StockTabs active="sales" />
       <Allowed perms={s.perms} section="stock">
-        <PageTitle
+        <PageTitle tab={`РТ-${sale.number}`}
           actions={
             <div className="flex gap-2">
               {!posted && can(s.perms, "stock", "FULL") && (

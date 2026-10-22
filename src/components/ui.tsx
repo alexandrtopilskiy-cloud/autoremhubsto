@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import { TabTitle } from "./app-shell/tab-title";
 
 export function Field({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
   return (
@@ -43,14 +44,18 @@ export function PageTitle({
   actions,
   create,
   createLabel = "Добавить",
+  tab,
 }: {
   children: ReactNode;
   actions?: ReactNode;
   create?: string;
   createLabel?: string;
+  /** Название вкладки рабочей области для документа или карточки. */
+  tab?: string;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+      {tab && <TabTitle title={tab} />}
       <div className="flex items-center gap-4">
         {create &&
           // ссылку #new открываем обычным переходом: только так срабатывает :target у формы

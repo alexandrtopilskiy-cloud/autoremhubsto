@@ -26,7 +26,7 @@ export async function registerCompany(input: unknown) {
       data: { email: data.email, name: data.name, passwordHash },
     });
     await tx.membership.create({ data: { userId: user.id, companyId: company.id, role: "OWNER" } });
-    await tx.employee.create({ data: { companyId: company.id, name: data.name, position: "Руководитель" } });
+    await tx.employee.create({ data: { companyId: company.id, kind: "MANAGER", name: data.name, position: "Руководитель", userId: user.id } });
     await tx.cashbox.createMany({
       data: [
         { companyId: company.id, name: "Касса", kind: "CASH" },

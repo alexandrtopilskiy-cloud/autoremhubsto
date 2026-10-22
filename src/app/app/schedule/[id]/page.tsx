@@ -36,7 +36,7 @@ export default async function AppointmentPage({ params }: { params: Promise<{ id
   const reminder = `Здравствуйте${who ? `, ${who}` : ""}! Напоминаем о записи в ${company.name} ${dateLabel(date)} в ${localTime(a.startAt, tz)}.`;
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
+      <PageTitle tab={`Запись ${a.client?.name ?? dateLabel(date)}`}
         actions={
           a.order ? (
             <Link href={`/app/orders/${a.order.id}`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50">

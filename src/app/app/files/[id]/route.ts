@@ -1,13 +1,14 @@
 import { currentSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
-import { getAttachment, INLINE_MIME } from "@/lib/services/attachments";
+import { getAttachment, INLINE_MIME, viewableKinds } from "@/lib/services/attachments";
 
 /** Выдача вложения. Картинки и PDF открываются в браузере, остальное скачивается. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const s = await currentSession();
   if (!s) return new Response("Нужно войти", { status: 401 });
   const { id } = await params;
-  const a = await getAttachment(s.companyId, id).catch((e) => {
+  // файл чужого раздела (например, паспорт сотрудника без права «staff») выглядит как несуществующий
+  const a = await getAttachment(s.companyId, id, viewableKinds(s.perms)).catch((e) => {
     if (e instanceof NotFoundError) return null;
     throw e;
   });
