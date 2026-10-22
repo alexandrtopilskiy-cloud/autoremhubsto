@@ -73,9 +73,9 @@ async function setup() {
 const qtyOf = async (companyId: string, productId: string) => (await stockBalances(companyId)).find((p) => p.id === productId)!.qty;
 
 describe("реализация", () => {
-  it("продажа со скидкой клиента списывает товар, оплата идёт в кассу, долг виден в отчёте", async () => {
+  it("продажа со скидкой клиента на товары списывает товар, оплата идёт в кассу, долг виден в отчёте", async () => {
     const { a, b, oil } = await setup();
-    const c = await createClient(a, { name: "Иванов", discount: 10 });
+    const c = await createClient(a, { name: "Иванов", partsDiscount: 10 });
     const s = await createSale(a, { clientId: c.id });
     await expect(addSaleLine(b, s.id, { productId: oil.id, qty: 1 })).rejects.toBeInstanceOf(NotFoundError);
     await addSaleLine(a, s.id, { productId: oil.id, qty: 3 });

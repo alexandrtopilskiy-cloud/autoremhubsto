@@ -218,10 +218,14 @@ export default async function OrderPage({
                 {o.client.phone ?? "не указан"}
                 <ContactLinks phone={o.client.phone} text={message} />
               </dd>
-              {o.client.discount > 0 && (
+              {(o.client.discount > 0 || o.client.partsDiscount > 0) && (
                 <>
                   <dt className="text-slate-500">Скидка</dt>
-                  <dd>{o.client.discount}%</dd>
+                  <dd>
+                    {[o.client.discount > 0 && `работы ${o.client.discount}%`, o.client.partsDiscount > 0 && `товары ${o.client.partsDiscount}%`]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </dd>
                 </>
               )}
               {o.client.source && (
@@ -421,7 +425,7 @@ export default async function OrderPage({
                   <Input name="normHours" defaultValue="1" inputMode="decimal" className="w-24" />
                 </Field>
                 <Field label="Цена за н/ч, ₽">
-                  <Input name="price" defaultValue={company.hourPrice ? money(company.hourPrice) : ""} inputMode="decimal" className="w-28" required />
+                  <Input name="price" defaultValue={(o.client.hourPrice ?? company.hourPrice) ? money(o.client.hourPrice ?? company.hourPrice) : ""} inputMode="decimal" className="w-28" required />
                 </Field>
                 <Field label="Скидка, %">
                   <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.discount} className="w-20" />
@@ -504,7 +508,7 @@ export default async function OrderPage({
                   <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
                 </Field>
                 <Field label="Скидка, %">
-                  <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.discount} className="w-20" />
+                  <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.partsDiscount} className="w-20" />
                 </Field>
                 <Submit variant="ghost">Добавить</Submit>
               </ActionForm>
@@ -524,7 +528,7 @@ export default async function OrderPage({
                   <Input name="price" inputMode="decimal" className="w-28" required />
                 </Field>
                 <Field label="Скидка, %">
-                  <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.discount} className="w-20" />
+                  <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.partsDiscount} className="w-20" />
                 </Field>
                 <Submit variant="ghost">Добавить</Submit>
               </ActionForm>

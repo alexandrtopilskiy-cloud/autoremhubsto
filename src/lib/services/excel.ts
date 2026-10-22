@@ -12,6 +12,7 @@ import { parseRub } from "../money";
 import type { Section } from "../permissions";
 import { productSchema, workSchema } from "./catalog";
 import { CLIENT_KINDS, clientSchema, vehicleSchema } from "./clients";
+import { applyAutodealer, isAutodealer, parseAdRow } from "./excel-autodealer";
 
 type Tx = Prisma.TransactionClient;
 type Col = { key: string; title: string; hint: string; width?: number; required?: boolean };
@@ -23,7 +24,7 @@ export const EXCEL_KINDS = {
     label: "Клиенты и автомобили",
     file: "Клиенты",
     section: "clients",
-    keys: "Клиент ищется по телефону, а если телефона нет или он не найден, по имени. Автомобиль клиента ищется по VIN, затем по госномеру, а без них по марке и модели.",
+    keys: "Клиент ищется по телефону, а если телефона нет или он не найден, по имени. Автомобиль клиента ищется по VIN, затем по госномеру, а без них по марке и модели. Можно загрузить и выгрузку клиентов из АвтоДилера (первая колонка Idклиента): клиенты, контакты, банковские счета и автомобили переносятся с их ID, повторная загрузка обновляет клиентов по ID.",
     cols: [
       { key: "name", title: "Клиент", hint: "Имя или название организации", width: 30, required: true },
       { key: "kind", title: "Тип", hint: "Физлицо, ИП или Организация; пусто — физлицо", width: 14 },
@@ -168,8 +169,7 @@ function cellText(v: ExcelJS.CellValue): string {
 
 const norm = (s: string) => s.toLowerCase().replace(/\*/g, "").replace(/\s+/g, " ").trim();
 
-/** Строки первого листа: ключ колонки → текст ячейки, с номером строки в файле. */
-async function readRows(kind: ExcelKind, file: Buffer): Promise<{ row: number; v: Values }[]> {
+async function firstSheet(file: Buffer) {
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.load(file as unknown as ArrayBuffer);
@@ -178,6 +178,32 @@ async function readRows(kind: ExcelKind, file: Buffer): Promise<{ row: number; v
   }
   const ws = wb.worksheets[0];
   if (!ws) throw new UserError("В файле нет листов");
+  return ws;
+}
+
+/** Строки выгрузки АвтоДилера: доступ к ячейке по названию колонки. */
+function readAdRows(ws: ExcelJS.Worksheet) {
+  const at = new Map<string, number>();
+  ws.getRow(1).eachCell((cell, n) => {
+    const t = norm(cellText(cell.value));
+    if (!at.has(t)) at.set(t, n);
+  });
+  const rows: { row: number; cell: (title: string) => string }[] = [];
+  ws.eachRow((r, n) => {
+    if (n === 1) return;
+    const cell = (title: string) => {
+      const col = at.get(norm(title));
+      return col ? cellText(r.getCell(col).value) : "";
+    };
+    if (r.actualCellCount > 0) rows.push({ row: n, cell });
+  });
+  if (rows.length === 0) throw new UserError("В файле нет строк для загрузки");
+  if (rows.length > MAX_ROWS) throw new UserError(`За раз можно загрузить до ${MAX_ROWS} строк, в файле ${rows.length}`);
+  return rows;
+}
+
+/** Строки первого листа: ключ колонки → текст ячейки, с номером строки в файле. */
+function readRows(kind: ExcelKind, ws: ExcelJS.Worksheet): { row: number; v: Values }[] {
   const def = EXCEL_KINDS[kind];
   const at = new Map<string, number>();
   ws.getRow(1).eachCell((cell, n) => {
@@ -408,10 +434,22 @@ export async function importExcel(
   file: Buffer,
   opts: { save: boolean; canDiscount?: boolean },
 ): Promise<ImportReport> {
-  const rows = await readRows(kind, file);
+  const ws = await firstSheet(file);
   const out: Counts = { created: 0, updated: 0, vehicles: 0, errors: [] };
   let apply: (tx: Tx) => Promise<void>;
-  if (kind === "products") {
+  if (kind === "clients" && isAutodealer(ws, cellText)) {
+    // выгрузка АвтоДилера: одна строка — клиент со всеми контактами, счетами и автомобилями
+    const parsed = readAdRows(ws).flatMap(({ row, cell }) => {
+      try {
+        return [{ row, x: parseAdRow(cell) }];
+      } catch (e) {
+        out.errors.push({ row, message: rowError(e) });
+        return [];
+      }
+    });
+    apply = (tx) => applyAutodealer(tx, companyId, parsed, out, opts.canDiscount ?? false);
+  } else if (kind === "products") {
+    const rows = readRows(kind, ws);
     const parsed = parseAll(rows, parseProduct, out.errors);
     const seen = new Map<string, number>();
     for (const { row, x } of parsed) {
@@ -422,10 +460,10 @@ export async function importExcel(
     }
     apply = (tx) => applyProducts(tx, companyId, parsed, out);
   } else if (kind === "works") {
-    const parsed = parseAll(rows, parseWork, out.errors);
+    const parsed = parseAll(readRows(kind, ws), parseWork, out.errors);
     apply = (tx) => applyWorks(tx, companyId, parsed, out);
   } else {
-    const parsed = parseAll(rows, parseClient, out.errors);
+    const parsed = parseAll(readRows(kind, ws), parseClient, out.errors);
     apply = (tx) => applyClients(tx, companyId, parsed, out, opts.canDiscount ?? false);
   }
   const fail = () => ({ created: 0, updated: 0, vehicles: 0, errors: out.errors.sort((a, b) => a.row - b.row), saved: false });
@@ -437,7 +475,7 @@ export async function importExcel(
         await apply(tx);
         if (out.errors.length || !opts.save) throw new Rollback();
       },
-      { timeout: 120_000, maxWait: 10_000 },
+      { timeout: 600_000, maxWait: 10_000 },
     );
   } catch (e) {
     if (!(e instanceof Rollback)) throw e;

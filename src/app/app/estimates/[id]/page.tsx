@@ -166,7 +166,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
                 <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
               </Field>
               <Field label="Скидка, %">
-                <Input name="discount" type="number" min={0} max={100} defaultValue={e.client.discount} className="w-20" />
+                <Input name="discount" type="number" min={0} max={100} defaultValue={e.client.partsDiscount} className="w-20" />
               </Field>
               <Submit variant="ghost">Добавить</Submit>
             </ActionForm>
@@ -190,12 +190,12 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
                   name="price"
                   inputMode="decimal"
                   className="w-28"
-                  defaultValue={sec.kind === "WORK" && company.hourPrice ? money(company.hourPrice) : ""}
+                  defaultValue={sec.kind === "WORK" && (e.client.hourPrice ?? company.hourPrice) ? money(e.client.hourPrice ?? company.hourPrice) : ""}
                   required
                 />
               </Field>
               <Field label="Скидка, %">
-                <Input name="discount" type="number" min={0} max={100} defaultValue={e.client.discount} className="w-20" />
+                <Input name="discount" type="number" min={0} max={100} defaultValue={sec.kind === "WORK" ? e.client.discount : e.client.partsDiscount} className="w-20" />
               </Field>
               <Submit variant="ghost">Добавить</Submit>
             </ActionForm>
