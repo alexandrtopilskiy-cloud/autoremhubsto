@@ -71,13 +71,34 @@ export const EXCEL_KINDS = {
       { key: "executorPercent", title: "% исполнителю", hint: "Свой процент исполнителю за эту работу", width: 13 },
     ],
   },
-} satisfies Record<string, { label: string; file: string; section: Section; keys: string; cols: Col[] }>;
+  cars: {
+    label: "Справочник автомобилей",
+    file: "Справочник_ТС",
+    section: "catalog",
+    maxRows: 100_000,
+    keys: "Файл заменяет справочник целиком: модификации, которых в нём нет, из справочника убираются. Автомобили клиентов не меняются.",
+    cols: [
+      { key: "make", title: "Марка", hint: "", width: 16, required: true },
+      { key: "model", title: "Модель", hint: "", width: 20, required: true },
+      { key: "yearFrom", title: "Модельный год от", hint: "Например 2017", width: 10 },
+      { key: "yearTo", title: "Модельный год до", hint: "Например 2024", width: 10 },
+      { key: "body", title: "Номер кузова (кузов)", hint: "Поколение, например XV70", width: 18 },
+      { key: "engineCode", title: "Индекс двигателя", hint: "", width: 16 },
+      { key: "engineVolume", title: "Объем двигателя, л.", hint: "Например 2,5", width: 10 },
+      { key: "power", title: "Мощность л.с.", hint: "Целое число", width: 10 },
+      { key: "transmission", title: "Вид трансмиссии", hint: "МКПП, АКПП, Робот, Вариатор (CVT)…", width: 14 },
+      { key: "drive", title: "Тип привода", hint: "Передний, Задний, Полный (4WD)", width: 14 },
+      { key: "engineType", title: "Тип двигателя", hint: "Бензин, Дизель, Гибрид…", width: 14 },
+    ],
+  },
+} satisfies Record<string, { label: string; file: string; section: Section; keys: string; cols: Col[]; maxRows?: number }>;
 
 export type ExcelKind = keyof typeof EXCEL_KINDS;
 export const isExcelKind = (v: string): v is ExcelKind => v in EXCEL_KINDS;
 
-/** Сколько строк можно загрузить за раз. */
+/** Сколько строк можно загрузить за раз; у справочника автомобилей свой предел. */
 export const MAX_ROWS = 5000;
+const maxRows = (kind: ExcelKind) => (kind === "cars" ? EXCEL_KINDS.cars.maxRows : MAX_ROWS);
 
 // ---------- выгрузка ----------
 
@@ -119,6 +140,25 @@ async function exportRows(companyId: string, kind: ExcelKind): Promise<Record<st
       minQty: dec(p.minQty),
     }));
   }
+  if (kind === "cars") {
+    const rows = await prisma.carModification.findMany({
+      where: { companyId },
+      orderBy: [{ make: "asc" }, { model: "asc" }, { yearFrom: "asc" }, { body: "asc" }, { engineCode: "asc" }],
+    });
+    return rows.map(({ make, model, yearFrom, yearTo, body, engineCode, engineVolume, power, transmission, drive, engineType }) => ({
+      make,
+      model,
+      yearFrom,
+      yearTo,
+      body,
+      engineCode,
+      engineVolume: /^\d+(\.\d+)?$/.test(engineVolume) ? Number(engineVolume) : engineVolume,
+      power: power ?? "Нет данных",
+      transmission,
+      drive,
+      engineType,
+    }));
+  }
   const works = await prisma.work.findMany({ where: { companyId }, include: { group: true }, orderBy: { name: "asc" } });
   const pos = (w: (typeof works)[number]) => w.group?.position ?? Number.MAX_SAFE_INTEGER;
   return works.sort((a, b) => pos(a) - pos(b)).map((w) => ({ group: w.group?.name, name: w.name, normHours: dec(w.normHours), price: rub(w.price), executorPercent: w.executorPercent }));
@@ -151,7 +191,8 @@ export async function exportExcel(companyId: string, kind: ExcelKind, empty = fa
 // ---------- загрузка ----------
 
 export type ImportError = { row: number; message: string };
-export type ImportReport = { created: number; updated: number; vehicles: number; errors: ImportError[]; saved: boolean };
+/** replaced — сколько строк было в справочнике до загрузки, если файл заменяет его целиком. */
+export type ImportReport = { created: number; updated: number; vehicles: number; errors: ImportError[]; saved: boolean; replaced?: number };
 
 function cellText(v: ExcelJS.CellValue): string {
   if (v === null || v === undefined) return "";
@@ -223,7 +264,7 @@ function readRows(kind: ExcelKind, ws: ExcelJS.Worksheet): { row: number; v: Val
     if (Object.values(v).some(Boolean)) rows.push({ row: n, v });
   });
   if (rows.length === 0) throw new UserError("В файле нет строк для загрузки");
-  if (rows.length > MAX_ROWS) throw new UserError(`За раз можно загрузить до ${MAX_ROWS} строк, в файле ${rows.length}`);
+  if (rows.length > maxRows(kind)) throw new UserError(`За раз можно загрузить до ${maxRows(kind)} строк, в файле ${rows.length}`);
   return rows;
 }
 
@@ -292,6 +333,33 @@ function parseClient(v: Values) {
   return { c, vehicle, has: (k: string) => !blank(v[k]) };
 }
 
+/** Строка справочника автомобилей. «Нет данных» в годах и мощности — пусто; объём — с одним знаком, как в Excel (2 → 2.0). */
+function parseCar(v: Values) {
+  const text = (k: string) => (v[k] ?? "").replace(/\s+/g, " ").trim();
+  const int = (k: string, title: string) => {
+    const t = text(k);
+    if (!/\d/.test(t)) return null;
+    if (!/^\d+$/.test(t)) throw new UserError(`${title}: введите целое число`);
+    return Number(t);
+  };
+  if (!text("make")) throw new UserError("Не указана марка");
+  if (!text("model")) throw new UserError("Не указана модель");
+  const vol = text("engineVolume").replace(",", ".");
+  return {
+    make: text("make"),
+    model: text("model"),
+    yearFrom: int("yearFrom", "Модельный год от"),
+    yearTo: int("yearTo", "Модельный год до"),
+    body: text("body"),
+    engineCode: text("engineCode"),
+    engineVolume: /^\d+(\.\d+)?$/.test(vol) ? Number(vol).toFixed(1) : vol,
+    power: int("power", "Мощность л.с."),
+    transmission: text("transmission"),
+    drive: text("drive"),
+    engineType: text("engineType"),
+  };
+}
+
 class Rollback extends Error {}
 type Parsed<F extends (v: Values) => unknown> = { row: number; x: ReturnType<F> }[];
 
@@ -305,7 +373,15 @@ function parseAll<T>(rows: { row: number; v: Values }[], fn: (v: Values) => T, e
     }
   });
 }
-type Counts = { created: number; updated: number; vehicles: number; errors: ImportError[] };
+type Counts = { created: number; updated: number; vehicles: number; errors: ImportError[]; replaced?: number };
+
+/** Справочник автомобилей заменяется целиком: старые строки удаляются, строки файла добавляются. */
+async function applyCars(tx: Tx, companyId: string, rows: Parsed<typeof parseCar>, out: Counts) {
+  out.replaced = (await tx.carModification.deleteMany({ where: { companyId } })).count;
+  const data = rows.map(({ x }) => ({ ...x, companyId }));
+  for (let i = 0; i < data.length; i += 5000) await tx.carModification.createMany({ data: data.slice(i, i + 5000) });
+  out.created = data.length;
+}
 
 async function applyProducts(tx: Tx, companyId: string, rows: Parsed<typeof parseProduct>, out: Counts) {
   const all = await tx.product.findMany({ where: { companyId }, select: { id: true, name: true, article: true, barcode: true } });
@@ -477,6 +553,9 @@ export async function importExcel(
       else seen.set(code, row);
     }
     apply = (tx) => applyProducts(tx, companyId, parsed, out);
+  } else if (kind === "cars") {
+    const parsed = parseAll(readRows(kind, ws), parseCar, out.errors);
+    apply = (tx) => applyCars(tx, companyId, parsed, out);
   } else if (kind === "works") {
     const parsed = parseAll(readRows(kind, ws), parseWork, out.errors);
     apply = (tx) => applyWorks(tx, companyId, parsed, out);
@@ -498,7 +577,7 @@ export async function importExcel(
   } catch (e) {
     if (!(e instanceof Rollback)) throw e;
     if (out.errors.length) return fail();
-    return { created: out.created, updated: out.updated, vehicles: out.vehicles, errors: [], saved: false };
+    return { created: out.created, updated: out.updated, vehicles: out.vehicles, errors: [], saved: false, replaced: out.replaced };
   }
-  return { created: out.created, updated: out.updated, vehicles: out.vehicles, errors: [], saved: true };
+  return { created: out.created, updated: out.updated, vehicles: out.vehicles, errors: [], saved: true, replaced: out.replaced };
 }

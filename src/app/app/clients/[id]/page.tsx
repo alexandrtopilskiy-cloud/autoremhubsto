@@ -25,6 +25,7 @@ import {
 import { BankAccountFields, ClientFields, ContactFields, VehicleFields } from "../client-fields";
 import { listCategories } from "@/lib/services/prices";
 import { dicts } from "@/lib/services/dictionaries";
+import { carModelsByMake } from "@/lib/services/car-catalog";
 
 /** Вкладки карточки; выбранная хранится в адресе (?tab=), чтобы после сохранения форм оставаться на ней. */
 const TABS = [
@@ -48,7 +49,11 @@ export default async function ClientPage({
   const s = await requireSession();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const tab: Tab = TABS.find((x) => x.key === sp.tab)?.key ?? "main";
-  const [lists, categories] = await Promise.all([dicts(s.companyId, ["COLOR", "CLIENT_SOURCE"]), listCategories(s.companyId)]);
+  const [lists, categories, carCatalog] = await Promise.all([
+    dicts(s.companyId, ["COLOR", "CLIENT_SOURCE"]),
+    listCategories(s.companyId),
+    carModelsByMake(s.companyId),
+  ]);
   const client = await getClient(s.companyId, id).catch((e) => {
     if (e instanceof NotFoundError) notFound();
     throw e;
@@ -232,7 +237,7 @@ export default async function ClientPage({
               }
             >
               <ActionForm key={car.id} action={updateVehicleAction.bind(null, client.id, car.id)} className="flex flex-col gap-3">
-                <VehicleFields v={car} colors={lists.COLOR} />
+                <VehicleFields v={car} colors={lists.COLOR} catalog={carCatalog} />
                 <div>
                   <Submit>Сохранить автомобиль</Submit>
                 </div>
@@ -240,9 +245,9 @@ export default async function ClientPage({
             </Card>
           ) : (
             <Card title="Новый автомобиль">
-              <p className="mb-3 text-xs text-slate-500">Введите VIN первым: марка и год подставятся сами, модель укажите вручную.</p>
+              <p className="mb-3 text-xs text-slate-500">Введите VIN первым: марка и год подставятся сами. Модель выберите из справочника — кузов, двигатель, трансмиссия и привод подскажутся по ней.</p>
               <ActionForm action={addVehicleAction.bind(null, client.id)} reset className="flex flex-col gap-3">
-                <VehicleFields colors={lists.COLOR} />
+                <VehicleFields colors={lists.COLOR} catalog={carCatalog} />
                 <div>
                   <Submit>Добавить автомобиль</Submit>
                 </div>

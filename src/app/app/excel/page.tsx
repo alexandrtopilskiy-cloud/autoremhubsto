@@ -27,27 +27,28 @@ export default async function ExcelPage() {
       {kinds.map((k) => {
         const def = EXCEL_KINDS[k];
         return (
-          <Card
-            key={k}
-            title={def.label}
-            actions={
-              <div className="flex flex-wrap gap-2">
-                <a href={`/app/excel/${k}?template=1`} className={link}>
-                  Шаблон
-                </a>
-                <a href={`/app/excel/${k}`} className={link}>
-                  Выгрузить
-                </a>
-              </div>
-            }
-          >
-            <p className="mb-3 text-sm text-slate-600">{def.keys}</p>
-            {can(s.perms, def.section, "CREATE") ? (
-              <ImportForm kind={k} />
-            ) : (
-              <p className="text-sm text-slate-500">Загрузка доступна с правом создавать записи в этом разделе.</p>
-            )}
-          </Card>
+          <div key={k} id={k} className="scroll-mt-4">
+            <Card
+              title={def.label}
+              actions={
+                <div className="flex flex-wrap gap-2">
+                  <a href={`/app/excel/${k}?template=1`} className={link}>
+                    Шаблон
+                  </a>
+                  <a href={`/app/excel/${k}`} className={link}>
+                    Выгрузить
+                  </a>
+                </div>
+              }
+            >
+              <p className="mb-3 text-sm text-slate-600">{def.keys}</p>
+              {can(s.perms, def.section, "CREATE") ? (
+                <ImportForm kind={k} />
+              ) : (
+                <p className="text-sm text-slate-500">Загрузка доступна с правом создавать записи в этом разделе.</p>
+              )}
+            </Card>
+          </div>
         );
       })}
     </div>
