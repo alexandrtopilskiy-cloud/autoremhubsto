@@ -122,47 +122,48 @@ enum PaymentMethod {
 }
 
 model Company {
-  id              String           @id @default(cuid())
-  name            String
-  city            String?
-  hourPrice       Int              @default(0) // стоимость нормочаса по умолчанию, коп.
-  utcOffset       Int              @default(180) // часовой пояс СТО, минуты от UTC (Москва = 180)
-  dayStart        Int              @default(540) // начало рабочего дня, минуты от полуночи
-  dayEnd          Int              @default(1260) // конец рабочего дня
-  createdAt       DateTime         @default(now())
-  memberships     Membership[]
-  organizations   Organization[]
-  clients         Client[]
-  vehicles        Vehicle[]
-  employees       Employee[]
-  works           Work[]
-  products        Product[]
-  workOrders      WorkOrder[]
-  payments        Payment[]
-  counters        Counter[]
-  suppliers       Supplier[]
-  receipts        Receipt[]
-  stockMoves      StockMove[]
-  cashboxes       Cashbox[]
-  cashOps         CashOperation[]
-  workplaces      Workplace[]
-  appointments    Appointment[]
-  attachments     Attachment[]
-  estimates       Estimate[]
-  recommendations Recommendation[]
-  partsRequests   PartsRequest[]
-  sales           Sale[]
-  writeOffs       WriteOff[]
-  inventories     Inventory[]
-  supplierOrders  SupplierOrder[]
-  payrollEntries  PayrollEntry[]
-  roles           CompanyRole[]
-  workGroups      WorkGroup[]
-  productGroups   ProductGroup[]
-  priceCategories PriceCategory[]
-  dictItems       DictionaryItem[]
-  trash           TrashItem[]
-  customDicts     DictKind[]       @default([]) // справочники, которые СТО уже меняла; остальные — стандартные
+  id               String            @id @default(cuid())
+  name             String
+  city             String?
+  hourPrice        Int               @default(0) // стоимость нормочаса по умолчанию, коп.
+  utcOffset        Int               @default(180) // часовой пояс СТО, минуты от UTC (Москва = 180)
+  dayStart         Int               @default(540) // начало рабочего дня, минуты от полуночи
+  dayEnd           Int               @default(1260) // конец рабочего дня
+  createdAt        DateTime          @default(now())
+  memberships      Membership[]
+  organizations    Organization[]
+  clients          Client[]
+  vehicles         Vehicle[]
+  employees        Employee[]
+  works            Work[]
+  products         Product[]
+  workOrders       WorkOrder[]
+  payments         Payment[]
+  counters         Counter[]
+  suppliers        Supplier[]
+  receipts         Receipt[]
+  stockMoves       StockMove[]
+  cashboxes        Cashbox[]
+  cashOps          CashOperation[]
+  workplaces       Workplace[]
+  appointments     Appointment[]
+  attachments      Attachment[]
+  estimates        Estimate[]
+  recommendations  Recommendation[]
+  partsRequests    PartsRequest[]
+  sales            Sale[]
+  writeOffs        WriteOff[]
+  inventories      Inventory[]
+  supplierOrders   SupplierOrder[]
+  payrollEntries   PayrollEntry[]
+  roles            CompanyRole[]
+  workGroups       WorkGroup[]
+  carModifications CarModification[]
+  productGroups    ProductGroup[]
+  priceCategories  PriceCategory[]
+  dictItems        DictionaryItem[]
+  trash            TrashItem[]
+  customDicts      DictKind[]        @default([]) // справочники, которые СТО уже меняла; остальные — стандартные
 }
 
 // Юрлицо или ИП внутри СТО: от его имени оформляются документы.
@@ -341,6 +342,28 @@ model Vehicle {
 
   @@index([companyId, plate])
   @@index([companyId, vin])
+}
+
+// Справочник автомобилей: одна строка — модификация из файла «Справочник ТС» (марка, модель, кузов, двигатель, КПП, привод).
+// Загрузка нового файла заменяет справочник целиком; автомобили клиентов хранят значения текстом и от него не зависят.
+model CarModification {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  make         String
+  model        String
+  yearFrom     Int?
+  yearTo       Int?
+  body         String // номер кузова (поколение), например XV70
+  engineCode   String
+  engineVolume String // л, «2.5»; «Не применимо» у электромобилей
+  power        Int? // л.с.
+  transmission String
+  drive        String
+  engineType   String
+  createdAt    DateTime @default(now())
+
+  @@index([companyId, make, model])
 }
 
 // Исполнитель работ: мастер (не обязательно с логином) или менеджер.

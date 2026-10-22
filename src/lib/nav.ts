@@ -52,6 +52,7 @@ export const MENU: MenuItem[] = [
       { href: "/app/staff", section: "staff", label: "Сотрудники" },
       { href: "/app/catalog/works", section: "catalog", label: "Работы" },
       { href: "/app/catalog/products", section: "catalog", label: "Товары и материалы" },
+      { href: "/app/catalog/cars", section: "catalog", label: "Автомобили" },
       { href: "/app/catalog/prices", section: "catalog", label: "Категории цен" },
       { href: "/app/catalog/dictionaries", section: "catalog", label: "Общие справочники" },
       { href: "/app/excel", section: "catalog", label: "Загрузка из Excel" },

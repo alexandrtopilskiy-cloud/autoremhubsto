@@ -1,6 +1,7 @@
 import { Field, Input, Select } from "@/components/ui";
 import { DictList } from "@/components/dict-list";
 import { VinField } from "@/components/vin-field";
+import { CarSpecFields } from "./car-spec-fields";
 import { GENDERS, VEHICLE_LISTS } from "@/lib/services/clients";
 
 const grid = "grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4";
@@ -187,55 +188,22 @@ type Vehicle = {
   note?: string | null;
 };
 
-/** Все поля автомобиля из выгрузки АвтоДилера плюс цвет. */
-export function VehicleFields({ v = {}, colors = [] }: { v?: Vehicle; colors?: string[] }) {
+/** Все поля автомобиля из выгрузки АвтоДилера плюс цвет; марка, модель и параметры — с подсказками из справочника автомобилей. */
+export function VehicleFields({ v = {}, colors = [], catalog }: { v?: Vehicle; colors?: string[]; catalog: Record<string, string[]> }) {
   return (
     <div className={grid}>
       <VinField defaultValue={v.vin ?? undefined} />
       <Field label="Frame (номер кузова)">
         <Input name="frame" defaultValue={v.frame ?? ""} />
       </Field>
-      <Field label="Марка">
-        <Input name="make" defaultValue={v.make ?? ""} required />
-      </Field>
-      <Field label="Модель">
-        <Input name="model" defaultValue={v.model ?? ""} required />
-      </Field>
       <Field label="Госномер">
         <Input name="plate" defaultValue={v.plate ?? ""} />
-      </Field>
-      <Field label="Год выпуска">
-        <Input name="year" type="number" min={1900} max={2100} defaultValue={v.year ?? ""} />
-      </Field>
-      <Field label="Кузов">
-        <Input name="body" list="car-bodies" defaultValue={v.body ?? ""} />
-        <DictList id="car-bodies" items={VEHICLE_LISTS.body} />
       </Field>
       <Field label="Цвет">
         <Input name="color" list="car-colors" defaultValue={v.color ?? ""} />
         <DictList id="car-colors" items={colors} />
       </Field>
-      <Field label="Тип двигателя">
-        <Input name="engineType" list="car-engines" defaultValue={v.engineType ?? ""} />
-        <DictList id="car-engines" items={VEHICLE_LISTS.engineType} />
-      </Field>
-      <Field label="Индекс двигателя">
-        <Input name="engineCode" defaultValue={v.engineCode ?? ""} />
-      </Field>
-      <Field label="Мощность, л.с.">
-        <Input name="power" type="number" min={1} max={5000} defaultValue={v.power ?? ""} />
-      </Field>
-      <Field label="Объём двигателя, л">
-        <Input name="engineVolume" inputMode="decimal" defaultValue={v.engineVolume ?? ""} />
-      </Field>
-      <Field label="Вид трансмиссии">
-        <Input name="transmission" list="car-gearboxes" defaultValue={v.transmission ?? ""} />
-        <DictList id="car-gearboxes" items={VEHICLE_LISTS.transmission} />
-      </Field>
-      <Field label="Тип привода">
-        <Input name="drive" list="car-drives" defaultValue={v.drive ?? ""} />
-        <DictList id="car-drives" items={VEHICLE_LISTS.drive} />
-      </Field>
+      <CarSpecFields v={v} catalog={catalog} fallback={VEHICLE_LISTS} />
       <Field label="Примечание" className="sm:col-span-2">
         <Input name="note" defaultValue={v.note ?? ""} />
       </Field>

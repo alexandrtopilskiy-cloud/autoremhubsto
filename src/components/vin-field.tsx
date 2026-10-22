@@ -16,7 +16,10 @@ export function VinField({ defaultValue }: { defaultValue?: string }) {
     const form = input.form;
     const fill = (name: string, value?: string | number) => {
       const el = form?.elements.namedItem(name);
-      if (value !== undefined && el instanceof HTMLInputElement && !el.value) el.value = String(value);
+      if (value === undefined || !(el instanceof HTMLInputElement) || el.value) return;
+      el.value = String(value);
+      // подсказки из справочника автомобилей следят за полями формы
+      el.dispatchEvent(new Event("input", { bubbles: true }));
     };
     fill("make", d.make);
     fill("year", d.year);

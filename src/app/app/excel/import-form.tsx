@@ -30,7 +30,13 @@ export function ImportForm({ kind }: { kind: string }) {
         </button>
       </div>
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
-      {r && r.errors.length === 0 && (
+      {r && r.errors.length === 0 && r.replaced !== undefined && (
+        <p className={`text-sm ${r.saved ? "text-green-700" : "text-slate-700"}`}>
+          {r.saved ? "Справочник заменён" : "Ошибок нет, можно загружать. Справочник заменится целиком"}: было строк {r.replaced},{" "}
+          {r.saved ? "стало" : "станет"} {r.created}.
+        </p>
+      )}
+      {r && r.errors.length === 0 && r.replaced === undefined && (
         <p className={`text-sm ${r.saved ? "text-green-700" : "text-slate-700"}`}>
           {r.saved ? "Загружено" : "Ошибок нет, можно загружать"}: {r.saved ? "создано" : "будет создано"} {r.created},{" "}
           {r.saved ? "обновлено" : "будет обновлено"} {r.updated}
