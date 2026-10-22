@@ -245,13 +245,21 @@ model Client {
   id              String           @id @default(cuid())
   companyId       String
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code            String? // ID клиента: из файла при загрузке, иначе присваивается сам (000001…)
   kind            ClientKind       @default(PERSON)
-  name            String
+  name            String // наименование для документов
   phone           String?
   email           String?
   inn             String?
+  kpp             String?
+  ogrn            String?
+  legalAddress    String?
+  actualAddress   String?
+  postalAddress   String?
   comment         String?
-  discount        Int              @default(0) // скидка клиента, %
+  discount        Int              @default(0) // скидка на работы, %
+  partsDiscount   Int              @default(0) // скидка на товары, %
+  hourPrice       Int? // своя стоимость нормочаса, коп.; пусто — по категории или как у СТО
   priceCategoryId String?
   priceCategory   PriceCategory?   @relation(fields: [priceCategoryId], references: [id], onDelete: SetNull)
   source          String? // откуда пришёл: рекламный источник
@@ -263,9 +271,43 @@ model Client {
   estimates       Estimate[]
   recommendations Recommendation[]
   sales           Sale[]
+  contacts        ClientContact[]
+  bankAccounts    ClientBankAccount[]
 
+  @@unique([companyId, code])
   @@index([companyId, name])
   @@index([companyId, phone])
+}
+
+// Контактное лицо клиента. Телефон первого контакта дублируется в Client.phone для списков и поиска.
+model ClientContact {
+  id         String  @id @default(cuid())
+  clientId   String
+  client     Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  code       String? // ID контакта: ID клиента + 2 цифры
+  sort       Int     @default(0)
+  lastName   String?
+  firstName  String?
+  middleName String?
+  gender     String? // M | F
+  phone      String?
+  note       String?
+
+  @@index([clientId, sort])
+  @@index([phone])
+}
+
+model ClientBankAccount {
+  id       String  @id @default(cuid())
+  clientId String
+  client   Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  code     String?
+  sort     Int     @default(0)
+  bik      String?
+  account  String?
+  note     String?
+
+  @@index([clientId, sort])
 }
 
 model Vehicle {
@@ -280,6 +322,16 @@ model Vehicle {
   vin             String?
   plate           String?
   color           String?
+  code            String? // ID автомобиля: ID клиента + 01 + номер + 01, как в АвтоДилере
+  frame           String?
+  body            String?
+  engineType      String?
+  engineCode      String?
+  power           Int? // л.с.
+  engineVolume    String? // л
+  transmission    String?
+  drive           String?
+  note            String?
   createdAt       DateTime         @default(now())
   workOrders      WorkOrder[]
   appointments    Appointment[]
