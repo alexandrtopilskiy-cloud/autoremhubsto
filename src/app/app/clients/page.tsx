@@ -12,10 +12,12 @@ import { stageLabel } from "@/lib/services/orders";
 import { createClientAction } from "./actions";
 import { ClientFields, ContactFields } from "./client-fields";
 import { ListRow, PreviewPane, SearchBox } from "@/components/preview-pane";
+import { ClampList } from "@/components/clamp-list";
 import { listCategories } from "@/lib/services/prices";
 import { dicts } from "@/lib/services/dictionaries";
 
 const PATH = "/app/clients";
+const CARS: [string, string, string] = ["автомобиль", "автомобиля", "автомобилей"];
 const FORM = "client-filters";
 
 const KIND_SHORT = { PERSON: "ФЛ", ENTREPRENEUR: "ИП", LEGAL: "ЮЛ" } as const;
@@ -191,7 +193,9 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                       <td className={`${td} text-blue-600`}>{c.name}</td>
                       <td className={td}>{KIND_SHORT[c.kind]}</td>
                       <td className={td}>{c.phone}</td>
-                      <td className={td}>{c.vehicles.map((v) => [v.make, v.model, v.plate].filter(Boolean).join(" ")).join(", ")}</td>
+                      <td className={td}>
+                        <ClampList items={c.vehicles.map((v) => [v.make, v.model, v.plate].filter(Boolean).join(" "))} words={CARS} />
+                      </td>
                     </ListRow>
                   ))}
                   {list.rows.length === 0 && (
