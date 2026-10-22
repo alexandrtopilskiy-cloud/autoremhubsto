@@ -182,7 +182,7 @@ export async function addSaleLine(companyId: string, saleId: string, input: unkn
         productId: d.productId,
         qty: d.qty,
         price: d.price ?? (await (await pricing(tx, companyId, client?.id)).product(product)),
-        discount: d.discount ?? client?.discount ?? 0,
+        discount: d.discount ?? client?.partsDiscount ?? 0,
         position,
       },
     });

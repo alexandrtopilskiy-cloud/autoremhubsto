@@ -14,6 +14,8 @@ function clientMatch(q: string): Prisma.ClientWhereInput[] {
   return [
     { name: ci(q) },
     { phone: { contains: q } },
+    { contacts: { some: { phone: { contains: q } } } },
+    { code: q },
     { vehicles: { some: { plate: { contains: plate(q) } } } },
     { vehicles: { some: { vin: { contains: q.toUpperCase() } } } },
   ];
@@ -112,7 +114,7 @@ export async function searchEstimates(companyId: string, q: EstimateQuery, tz: n
 
 // ---------- клиенты ----------
 
-export const CLIENT_SORTS = ["name", "created"] as const;
+export const CLIENT_SORTS = ["name", "code", "created"] as const;
 export const CLIENT_FILTERS = ["archived", "source", "kind"] as const;
 export type ClientQuery = ListQuery<(typeof CLIENT_SORTS)[number]>;
 
@@ -129,11 +131,11 @@ export async function searchClients(companyId: string, q: ClientQuery, tz: numbe
   // сначала только id для сортировки (имена — по алфавиту без учёта регистра), затем строки нужной страницы
   const keys = await prisma.client.findMany({
     where,
-    select: { id: true, name: true, createdAt: true },
+    select: { id: true, name: true, code: true, createdAt: true },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
   const page = paginate(
-    sortBy(keys, (c) => (q.sort === "name" ? c.name : c.createdAt), q.dir),
+    sortBy(keys, (c) => (q.sort === "name" ? c.name : q.sort === "code" ? (c.code ?? "") : c.createdAt), q.dir),
     q,
   );
   const ids = page.rows.map((c) => c.id);

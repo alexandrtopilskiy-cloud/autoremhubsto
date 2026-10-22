@@ -11,7 +11,7 @@ import { CLIENT_FILTERS, CLIENT_SORTS, clientPreview, clientSources, searchClien
 import { stageLabel } from "@/lib/services/orders";
 import { getCompany } from "@/lib/services/settings";
 import { createClientAction } from "./actions";
-import { ClientFields } from "./client-fields";
+import { ClientFields, ContactFields } from "./client-fields";
 import { listCategories } from "@/lib/services/prices";
 import { dicts } from "@/lib/services/dictionaries";
 
@@ -23,6 +23,7 @@ async function Preview({ companyId, id, query }: { companyId: string; id: string
   return (
     <>
       <PreviewHead title={c.name} href={`/app/clients/${c.id}`} close={listHref(PATH, query, { preview: "" })} />
+      <PreviewRow label="ID">{c.code}</PreviewRow>
       <PreviewRow label="Тип">{CLIENT_KINDS.find((k) => k.value === c.kind)?.label}</PreviewRow>
       <PreviewRow label="Телефон">{c.phone}</PreviewRow>
       <PreviewRow label="Email">{c.email}</PreviewRow>
@@ -95,15 +96,22 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       </PageTitle>
       <NewPanel>
         <Card title="Новый клиент">
-          <ActionForm action={createClientAction} className="flex flex-wrap items-end gap-3">
-            <ClientFields categories={categories} sources={lists.CLIENT_SOURCE} />
-            <Submit>Добавить</Submit>
+          <ActionForm action={createClientAction} className="flex flex-col gap-3">
+            <ClientFields categories={categories} sources={lists.CLIENT_SOURCE} nameHint="Пусто — из ФИО контакта" />
+            <h3 className="mt-2 w-full font-semibold">Контакт</h3>
+            <ContactFields prefix="c_" />
+            <p className="w-full text-xs text-slate-500">
+              ID клиенту и контакту присваиваются сами. Остальные контакты, банковские счета и автомобили добавляются в карточке.
+            </p>
+            <div>
+              <Submit>Добавить</Submit>
+            </div>
           </ActionForm>
         </Card>
       </NewPanel>
       <WithPreview panel={query.preview ? <Preview companyId={s.companyId} id={query.preview} query={query} /> : undefined}>
         <div>
-          <ListFilters path={PATH} query={query} placeholder="Имя, телефон, госномер, VIN, email или ИНН">
+          <ListFilters path={PATH} query={query} placeholder="Имя, телефон, ID, госномер, VIN, email или ИНН">
             <FilterSelect name="kind" label="Тип" value={query.f.kind} options={CLIENT_KINDS} />
             {sources.length > 0 && (
               <FilterSelect
@@ -121,9 +129,13 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               <thead>
                 <tr className="border-b">
                   <th className={th} />
+                  <SortTh path={PATH} query={query} sort="code">
+                    ID
+                  </SortTh>
                   <SortTh path={PATH} query={query} sort="name">
                     Клиент
                   </SortTh>
+                  <th className={th}>Тип</th>
                   <th className={th}>Телефон</th>
                   <th className={th}>Автомобили</th>
                   <SortTh path={PATH} query={query} sort="created">
@@ -137,11 +149,13 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                     <td className={`${td} w-6`}>
                       <PreviewLink path={PATH} query={query} id={c.id} label={c.name} />
                     </td>
+                    <td className={`${td} text-slate-500 tabular-nums`}>{c.code}</td>
                     <td className={td}>
                       <Link href={`/app/clients/${c.id}`} className="text-blue-600 hover:underline">
                         {c.name}
                       </Link>
                     </td>
+                    <td className={td}>{{ PERSON: "ФЛ", ENTREPRENEUR: "ИП", LEGAL: "ЮЛ" }[c.kind]}</td>
                     <td className={td}>{c.phone}</td>
                     <td className={td}>{c.vehicles.map((v) => [v.make, v.model, v.plate].filter(Boolean).join(" ")).join(", ")}</td>
                     <td className={td}>{formatDate(c.createdAt)}</td>
@@ -149,7 +163,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                 ))}
                 {list.rows.length === 0 && (
                   <tr>
-                    <td className={`${td} text-slate-500`} colSpan={5}>
+                    <td className={`${td} text-slate-500`} colSpan={7}>
                       Клиентов не найдено
                     </td>
                   </tr>

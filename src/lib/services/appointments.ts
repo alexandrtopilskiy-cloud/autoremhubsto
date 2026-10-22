@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { AppointmentStage, Prisma } from "@prisma/client";
 import { prisma } from "../db";
+import { contactCode } from "../client-codes";
+import { createWithCode } from "./clients";
 import { NotFoundError, UserError } from "../errors";
 import { isDateStr, isTimeStr, localMinutes, localToUtc } from "../time";
 import { ownClient, ownEmployee, ownVehicle } from "../tenant";
@@ -216,9 +218,11 @@ export async function createOrderFromAppointment(companyId: string, id: string) 
   if (a.stage === "CANCELLED") throw new UserError("По отменённой записи заказ-наряд не создаётся");
   let clientId = a.clientId;
   if (!clientId) {
-    const c = await prisma.client.create({
-      data: { companyId, name: a.contactName || a.contactPhone || "Клиент из записи", phone: a.contactPhone },
-    });
+    const c = await createWithCode(companyId, { name: a.contactName || a.contactPhone || "Клиент из записи", phone: a.contactPhone });
+    if (a.contactName || a.contactPhone)
+      await prisma.clientContact.create({
+        data: { clientId: c.id, code: contactCode(c.code!, 1), lastName: a.contactName, phone: a.contactPhone },
+      });
     clientId = c.id;
     await prisma.appointment.update({ where: { id }, data: { clientId } });
   }

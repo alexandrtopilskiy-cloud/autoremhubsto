@@ -67,3 +67,9 @@ ALTER TABLE "ClientContact" ADD CONSTRAINT "ClientContact_clientId_fkey" FOREIGN
 -- AddForeignKey
 ALTER TABLE "ClientBankAccount" ADD CONSTRAINT "ClientBankAccount_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "Client"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+
+-- Телефоны уже заведённых клиентов становятся их первым контактом
+INSERT INTO "ClientContact" ("id", "clientId", "sort", "lastName", "phone")
+SELECT gen_random_uuid()::text, c."id", 0, CASE WHEN c."kind" = 'PERSON' THEN c."name" END, c."phone"
+FROM "Client" c
+WHERE c."phone" IS NOT NULL AND c."phone" <> '';

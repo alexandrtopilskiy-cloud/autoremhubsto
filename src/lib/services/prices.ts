@@ -1,5 +1,5 @@
 // 9.7 Категории цен. Клиенту назначается категория: товары идут по своей цене категории, а если её нет —
-// от базовой цены товара с процентом категории; работы по нормочасам — по цене нормочаса категории.
+// от базовой цены товара с процентом категории; работы по нормочасам — по цене нормочаса клиента, затем категории.
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
@@ -20,7 +20,7 @@ export async function pricing(db: Db, companyId: string, clientId?: string | nul
   const category = client?.priceCategory ?? null;
   return {
     category,
-    hourPrice: category?.hourPrice ?? company.hourPrice,
+    hourPrice: client?.hourPrice ?? category?.hourPrice ?? company.hourPrice,
     async product(p: { id: string; price: number }) {
       if (!category) return p.price;
       const own = await db.productPrice.findUnique({ where: { productId_categoryId: { productId: p.id, categoryId: category.id } } });
