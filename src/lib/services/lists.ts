@@ -4,6 +4,7 @@ import type { DocStatus, EstimateStatus, OrderStage, Prisma } from "@prisma/clie
 import { prisma } from "../db";
 import { docNumber, paginate, periodWhere, sortBy, type ListQuery } from "../list-query";
 import { estimateTotals, ESTIMATE_STATUSES } from "./estimates";
+import { syncOrderTotals } from "./order-totals";
 import { STAGES, totalsOf } from "./orders";
 
 const ci = (q: string) => ({ contains: q, mode: "insensitive" as const });
@@ -95,26 +96,44 @@ export async function searchOrders(companyId: string, q: OrderQuery, tz: number)
         }
       : {}),
   };
-  // суммы считаются по строкам, поэтому отбор по долгу и сортировка по сумме — после расчёта
-  const all = (
-    await prisma.workOrder.findMany({
-      where,
-      include: { client: true, vehicle: true, manager: true, organization: true, works: true, items: true, payments: true },
-      // при равных значениях сортировки — новые выше
-      orderBy: { number: "desc" },
-    })
-  )
-    .map((o) => ({ ...o, totals: totalsOf(o) }))
-    .filter((o) => (debt === "1" ? o.totals.due > 0 : true));
-  const key = {
-    number: (o: (typeof all)[number]) => o.number,
-    date: (o: (typeof all)[number]) => o.acceptedAt,
-    client: (o: (typeof all)[number]) => o.client.name,
-    total: (o: (typeof all)[number]) => o.totals.total,
-    due: (o: (typeof all)[number]) => o.totals.due,
-  }[q.sort];
-  const sums = all.reduce((s, o) => ({ total: s.total + o.totals.total, due: s.due + o.totals.due }), { total: 0, due: 0 });
-  return { ...paginate(sortBy(all, key, q.dir), q), sums };
+  await syncOrderTotals(companyId);
+  if (debt === "1") where.due = { gt: 0 };
+  const dir = q.dir;
+  const orderBy: Prisma.WorkOrderOrderByWithRelationInput[] = [
+    q.sort === "date"
+      ? { acceptedAt: dir }
+      : q.sort === "client"
+        ? { client: { name: dir } }
+        : q.sort === "total"
+          ? { total: dir }
+          : q.sort === "due"
+            ? { due: dir }
+            : { number: dir },
+    // при равных значениях сортировки — новые выше
+    { number: "desc" },
+    { id: "desc" },
+  ];
+  const [count, agg] = await Promise.all([
+    prisma.workOrder.count({ where }),
+    prisma.workOrder.aggregate({ where, _sum: { total: true, due: true } }),
+  ]);
+  const pages = Math.max(1, Math.ceil(count / q.per));
+  const page = Math.min(q.page, pages);
+  const rows = await prisma.workOrder.findMany({
+    where,
+    include: { client: true, vehicle: true },
+    orderBy,
+    skip: (page - 1) * q.per,
+    take: q.per,
+  });
+  return {
+    rows: rows.map((o) => ({ ...o, totals: { works: o.worksTotal, items: o.itemsTotal, total: o.total, paid: o.paid, due: o.due } })),
+    total: count,
+    page,
+    pages,
+    per: q.per,
+    sums: { total: agg._sum.total ?? 0, due: agg._sum.due ?? 0 },
+  };
 }
 
 // ---------- калькуляции ----------

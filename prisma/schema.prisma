@@ -501,6 +501,15 @@ model WorkOrder {
   acceptedAt      DateTime         @default(now())
   closedAt        DateTime?
   createdAt       DateTime         @default(now())
+  // Суммы по строкам и оплатам, коп. — для списка: отбор, сортировка и итоги считаются в базе.
+  // Считает их totalsOf (services/order-totals.ts); триггер базы ставит totalsDirty при любом изменении
+  // строк и оплат, и устаревшие суммы пересчитываются перед чтением списка.
+  worksTotal      Int              @default(0)
+  itemsTotal      Int              @default(0)
+  total           Int              @default(0)
+  paid            Int              @default(0)
+  due             Int              @default(0)
+  totalsDirty     Boolean          @default(true)
   works           WorkOrderWork[]
   items           WorkOrderItem[]
   payments        Payment[]
@@ -513,6 +522,8 @@ model WorkOrder {
   @@unique([companyId, numberPrefix, number])
   @@unique([companyId, externalId])
   @@index([companyId, acceptedAt])
+  @@index([companyId, number])
+  @@index([companyId, totalsDirty])
   @@index([clientId])
   @@index([vehicleId])
   @@index([managerId])
