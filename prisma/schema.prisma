@@ -671,7 +671,9 @@ model CashOperation {
   receipt    Receipt?  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   comment    String?
   date       DateTime  @default(now())
+  externalId String? // ID операции АвтоДилера при переносе
 
+  @@unique([companyId, externalId])
   @@index([companyId, date])
 }
 

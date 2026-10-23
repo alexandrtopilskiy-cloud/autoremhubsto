@@ -1,6 +1,7 @@
-// Перенос документов из АвтоДилера: заказ-наряды, приходные и расходные накладные.
+// Перенос документов из АвтоДилера: заказ-наряды, приходные и расходные накладные, движение денег без привязки.
 // Файл — выгрузка, собранная из АвтоДилера: листы «ЗН», «Работы», «Запчасти», «Оплаты» у заказ-нарядов;
 // «Приходные» или «Расходные», «Позиции», «Оплаты» у накладных. Строки связаны с документом по номеру.
+// Лист «Без привязки» — приходы, расходы и переводы между счетами, не связанные с документом.
 // Документ находится по ID АвтоДилера: повторная загрузка заменяет его строки и оплаты, а не создаёт дубль.
 // Номер берётся из файла; у документов с повторившимся номером перед цифрами буква (ЗН-A519).
 // Клиент заказ-наряда ищется по VIN, госномеру, телефону и наименованию; не нашёлся — создаётся.
@@ -16,11 +17,12 @@ import { normalizeVin } from "../vin";
 import { contactCode, MAX_VEHICLES, nextClientCode, nextNumber, vehicleCode } from "../client-codes";
 import { cleanName } from "./excel-autodealer";
 import { SALE_PAYMENT } from "./warehouse";
+import { PAYROLL_CATEGORY } from "./payroll";
 
 type Tx = Prisma.TransactionClient;
 type Raw = ExcelJS.CellValue;
 
-export type AdDocKind = "orders" | "receipts" | "sales";
+export type AdDocKind = "orders" | "receipts" | "sales" | "money";
 
 export type AdDocsError = { row: number; message: string };
 /** notes — итог загрузки по строкам: сколько документов, клиентов, товаров и т. п. создано и на какую сумму. */
@@ -199,6 +201,7 @@ export function detectAdDocs(wb: ExcelJS.Workbook): AdDocKind | null {
   if (has("ЗН") && has("Работы") && has("Запчасти")) return "orders";
   if (has("Приходные") && has("Позиции")) return "receipts";
   if (has("Расходные") && has("Позиции")) return "sales";
+  if (has("Без привязки")) return "money";
   return null;
 }
 
@@ -444,7 +447,7 @@ async function products(tx: Tx, companyId: string, lines: ItemLine[], notes: str
   return (l: ItemLine) => find(l)!;
 }
 
-async function cashboxes(tx: Tx, companyId: string, pays: Pay[], notes: string[]) {
+async function cashboxes(tx: Tx, companyId: string, pays: { account: string; method: PaymentMethod }[], notes: string[]) {
   const have = await tx.cashbox.findMany({ where: { companyId }, select: { id: true, name: true } });
   const by = new Map(have.map((c) => [norm(c.name), c.id]));
   const made: string[] = [];
@@ -456,7 +459,7 @@ async function cashboxes(tx: Tx, companyId: string, pays: Pay[], notes: string[]
     made.push(p.account);
   }
   if (made.length) notes.push(`Касс и счетов добавлено: ${made.join(", ")}`);
-  return (p: Pay) => by.get(norm(p.account))!;
+  return (p: { account: string }) => by.get(norm(p.account))!;
 }
 
 type ClientIndex = Awaited<ReturnType<typeof clientIndex>>;
@@ -958,6 +961,235 @@ async function applyInvoices(tx: Tx, companyId: string, kind: "receipts" | "sale
   );
 }
 
+// ---------- движение денег без привязки ----------
+
+const TRANSFER = "Перемещение";
+/** Статьи АвтоДилера, по которым выплата привязывается к сотруднику и попадает в расчёт зарплаты. */
+const PAYROLL_ITEMS = new Set(["зарплата", "премии"]);
+
+type MoneyOp = {
+  row: number;
+  externalId: string;
+  number: string;
+  advance: boolean;
+  type: "IN" | "OUT" | "TRANSFER";
+  date: Date;
+  category: string;
+  amount: number;
+  account: string;
+  from: string;
+  to: string;
+  method: PaymentMethod;
+  supplier: string | null;
+  employee: string | null;
+  comment: string | null;
+};
+
+const accountMethod = (name: string): PaymentMethod => (norm(name).includes("касса") ? "CASH" : "BANK_TRANSFER");
+
+function parseMoney(wb: ExcelJS.Workbook, errors: AdDocsError[]): MoneyOp[] {
+  const ops: MoneyOp[] = [];
+  const seen = new Set<string>();
+  for (const r of rowsOf(wb, "Без привязки")) {
+    const label = r.t("Номер") || `операция ${r.t("ID АД")}`;
+    const err = (message: string) => errors.push({ row: r.row, message: `${label}: ${message}` });
+    const externalId = r.t("ID АД");
+    if (!externalId) {
+      err("нет ID АвтоДилера");
+      continue;
+    }
+    if (seen.has(externalId)) {
+      err("операция повторяется в файле");
+      continue;
+    }
+    seen.add(externalId);
+    if (r.t("Статус") && norm(r.t("Статус")) !== "проведен") continue;
+    const date = local(r.d("Дата"));
+    if (!date) {
+      err("не указана дата");
+      continue;
+    }
+    const typeName = norm(r.t("Тип"));
+    const type = typeName === "приход" ? "IN" : typeName === "расход" ? "OUT" : typeName === "перевод" ? "TRANSFER" : null;
+    if (!type) {
+      err(`тип «${r.t("Тип")}» не распознан`);
+      continue;
+    }
+    const amount = kop(r.n(type === "IN" ? "Приход, ₽" : type === "OUT" ? "Расход, ₽" : "Перевод, ₽"));
+    if (amount <= 0) {
+      err("сумма не больше нуля");
+      continue;
+    }
+    const account = r.t("Касса / счёт");
+    const from = r.t("Со счёта");
+    const to = r.t("На счёт");
+    if (type === "TRANSFER" ? !from || !to || norm(from) === norm(to) : !account) {
+      err(type === "TRANSFER" ? "не указаны счета перевода" : "не указана касса или счёт");
+      continue;
+    }
+    const who = norm(r.t("Кто"));
+    const party = r.t("Контрагент");
+    const category = type === "TRANSFER" ? TRANSFER : r.t("Статья") || (type === "IN" ? "Прочий приход" : "Прочий расход");
+    const employee = who === "сотрудник" && PAYROLL_ITEMS.has(norm(category)) ? val(r.t("Сотрудник") || party) : null;
+    const supplier = who === "поставщик" ? val(party) : null;
+    const kind = r.t("Вид платежа");
+    ops.push({
+      row: r.row,
+      externalId,
+      number: r.t("Номер"),
+      advance: norm(kind) === "аванс от клиента",
+      type,
+      date,
+      category: employee && norm(category) === "зарплата" ? PAYROLL_CATEGORY : category,
+      amount,
+      account,
+      from,
+      to,
+      method: r.t("Способ") ? method(r.t("Способ")) : accountMethod(account),
+      supplier,
+      employee,
+      comment: val(
+        [r.t("Номер"), !supplier && !employee ? party : "", kind && norm(kind) !== "оплата" ? kind : "", r.t("Комментарий")]
+          .filter(Boolean)
+          .join(", "),
+      ),
+    });
+  }
+  return ops;
+}
+
+/**
+ * Зачёт аванса в АвтоДилере — не движение денег: аванс уже пришёл отдельным приходом без привязки. У нас зачёт загружен
+ * оплатой заказ-наряда или накладной с кассой, поэтому приход аванса уменьшается на зачтённую сумму, иначе деньги задвоятся.
+ * Ключ — номер приходного документа аванса («ПД-1472») из комментария оплаты.
+ */
+async function advanceOffsets(tx: Tx, companyId: string) {
+  const re = /Зачёт аванса[^,]*, ([^,]+)$/;
+  const [pays, ops] = await Promise.all([
+    tx.payment.findMany({ where: { companyId, comment: { contains: "Зачёт аванса" } }, select: { amount: true, comment: true } }),
+    tx.cashOperation.findMany({
+      where: { companyId, saleId: { not: null }, comment: { contains: "Зачёт аванса" } },
+      select: { amount: true, comment: true },
+    }),
+  ]);
+  const by = new Map<string, number>();
+  for (const p of [...pays, ...ops]) {
+    const doc = p.comment?.match(re)?.[1].trim();
+    if (doc) by.set(doc, (by.get(doc) ?? 0) + p.amount);
+  }
+  return by;
+}
+
+async function applyMoney(tx: Tx, companyId: string, all: MoneyOp[], out: AdDocsReport) {
+  const offsets = await advanceOffsets(tx, companyId);
+  let offset = 0;
+  let offsetCount = 0;
+  const ops = all.flatMap((o) => {
+    const used = o.type === "IN" && o.advance && o.number ? Math.min(o.amount, offsets.get(o.number) ?? 0) : 0;
+    if (!used) return [o];
+    offset += used;
+    offsetCount++;
+    return o.amount > used ? [{ ...o, amount: o.amount - used }] : [];
+  });
+
+  const box = await cashboxes(
+    tx,
+    companyId,
+    ops.flatMap((o) =>
+      o.type === "TRANSFER"
+        ? [
+            { account: o.from, method: accountMethod(o.from) },
+            { account: o.to, method: accountMethod(o.to) },
+          ]
+        : [{ account: o.account, method: o.method }],
+    ),
+    out.notes,
+  );
+  const employee = await employees(
+    tx,
+    companyId,
+    ops.flatMap((o) => (o.employee ? [{ name: o.employee, manager: false }] : [])),
+    out.notes,
+  );
+
+  const list = await tx.supplier.findMany({
+    where: { companyId },
+    select: { id: true, name: true },
+  });
+  const suppliers = new Map(list.map((x) => [nameKey(x.name), x.id]));
+  const newSuppliers: Prisma.SupplierCreateManyInput[] = [];
+  for (const o of ops) {
+    const k = nameKey(o.supplier);
+    if (!k || suppliers.has(k)) continue;
+    const id = randomUUID();
+    newSuppliers.push({ id, companyId, name: o.supplier! });
+    suppliers.set(k, id);
+  }
+  await createChunks(newSuppliers, (data) => tx.supplier.createMany({ data }));
+  if (newSuppliers.length) out.notes.push(`Поставщиков добавлено: ${newSuppliers.length}`);
+
+  // повторная загрузка: прежние операции из АвтоДилера заменяются
+  const keys = all.flatMap((o) => (o.type === "TRANSFER" ? [`${o.externalId}:from`, `${o.externalId}:to`] : [o.externalId]));
+  const old = new Set<string>();
+  for (let i = 0; i < keys.length; i += CHUNK) {
+    const found = await tx.cashOperation.findMany({
+      where: { companyId, externalId: { in: keys.slice(i, i + CHUNK) } },
+      select: { externalId: true },
+    });
+    found.forEach((f) => old.add(f.externalId!.replace(/:(from|to)$/, "")));
+    await tx.cashOperation.deleteMany({
+      where: { companyId, externalId: { in: keys.slice(i, i + CHUNK) } },
+    });
+  }
+
+  const data: Prisma.CashOperationCreateManyInput[] = [];
+  for (const o of ops) {
+    const base = { companyId, date: o.date, category: o.category };
+    if (o.type === "TRANSFER")
+      data.push(
+        {
+          ...base,
+          externalId: `${o.externalId}:from`,
+          cashboxId: box({ account: o.from }),
+          amount: -o.amount,
+          comment: val(`В «${o.to}»${o.comment ? `, ${o.comment}` : ""}`),
+        },
+        {
+          ...base,
+          externalId: `${o.externalId}:to`,
+          cashboxId: box({ account: o.to }),
+          amount: o.amount,
+          comment: val(`Из «${o.from}»${o.comment ? `, ${o.comment}` : ""}`),
+        },
+      );
+    else
+      data.push({
+        ...base,
+        externalId: o.externalId,
+        cashboxId: box(o),
+        amount: o.type === "IN" ? o.amount : -o.amount,
+        supplierId: o.supplier ? suppliers.get(nameKey(o.supplier)) : null,
+        employeeId: employee(o.employee),
+        comment: o.comment,
+      });
+  }
+  await createChunks(data, (rows) => tx.cashOperation.createMany({ data: rows }));
+
+  out.created = ops.filter((o) => !old.has(o.externalId)).length;
+  out.updated = ops.filter((o) => old.has(o.externalId)).length;
+  const sum = (t: MoneyOp["type"]) => ops.filter((o) => o.type === t).reduce((s, o) => s + o.amount, 0);
+  const count = (t: MoneyOp["type"]) => ops.filter((o) => o.type === t).length;
+  out.notes.unshift(
+    `Операций: ${ops.length}. Приход ${count("IN")} на ${formatRub(sum("IN"))}, расход ${count("OUT")} на ${formatRub(sum("OUT"))}, переводов между счетами ${count("TRANSFER")} на ${formatRub(sum("TRANSFER"))}`,
+  );
+  if (offsetCount)
+    out.notes.push(
+      `Авансов клиентов, зачтённых в оплату заказ-нарядов и накладных: ${offsetCount} на ${formatRub(offset)} — уже учтены в кассе этими оплатами`,
+    );
+  const salary = ops.filter((o) => o.employee).length;
+  if (salary) out.notes.push(`Выплат сотрудникам, учтённых в зарплате: ${salary}`);
+}
+
 class Rollback extends Error {}
 
 /** Есть ли в книге листы выгрузки документов АвтоДилера. */
@@ -980,17 +1212,19 @@ export async function importAdDocs(companyId: string, file: Buffer, opts: { save
   const kind = detectAdDocs(wb);
   if (!kind)
     throw new UserError(
-      "Это не выгрузка документов АвтоДилера: нужны листы «ЗН», «Работы», «Запчасти» или «Приходные»/«Расходные» и «Позиции»",
+      "Это не выгрузка документов АвтоДилера: нужны листы «ЗН», «Работы», «Запчасти», «Приходные»/«Расходные» и «Позиции» или «Без привязки»",
     );
   const out: AdDocsReport = { kind, created: 0, updated: 0, errors: [], notes: [], saved: false };
   const orders = kind === "orders" ? parseOrders(wb, out.errors) : [];
-  const invoices = kind === "orders" ? [] : parseInvoices(wb, kind, out.errors);
+  const invoices = kind === "receipts" || kind === "sales" ? parseInvoices(wb, kind, out.errors) : [];
+  const money = kind === "money" ? parseMoney(wb, out.errors) : [];
   const fail = (): AdDocsReport => ({ ...out, created: 0, updated: 0, notes: [], errors: out.errors.sort((a, b) => a.row - b.row) });
   if (out.errors.length) return fail();
   try {
     await prisma.$transaction(
       async (tx) => {
         if (kind === "orders") await applyOrders(tx, companyId, orders, out);
+        else if (kind === "money") await applyMoney(tx, companyId, money, out);
         else await applyInvoices(tx, companyId, kind, invoices, out);
         if (out.errors.length || !opts.save) throw new Rollback();
       },
