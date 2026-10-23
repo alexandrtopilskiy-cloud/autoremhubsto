@@ -75,7 +75,7 @@ const PART_HEAD = [
 ];
 const PAY_HEAD = ["Номер ЗН", "Дата", "Сумма, ₽", "Вид", "Способ", "Касса / счёт", "Документ"];
 
-function ordersFile(total = 17556.5) {
+function ordersFile(total = 17556.5, payKind = "Оплата") {
   return book({
     ЗН: [
       ORDER_HEAD,
@@ -128,7 +128,7 @@ function ordersFile(total = 17556.5) {
       ["ЗН-A519", "Масло 5W30", "MS-1", "Mobil", 5, "л", 700, 1500, 0, 0, 7500, "Малый Артем"],
       ["ЗН-519", "Колодки", "KD-2", "TRW", 1, "шт", 4000, 7566.5, 0, 0, 7566.5, ""],
     ],
-    Оплаты: [PAY_HEAD, ["ЗН-A519", d("2025-07-07 00:00"), 9000, "Оплата", "Карта", "Банковский счет", "ПД-1"]],
+    Оплаты: [PAY_HEAD, ["ЗН-A519", d("2025-07-07 00:00"), 9000, payKind, "Карта", "Банковский счет", "ПД-1"]],
   });
 }
 
@@ -222,5 +222,194 @@ describe("Перенос документов из АвтоДилера", () => 
     expect(full).toMatchObject({ numberPrefix: "A", number: 8, status: "POSTED", total: 92500, paid: 90000, due: 2500 });
     expect(full.supplier?.inn).toBe("7700000001");
     expect((await stockBalances(companyId, "Ремень"))[0].qty).toBe(8.7);
+  });
+});
+
+describe("Движение денег без привязки из АвтоДилера", () => {
+  const HEAD = [
+    "ID АД",
+    "Номер",
+    "Дата",
+    "Тип",
+    "Статья",
+    "Вид платежа",
+    "Контрагент",
+    "Кто",
+    "Сотрудник",
+    "Приход, ₽",
+    "Расход, ₽",
+    "Перевод, ₽",
+    "Способ",
+    "Касса / счёт",
+    "Со счёта",
+    "На счёт",
+    "Комментарий",
+    "Статус",
+  ];
+  const file = () =>
+    book({
+      "Без привязки": [
+        HEAD,
+        [
+          "301",
+          "РД-20",
+          d("2025-09-19 00:00"),
+          "Расход",
+          "Зарплата",
+          "Оплата",
+          "Малый Артем",
+          "Сотрудник",
+          "Малый Артем",
+          null,
+          15000,
+          null,
+          "Наличные",
+          "Касса",
+          "",
+          "",
+          "",
+          "Проведён",
+        ],
+        [
+          "302",
+          "РД-26",
+          d("2025-10-05 00:00"),
+          "Расход",
+          "Оплата поставщикам",
+          "Аванс поставщику",
+          "Базар",
+          "Поставщик",
+          "",
+          null,
+          1040.5,
+          null,
+          "Безнал",
+          "Банковский счет",
+          "",
+          "",
+          "",
+          "Проведён",
+        ],
+        [
+          "303",
+          "ПД-105",
+          d("2025-10-30 00:00"),
+          "Приход",
+          "Выручка",
+          "Аванс от клиента",
+          "Иракли",
+          "Клиент",
+          "",
+          1500,
+          null,
+          null,
+          "Карта",
+          "Карта Саши",
+          "",
+          "",
+          "Переплата",
+          "Проведён",
+        ],
+        [
+          "304",
+          "",
+          d("2025-11-30 00:00"),
+          "Перевод",
+          "Перевод между счетами",
+          "",
+          "",
+          "",
+          "",
+          null,
+          null,
+          2500,
+          "",
+          "",
+          "Банковский счет",
+          "Карта Саши",
+          "",
+          "Проведён",
+        ],
+      ],
+    });
+
+  it("приход, расход, перевод; зарплата к сотруднику; без дублей при повторе", async () => {
+    const companyId = await company();
+    const r = await importAdDocs(companyId, await file(), { save: true });
+    expect(r).toMatchObject({
+      kind: "money",
+      created: 4,
+      updated: 0,
+      errors: [],
+      saved: true,
+    });
+    const ops = await prisma.cashOperation.findMany({
+      where: { companyId },
+      include: { cashbox: true, supplier: true, employee: true },
+    });
+    expect(ops).toHaveLength(5);
+    const balance = (name: string) => ops.filter((o) => o.cashbox.name === name).reduce((s, o) => s + o.amount, 0);
+    expect(balance("Касса")).toBe(-1500000);
+    expect(balance("Банковский счет")).toBe(-104050 - 250000);
+    expect(balance("Карта Саши")).toBe(150000 + 250000);
+    const salary = ops.find((o) => o.externalId === "301")!;
+    expect(salary).toMatchObject({
+      category: "Зарплата",
+      employee: { name: "Малый Артем" },
+    });
+    expect(ops.find((o) => o.externalId === "302")!.supplier?.name).toBe("Базар");
+    expect(ops.find((o) => o.externalId === "303")!.comment).toBe("ПД-105, Иракли, Аванс от клиента, Переплата");
+    expect(ops.filter((o) => o.category === "Перемещение")).toHaveLength(2);
+    expect(ops.find((o) => o.externalId === "301")!.date.toISOString()).toBe("2025-09-18T21:00:00.000Z");
+
+    const again = await importAdDocs(companyId, await file(), { save: true });
+    expect(again).toMatchObject({ created: 0, updated: 4 });
+    expect(await prisma.cashOperation.count({ where: { companyId } })).toBe(5);
+    expect(
+      await prisma.employee.count({
+        where: { companyId, name: "Малый Артем" },
+      }),
+    ).toBe(1);
+  });
+
+  it("аванс, зачтённый в оплату заказ-наряда, не задваивает деньги", async () => {
+    const companyId = await company();
+    await importAdDocs(companyId, await ordersFile(17556.5, "Зачёт аванса"), { save: true });
+    const advance = (sum: number) =>
+      book({
+        "Без привязки": [
+          HEAD,
+          [
+            "401",
+            "ПД-1",
+            d("2025-07-01 00:00"),
+            "Приход",
+            "Выручка",
+            "Аванс от клиента",
+            "Иван Петров",
+            "Клиент",
+            "",
+            sum,
+            null,
+            null,
+            "Безнал",
+            "Банковский счет",
+            "",
+            "",
+            "",
+            "Проведён",
+          ],
+        ],
+      });
+    const full = await importAdDocs(companyId, await advance(9000), { save: true });
+    expect(full).toMatchObject({ created: 0, errors: [] });
+    expect(full.notes.join()).toContain("зачтённых в оплату");
+    expect(await prisma.cashOperation.count({ where: { companyId } })).toBe(0);
+
+    await importAdDocs(companyId, await advance(10000), { save: true });
+    const rest = await prisma.cashOperation.findMany({ where: { companyId } });
+    expect(rest.map((o) => o.amount)).toEqual([100000]); // незачтённый остаток аванса
+    const pays = await prisma.payment.aggregate({ where: { companyId }, _sum: { amount: true } });
+    expect(pays._sum.amount).toBe(900000);
   });
 });

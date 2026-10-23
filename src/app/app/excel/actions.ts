@@ -36,11 +36,11 @@ export async function importAction(kind: string, _: ImportState, fd: FormData): 
 
 export type AdDocsState = { error?: string; report?: AdDocsReport; at?: number } | undefined;
 
-/** Документы из АвтоДилера: заказ-наряды, приходные и расходные накладные. Нужно право создавать в «Заказ-нарядах» и «Складе». */
+/** Документы из АвтоДилера: заказ-наряды, накладные, движение денег. Нужно право создавать в «Заказ-нарядах», «Складе» и «Кассе». */
 export async function importAdDocsAction(_: AdDocsState, fd: FormData): Promise<AdDocsState> {
   const s = await requireSession();
-  if (!can(s.perms, "orders", "CREATE") || !can(s.perms, "stock", "CREATE"))
-    return { error: "Нужен уровень «Создание» на разделы «Заказ-наряды» и «Склад»" };
+  if (!can(s.perms, "orders", "CREATE") || !can(s.perms, "stock", "CREATE") || !can(s.perms, "cash", "CREATE"))
+    return { error: "Нужен уровень «Создание» на разделы «Заказ-наряды», «Склад» и «Касса»" };
   const file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Выберите файл .xlsx" };
   if (file.size > 10 * 1024 * 1024) return { error: "Файл больше 10 МБ" };

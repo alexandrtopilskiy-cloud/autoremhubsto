@@ -4,7 +4,7 @@ import { startTransition, useActionState } from "react";
 import { importAdDocsAction, type AdDocsState } from "./actions";
 
 const SHOWN = 50;
-const LABELS = { orders: "Заказ-наряды", receipts: "Приходные накладные", sales: "Расходные накладные" };
+const LABELS = { orders: "Заказ-наряды", receipts: "Приходные накладные", sales: "Расходные накладные", money: "Движение денег" };
 
 /** Загрузка выгрузки документов АвтоДилера с отчётом: что будет создано или список ошибок. */
 export function AdDocsForm() {
