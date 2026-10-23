@@ -8,6 +8,7 @@ import { listGroups } from "@/lib/services/catalog";
 import { categoryPriceList, listCategories } from "@/lib/services/prices";
 import { CatalogTabs } from "../tabs";
 import { createCategoryAction, deleteCategoryAction, saveCategoryPricesAction, updateCategoryAction } from "./actions";
+import { LiveForm } from "@/components/busy";
 
 const rubInput = (kop: number | null) => (kop === null ? "" : (kop / 100).toFixed(2).replace(".", ","));
 
@@ -90,7 +91,7 @@ export default async function PricesPage({ searchParams }: { searchParams: Promi
                 </Link>
               ))}
             </div>
-            <form className="mb-3 flex flex-wrap gap-2">
+            <LiveForm className="mb-3 flex flex-wrap gap-2">
               <input type="hidden" name="cat" value={current.id} />
               <Input name="q" defaultValue={sp.q} placeholder="Наименование, артикул, бренд или штрихкод" className="min-w-80" />
               <Select name="group" defaultValue={sp.group ?? ""} aria-label="Группа">
@@ -103,7 +104,7 @@ export default async function PricesPage({ searchParams }: { searchParams: Promi
                 <option value="none">Без группы</option>
               </Select>
               <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Найти</button>
-            </form>
+            </LiveForm>
             {/* key: после сохранения поля пересоздаются с новыми ценами */}
             <ActionForm key={list.rows.map((r) => r.own).join()} action={saveCategoryPricesAction.bind(null, current.id)}>
               <div className="overflow-x-auto">

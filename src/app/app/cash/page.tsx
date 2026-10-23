@@ -14,6 +14,7 @@ import { getCompany } from "@/lib/services/settings";
 import { listSuppliers } from "@/lib/services/stock";
 import { addDays, isDateStr, localToUtc, todayLocal } from "@/lib/time";
 import { addOperationAction, createCashboxAction, deleteOperationAction, transferAction } from "./actions";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/cash";
 
@@ -179,7 +180,7 @@ export default async function CashPage({
           }
           list={
             <Card title="Движение денег">
-              <form className="mb-3 flex flex-wrap items-end gap-2">
+              <LiveForm className="mb-3 flex flex-wrap items-end gap-2">
                 <Field label="С">
                   <Input type="date" name="from" defaultValue={from} />
                 </Field>
@@ -200,7 +201,7 @@ export default async function CashPage({
                 <span className="ml-auto text-sm">
                   Приход <b className="text-green-700">{formatRub(income)}</b> · Расход <b className="text-red-600">{formatRub(-expense)}</b>
                 </span>
-              </form>
+              </LiveForm>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>

@@ -13,8 +13,17 @@ import { dicts } from "@/lib/services/dictionaries";
 import { DictList } from "@/components/dict-list";
 import { GroupSelect } from "./group-select";
 import { ProductPreview } from "./preview";
+import { previewSession } from "@/lib/preview";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/catalog/products";
+
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(id: string) {
+  "use server";
+  const s = await previewSession("catalog");
+  return s ? <ProductPreview companyId={s.companyId} id={id} costs={s.perms.flags.costs} /> : null;
+}
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
@@ -64,11 +73,12 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
         </NewPanel>
       </Allowed>
       <PreviewPane
+        load={loadPreview}
         selected={preview}
         panel={preview ? <ProductPreview companyId={s.companyId} id={preview} costs={s.perms.flags.costs} /> : <PreviewHint what="товар" open="карточку товара" />}
         list={
           <Card>
-            <form className="mb-3 flex flex-wrap gap-2">
+            <LiveForm className="mb-3 flex flex-wrap gap-2">
               <Input name="q" defaultValue={q} placeholder="Наименование, артикул, бренд или штрихкод" className="min-w-80" />
               <Select name="group" defaultValue={group ?? ""} aria-label="Группа">
                 <option value="">Все группы</option>
@@ -80,7 +90,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
                 <option value="none">Без группы</option>
               </Select>
               <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Найти</button>
-            </form>
+            </LiveForm>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

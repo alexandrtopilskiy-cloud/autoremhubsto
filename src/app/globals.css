@@ -43,3 +43,16 @@
 body {
   @apply bg-white text-slate-900 antialiased;
 }
+
+/* Полоса загрузки списков (components/busy.tsx) */
+@keyframes busy-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.busy-bar {
+  animation: busy-bar 1s ease-in-out infinite;
+}

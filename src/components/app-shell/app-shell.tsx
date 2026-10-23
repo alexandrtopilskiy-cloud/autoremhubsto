@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { BusyBar } from "../busy";
 import { activeLink, menuLinks, tabKey, type MenuItem, type MenuLink } from "@/lib/nav";
 import { Icon } from "./icons";
 import { CLOSE_TAB_EVENT, TAB_TITLE_EVENT, tabTitles } from "./tab-title";
@@ -54,6 +55,7 @@ export function AppShell({
 
   return (
     <div className="flex h-dvh overflow-hidden print:block print:h-auto print:overflow-visible">
+      <BusyBar />
       <aside
         className={`relative z-30 hidden shrink-0 flex-col bg-menu text-white transition-[width] md:flex print:hidden ${collapsed ? "w-14" : "w-[188px]"}`}
       >

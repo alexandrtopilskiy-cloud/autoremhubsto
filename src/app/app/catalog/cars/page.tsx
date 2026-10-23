@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { carCatalogInfo, carMakes, carModifications } from "@/lib/services/car-catalog";
 import { CatalogTabs } from "../tabs";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/catalog/cars";
 /** Выгрузка — файлом, поэтому обычной ссылкой, а не переходом внутри приложения. */
@@ -85,7 +86,7 @@ export default async function CarsPage({ searchParams }: { searchParams: Promise
             </section>
             <section className="rounded-md border border-slate-200 bg-white">
               <h2 className="border-b px-3 py-2 text-[13px] font-semibold text-slate-500">Модели</h2>
-              <form className="p-2">
+              <LiveForm className="p-2">
                 {make && <input type="hidden" name="make" value={make.make} />}
                 <input
                   name="q"
@@ -94,7 +95,7 @@ export default async function CarsPage({ searchParams }: { searchParams: Promise
                   aria-label="Поиск модели"
                   className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500"
                 />
-              </form>
+              </LiveForm>
               <div className="max-h-[33rem] overflow-y-auto">
                 {models.map((m) => (
                   <Link

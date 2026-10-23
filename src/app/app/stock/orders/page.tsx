@@ -13,6 +13,7 @@ import { listSuppliers } from "@/lib/services/stock";
 import { getSupplierOrder, listSupplierOrders, supplierOrderStatusLabel } from "@/lib/services/supplier-orders";
 import { StockTabs } from "../tabs";
 import { createSupplierOrderAction } from "../warehouse-actions";
+import { previewSession } from "@/lib/preview";
 
 const tone = {
   NEW: "amber",
@@ -46,6 +47,13 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
       />
     </>
   );
+}
+
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(id: string) {
+  "use server";
+  const s = await previewSession("stock", "costs");
+  return s ? <Preview companyId={s.companyId} id={id} /> : null;
 }
 
 export default async function SupplierOrdersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -89,6 +97,7 @@ export default async function SupplierOrdersPage({ searchParams }: { searchParam
           </Card>
         </NewPanel>
         <PreviewPane
+          load={loadPreview}
           selected={preview}
           panel={preview ? <Preview companyId={s.companyId} id={preview} /> : <PreviewHint what="заказ" open="заказ поставщику" />}
           list={

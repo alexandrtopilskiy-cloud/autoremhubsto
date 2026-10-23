@@ -15,6 +15,7 @@ import { listOrganizations } from "@/lib/services/employees";
 import { getCompany } from "@/lib/services/settings";
 import { monthTitle, pageMonth } from "../month";
 import { addPayrollEntryAction, deletePayrollEntryAction, payEmployeeAction } from "../payroll-actions";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/staff/payroll";
 
@@ -82,7 +83,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
           }
           list={
             <Card>
-              <form className="mb-4 flex flex-wrap items-end gap-3">
+              <LiveForm className="mb-4 flex flex-wrap items-end gap-3">
                 <Field label="Месяц">
                   <Input type="month" name="month" defaultValue={month} />
                 </Field>
@@ -99,7 +100,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
                   </Field>
                 )}
                 <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">Показать</button>
-              </form>
+              </LiveForm>
               <h2 className="mb-2 font-semibold">Зарплата за {monthTitle(month)}</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

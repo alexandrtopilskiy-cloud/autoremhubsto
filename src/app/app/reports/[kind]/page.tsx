@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { formatCell, isReportKind, REPORTS } from "@/lib/report-registry";
 import { reportPeriod } from "@/lib/report-period";
 import { getCompany } from "@/lib/services/settings";
+import { LiveForm } from "@/components/busy";
 
 const num = (kind?: string) => kind === "money" || kind === "qty" || kind === "int";
 
@@ -28,7 +29,7 @@ export default async function ReportPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-wrap items-end gap-2 print:hidden">
+      <LiveForm className="flex flex-wrap items-end gap-2 print:hidden">
         {def.period === "range" && (
           <Field label="С">
             <Input type="date" name="from" defaultValue={from} />
@@ -44,7 +45,7 @@ export default async function ReportPage({
         <a href={`/app/reports/${kind}/export${qs}`} className="ml-auto rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">
           Скачать для Excel
         </a>
-      </form>
+      </LiveForm>
 
       {tables.map((t) => (
         <Card key={t.title} title={t.title}>

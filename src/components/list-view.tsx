@@ -2,6 +2,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { listHref, PER_PAGE, type ListQuery } from "@/lib/list-query";
+import { LinkBusy, LiveForm } from "./busy";
 import { Input, Select, th } from "./ui";
 
 const btn = "rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50";
@@ -21,7 +22,7 @@ export function ListFilters({
   children?: ReactNode;
 }) {
   return (
-    <form action={path} className="mb-3 flex flex-wrap items-end gap-2">
+    <LiveForm action={path} className="mb-3 flex flex-wrap items-end gap-2">
       <input type="hidden" name="sort" value={query.sort} />
       <input type="hidden" name="dir" value={query.dir} />
       <Input
@@ -50,10 +51,11 @@ export function ListFilters({
         ))}
       </Select>
       <button className={btn}>Найти</button>
-      <Link href={path} className="px-2 py-1.5 text-sm text-blue-600 hover:underline">
+      <Link href={path} prefetch={false} className="px-2 py-1.5 text-sm text-blue-600 hover:underline">
         Сбросить
+        <LinkBusy />
       </Link>
-    </form>
+    </LiveForm>
   );
 }
 
@@ -103,9 +105,10 @@ export function SortTh<S extends string>({
       className={`${th} ${right ? "text-right" : ""}`}
       aria-sort={active ? (query.dir === "asc" ? "ascending" : "descending") : undefined}
     >
-      <Link href={listHref(path, query, { sort, dir })} className="whitespace-nowrap text-blue-600 hover:text-blue-800">
+      <Link href={listHref(path, query, { sort, dir })} prefetch={false} className="whitespace-nowrap text-blue-600 hover:text-blue-800">
         {children}
         {active && <span aria-hidden> {query.dir === "asc" ? "↑" : "↓"}</span>}
+        <LinkBusy />
       </Link>
     </th>
   );
@@ -123,8 +126,9 @@ export function Pager({ path, query, total, page, pages }: { path: string; query
       {pages > 1 && (
         <div className="flex items-center gap-2">
           {page > 1 ? (
-            <Link href={listHref(path, query, { page: page - 1 })} className={btn}>
+            <Link href={listHref(path, query, { page: page - 1 })} prefetch={false} className={btn}>
               ← Назад
+              <LinkBusy />
             </Link>
           ) : (
             <span className={`${btn} opacity-40`}>← Назад</span>
@@ -133,8 +137,9 @@ export function Pager({ path, query, total, page, pages }: { path: string; query
             Страница {page} из {pages}
           </span>
           {page < pages ? (
-            <Link href={listHref(path, query, { page: page + 1 })} className={btn}>
+            <Link href={listHref(path, query, { page: page + 1 })} prefetch={false} className={btn}>
               Вперёд →
+              <LinkBusy />
             </Link>
           ) : (
             <span className={`${btn} opacity-40`}>Вперёд →</span>
