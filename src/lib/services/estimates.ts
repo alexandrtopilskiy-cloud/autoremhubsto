@@ -97,7 +97,7 @@ export async function updateEstimate(companyId: string, id: string, input: unkno
 export async function listEstimates(companyId: string) {
   const list = await prisma.estimate.findMany({
     where: { companyId },
-    include: { client: true, vehicle: true, lines: true, order: { select: { id: true, number: true } } },
+    include: { client: true, vehicle: true, lines: true, order: { select: { id: true, number: true, numberPrefix: true } } },
     orderBy: { number: "desc" },
     take: 200,
   });
@@ -112,7 +112,7 @@ export async function getEstimate(companyId: string, id: string) {
       client: { include: { vehicles: true } },
       vehicle: true,
       lines: { orderBy: [{ kind: "asc" }, { position: "asc" }] },
-      order: { select: { id: true, number: true } },
+      order: { select: { id: true, number: true, numberPrefix: true } },
     },
   });
   return { ...e, totals: estimateTotals(e.lines) };

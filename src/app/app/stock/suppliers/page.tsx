@@ -4,7 +4,7 @@ import { Allowed } from "@/components/manager-only";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
 import { Card, Field, Input, NewPanel, PageTitle, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { formatDate } from "@/lib/format";
+import { formatDate, receiptNo } from "@/lib/format";
 import { previewHref, previewId } from "@/lib/list-query";
 import { formatRub } from "@/lib/money";
 import { listSuppliers, supplierPreview } from "@/lib/services/stock";
@@ -26,7 +26,7 @@ async function Preview({ companyId, id, costs }: { companyId: string; id: string
         <>
           <PreviewLines
             title="Последние приходы"
-            lines={p.receipts.map((r) => ({ key: r.id, name: `ПН-${r.number} от ${formatDate(r.date)}`, right: formatRub(r.total) }))}
+            lines={p.receipts.map((r) => ({ key: r.id, name: `${receiptNo(r.number, r.numberPrefix)} от ${formatDate(r.date)}`, right: formatRub(r.total) }))}
           />
           <PreviewLines title="Последние заказы" lines={p.orders.map((o) => ({ key: o.id, name: `ЗП-${o.number} от ${formatDate(o.createdAt)}` }))} />
         </>

@@ -105,7 +105,7 @@ export async function workPreview(companyId: string, id: string) {
   const where = { workId: id, order: { companyId } };
   const [used, last] = await Promise.all([
     prisma.workOrderWork.count({ where }),
-    prisma.workOrderWork.findFirst({ where, orderBy: { order: { acceptedAt: "desc" } }, select: { order: { select: { id: true, number: true, acceptedAt: true } } } }),
+    prisma.workOrderWork.findFirst({ where, orderBy: { order: { acceptedAt: "desc" } }, select: { order: { select: { id: true, number: true, numberPrefix: true, acceptedAt: true } } } }),
   ]);
   return { ...w, used, lastOrder: last?.order ?? null };
 }

@@ -23,7 +23,7 @@ async function Preview({ companyId, id, query }: { companyId: string; id: string
       <PreviewRow label="Заказ-наряд">
         {e.order ? (
           <Link href={`/app/orders/${e.order.id}`} className="text-blue-600 hover:underline">
-            {orderNo(e.order.number)}
+            {orderNo(e.order.number, e.order.numberPrefix)}
           </Link>
         ) : null}
       </PreviewRow>
@@ -127,7 +127,7 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
                       <td className={td}>{e.vehicle ? vehicleTitle(e.vehicle) : ""}</td>
                       <td className={td}>
                         <Badge tone={e.status === "ACCEPTED" ? "green" : e.status === "SENT" ? "blue" : "slate"}>{estimateStatusLabel(e.status)}</Badge>
-                        {e.order && <span className="ml-2 text-slate-500">{orderNo(e.order.number)}</span>}
+                        {e.order && <span className="ml-2 text-slate-500">{orderNo(e.order.number, e.order.numberPrefix)}</span>}
                       </td>
                       <td className={`${td} text-right whitespace-nowrap`}>{formatRub(e.totals.total)}</td>
                       <td className={`${td} py-1.5`}>

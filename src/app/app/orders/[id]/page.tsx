@@ -6,7 +6,7 @@ import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/componen
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
-import { formatRub, lineTotal } from "@/lib/money";
+import { formatRub, lineTotal, discountLabel } from "@/lib/money";
 import { groupWorks, worksForPicker } from "@/lib/services/catalog";
 import { listEmployees } from "@/lib/services/employees";
 import { getCompany } from "@/lib/services/settings";
@@ -106,7 +106,7 @@ export default async function OrderPage({
   const message =
     o.stage === "READY"
       ? `Здравствуйте, ${o.client.name}! ${car} готов, можно забирать. К оплате ${formatRub(Math.max(0, o.totals.due))}. ${s.companyName}`
-      : `Здравствуйте, ${o.client.name}! Пишем по заказ-наряду ${orderNo(o.number)} (${car}). ${s.companyName}`;
+      : `Здравствуйте, ${o.client.name}! Пишем по заказ-наряду ${orderNo(o.number, o.numberPrefix)} (${car}). ${s.companyName}`;
   const posted = o.status === "POSTED";
   const t = o.totals;
   const counts: Partial<Record<Tab, number>> = { inspection: inspection.damages.length, lines: o.works.length + o.items.length };
@@ -114,12 +114,12 @@ export default async function OrderPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle tab={`${orderNo(o.number)} ${o.client.name}`}
+      <PageTitle tab={`${orderNo(o.number, o.numberPrefix)} ${o.client.name}`}
         actions={
           <DocToolbar exitHref="/app/orders" editable={!posted} post={postAction.bind(null, o.id)} unpost={unpostAction.bind(null, o.id)} />
         }
       >
-        {orderNo(o.number)} от {formatDate(o.acceptedAt)}{" "}
+        {orderNo(o.number, o.numberPrefix)} от {formatDate(o.acceptedAt)}{" "}
         <Badge tone={posted ? "green" : "amber"}>{posted ? "Проведён" : "Черновик"}</Badge>
       </PageTitle>
 
@@ -344,9 +344,9 @@ export default async function OrderPage({
                     <td className={td}>{w.executor?.name}</td>
                     <td className={`${td} text-right`}>{formatQty(Number(w.normHours))}</td>
                     <td className={`${td} text-right`}>{formatRub(w.price)}</td>
-                    <td className={`${td} text-right`}>{w.discount ? `${w.discount}%` : ""}</td>
+                    <td className={`${td} text-right`}>{discountLabel(w)}</td>
                     <td className={`${td} text-right whitespace-nowrap`}>
-                      {formatRub(lineTotal({ qty: Number(w.normHours), price: w.price, discount: w.discount }))}
+                      {formatRub(lineTotal({ qty: Number(w.normHours), price: w.price, discount: w.discount, discountSum: w.discountSum }))}
                     </td>
                     <td className={`${td} text-right`}>
                       {!posted && (
@@ -452,9 +452,9 @@ export default async function OrderPage({
                     <td className={td}>{i.article}</td>
                     <td className={`${td} text-right`}>{formatQty(Number(i.qty))}</td>
                     <td className={`${td} text-right`}>{formatRub(i.price)}</td>
-                    <td className={`${td} text-right`}>{i.discount ? `${i.discount}%` : ""}</td>
+                    <td className={`${td} text-right`}>{discountLabel(i)}</td>
                     <td className={`${td} text-right whitespace-nowrap`}>
-                      {formatRub(lineTotal({ qty: Number(i.qty), price: i.price, discount: i.discount }))}
+                      {formatRub(lineTotal({ qty: Number(i.qty), price: i.price, discount: i.discount, discountSum: i.discountSum }))}
                     </td>
                     <td className={`${td} text-right`}>
                       {!posted && (
@@ -729,7 +729,7 @@ export default async function OrderPage({
                     <tr key={x.id} className={`border-b last:border-0 ${x.id === o.id ? "bg-blue-50" : ""}`}>
                       <td className={td}>
                         <Link href={`/app/orders/${x.id}?tab=client`} className="text-blue-600 hover:underline">
-                          {orderNo(x.number)}
+                          {orderNo(x.number, x.numberPrefix)}
                         </Link>
                       </td>
                       <td className={td}>{formatDate(x.acceptedAt)}</td>
@@ -760,7 +760,7 @@ export default async function OrderPage({
                         {r.comment && <span className="text-slate-500"> · {r.comment}</span>}
                         <div className="text-xs text-slate-500">
                           {r.kind === "WORK" ? "Работа" : "Товар"} · {formatDate(r.createdAt)}
-                          {r.order && r.order.id !== o.id && <> · из {orderNo(r.order.number)}</>}
+                          {r.order && r.order.id !== o.id && <> · из {orderNo(r.order.number, r.order.numberPrefix)}</>}
                         </div>
                       </td>
                       <td className={`${td} text-right whitespace-nowrap`}>

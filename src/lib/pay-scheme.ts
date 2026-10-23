@@ -3,7 +3,7 @@ import type { Employee, PayBase, Prisma } from "@prisma/client";
 import { lineTotal } from "./money";
 
 type Scheme = Pick<Employee, "workPercent" | "workBase" | "salesPercent" | "itemsPercent" | "itemsBase" | "paidOnly">;
-type Line = { qty: number; price: number; discount: number };
+type Line = { qty: number; price: number; discount: number; discountSum?: number | null };
 
 export const PAY_BASES: { value: PayBase; label: string }[] = [
   { value: "PRICE", label: "от стоимости без скидки" },
@@ -15,10 +15,10 @@ const pct = (sum: number, p: number) => Math.round((sum * p) / 100);
 
 /** Вознаграждение исполнителя за одну работу. */
 export function executorReward(
-  w: { normHours: Prisma.Decimal | number; price: number; discount: number; work?: { executorPercent: number | null } | null },
+  w: { normHours: Prisma.Decimal | number; price: number; discount: number; discountSum?: number | null; work?: { executorPercent: number | null } | null },
   e: Scheme,
 ) {
-  const line = { qty: Number(w.normHours), price: w.price, discount: w.discount };
+  const line = { qty: Number(w.normHours), price: w.price, discount: w.discount, discountSum: w.discountSum };
   const base = e.workBase === "PRICE" ? Math.round(line.qty * line.price) : lineTotal(line);
   return { base, percent: w.work?.executorPercent ?? e.workPercent, reward: pct(base, w.work?.executorPercent ?? e.workPercent) };
 }
@@ -38,9 +38,9 @@ export function managerReward(o: { works: Line[]; items: Line[] }, itemsCost: nu
 
 /** Строки заказ-наряда в виде чисел для managerReward. */
 export const orderLines = (o: {
-  works: { normHours: Prisma.Decimal; price: number; discount: number }[];
-  items: { qty: Prisma.Decimal; price: number; discount: number }[];
+  works: { normHours: Prisma.Decimal; price: number; discount: number; discountSum?: number | null }[];
+  items: { qty: Prisma.Decimal; price: number; discount: number; discountSum?: number | null }[];
 }) => ({
-  works: o.works.map((w) => ({ qty: Number(w.normHours), price: w.price, discount: w.discount })),
-  items: o.items.map((i) => ({ qty: Number(i.qty), price: i.price, discount: i.discount })),
+  works: o.works.map((w) => ({ qty: Number(w.normHours), price: w.price, discount: w.discount, discountSum: w.discountSum })),
+  items: o.items.map((i) => ({ qty: Number(i.qty), price: i.price, discount: i.discount, discountSum: i.discountSum })),
 });

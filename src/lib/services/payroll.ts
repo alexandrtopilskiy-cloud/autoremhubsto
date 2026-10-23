@@ -26,6 +26,7 @@ export async function orderCosts(companyId: string, orderIds: string[]) {
 export type OrderRewardLine = {
   orderId: string;
   number: number;
+  numberPrefix: string;
   closedAt: Date;
   role: "executor" | "manager";
   title: string;
@@ -57,13 +58,14 @@ export async function orderRewards(companyId: string, p: Period, organizationId?
     for (const w of o.works) {
       if (!w.executor || (w.executor.paidOnly && !paid)) continue;
       const r = executorReward(w, w.executor);
-      push(w.executor.id, { orderId: o.id, number: o.number, closedAt: o.closedAt!, role: "executor", title: w.name, ...r });
+      push(w.executor.id, { orderId: o.id, number: o.number, numberPrefix: o.numberPrefix, closedAt: o.closedAt!, role: "executor", title: w.name, ...r });
     }
     if (o.manager && (!o.manager.paidOnly || paid)) {
       const t = totalsOf(o);
       push(o.manager.id, {
         orderId: o.id,
         number: o.number,
+        numberPrefix: o.numberPrefix,
         closedAt: o.closedAt!,
         role: "manager",
         title: "Заказ-наряд менеджера",

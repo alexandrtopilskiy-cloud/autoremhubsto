@@ -1,11 +1,18 @@
 // Все суммы — в копейках (целые числа). Количество и нормочасы — дробные.
 
-export type Line = { qty: number; price: number; discount: number };
+export type Line = { qty: number; price: number; discount: number; discountSum?: number | null };
 
-/** Сумма строки: qty × price − скидка %, с округлением до копейки. */
-export function lineTotal({ qty, price, discount }: Line): number {
+/** Сумма строки: qty × price − скидка %, с округлением до копейки. Скидка суммой (discountSum) — вместо процента. */
+export function lineTotal({ qty, price, discount, discountSum }: Line): number {
   const gross = qty * price;
+  if (discountSum != null) return Math.round(gross) - discountSum;
   return Math.round(gross * (1 - clampPercent(discount) / 100));
+}
+
+/** Скидка строки для таблиц: суммой, если задана суммой, иначе процентом. */
+export function discountLabel({ discount, discountSum }: { discount: number; discountSum?: number | null }): string {
+  if (discountSum != null) return discountSum ? formatRub(discountSum) : "";
+  return discount ? `${discount}%` : "";
 }
 
 export function clampPercent(p: number): number {

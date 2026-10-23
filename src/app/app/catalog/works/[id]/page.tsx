@@ -116,7 +116,7 @@ export default async function WorkPage({ params }: { params: Promise<{ id: strin
                   <tr key={u.id} className="border-b last:border-0">
                     <td className={td}>
                       <Link href={`/app/orders/${u.order.id}`} className="text-blue-600 hover:underline">
-                        {orderNo(u.order.number)}
+                        {orderNo(u.order.number, u.order.numberPrefix)}
                       </Link>
                     </td>
                     <td className={td}>{formatDate(u.order.acceptedAt)}</td>

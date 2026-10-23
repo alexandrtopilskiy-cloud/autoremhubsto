@@ -173,7 +173,7 @@ export function listAppointments(companyId: string, from: Date, to: Date, f: { w
       ...(f.workplaceId ? { workplaceId: f.workplaceId } : {}),
       ...(f.stage ? { stage: f.stage } : {}),
     },
-    include: { workplace: true, client: true, vehicle: true, master: true, order: { select: { id: true, number: true } } },
+    include: { workplace: true, client: true, vehicle: true, master: true, order: { select: { id: true, number: true, numberPrefix: true } } },
     orderBy: { startAt: "asc" },
   });
 }

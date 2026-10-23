@@ -39,7 +39,7 @@ async function Preview({ companyId, id, hourPrice }: { companyId: string; id: st
       <PreviewRow label="Последний раз">
         {w.lastOrder ? (
           <Link href={`/app/orders/${w.lastOrder.id}`} className="text-blue-600 hover:underline">
-            {orderNo(w.lastOrder.number)} от {formatDate(w.lastOrder.acceptedAt)}
+            {orderNo(w.lastOrder.number, w.lastOrder.numberPrefix)} от {formatDate(w.lastOrder.acceptedAt)}
           </Link>
         ) : null}
       </PreviewRow>

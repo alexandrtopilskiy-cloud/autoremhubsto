@@ -98,8 +98,10 @@ export async function updateReceipt(companyId: string, id: string, input: unknow
   });
 }
 
-export function receiptTotal(lines: { qty: Prisma.Decimal | number; cost: number }[]) {
-  return lines.reduce((s, l) => s + Math.round(Number(l.qty) * l.cost), 0);
+export const receiptLineSum = (l: { qty: Prisma.Decimal | number; cost: number; sum?: number | null }) => l.sum ?? Math.round(Number(l.qty) * l.cost);
+
+export function receiptTotal(lines: { qty: Prisma.Decimal | number; cost: number; sum?: number | null }[]) {
+  return lines.reduce((s, l) => s + receiptLineSum(l), 0);
 }
 
 export async function listReceipts(companyId: string) {
@@ -116,9 +118,16 @@ export async function getReceipt(companyId: string, id: string) {
   await ownReceipt(prisma, companyId, id);
   const r = await prisma.receipt.findUniqueOrThrow({
     where: { id },
-    include: { supplier: true, lines: { orderBy: { position: "asc" }, include: { product: true } } },
+    include: {
+      supplier: true,
+      lines: { orderBy: { position: "asc" }, include: { product: true } },
+      payments: { orderBy: { date: "asc" }, include: { cashbox: true } },
+    },
   });
-  return { ...r, total: receiptTotal(r.lines) };
+  const total = receiptTotal(r.lines);
+  // оплаты поставщику — расход денег, поэтому суммы отрицательные
+  const paid = -r.payments.reduce((sum, p) => sum + p.amount, 0);
+  return { ...r, total, paid, due: total - paid };
 }
 
 export async function addReceiptLine(companyId: string, receiptId: string, input: unknown) {

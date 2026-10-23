@@ -2,7 +2,7 @@
 // реестр — по дате приёма. Период передаётся как полуинтервал [from, to) в UTC.
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
-import { orderNo, vehicleTitle } from "../format";
+import { orderNo, vehicleTitle, saleNo } from "../format";
 import { lineTotal } from "../money";
 import { executorReward, managerReward, orderLines } from "../pay-scheme";
 import { addDays, localDate, localToUtc, weekStart } from "../time";
@@ -43,8 +43,8 @@ function postedOrders(companyId: string, p: Period) {
   });
 }
 
-const workSum = (w: { normHours: Prisma.Decimal; price: number; discount: number }) =>
-  lineTotal({ qty: Number(w.normHours), price: w.price, discount: w.discount });
+const workSum = (w: { normHours: Prisma.Decimal; price: number; discount: number; discountSum?: number | null }) =>
+  lineTotal({ qty: Number(w.normHours), price: w.price, discount: w.discount, discountSum: w.discountSum });
 
 // --- 11.2 реестр заказ-нарядов ---
 
@@ -58,7 +58,7 @@ export async function orderRegistry(companyId: string, p: Period): Promise<Repor
     const t = totalsOf(o);
     return {
       _href: `/app/orders/${o.id}`,
-      number: orderNo(o.number),
+      number: orderNo(o.number, o.numberPrefix),
       acceptedAt: o.acceptedAt,
       closedAt: o.closedAt,
       client: o.client.name,
@@ -223,8 +223,8 @@ export async function clientDebts(companyId: string): Promise<ReportTable> {
   type Acc = { _href: string; name: string; phone: string; nums: string[]; due: number };
   const map = new Map<string, Acc>();
   const docs = [
-    ...orders.map((o) => ({ client: o.client, no: orderNo(o.number), due: totalsOf(o).due })),
-    ...sales.map((s) => ({ client: s.client!, no: `РТ-${s.number}`, due: saleTotals(s).due })),
+    ...orders.map((o) => ({ client: o.client, no: orderNo(o.number, o.numberPrefix), due: totalsOf(o).due })),
+    ...sales.map((s) => ({ client: s.client!, no: `${saleNo(s.number, s.numberPrefix)}`, due: saleTotals(s).due })),
   ];
   for (const d of docs) {
     if (d.due === 0) continue;

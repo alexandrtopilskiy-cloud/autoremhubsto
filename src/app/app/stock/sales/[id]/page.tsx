@@ -4,8 +4,8 @@ import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
-import { formatDate, formatQty } from "@/lib/format";
-import { formatRub, lineTotal } from "@/lib/money";
+import { formatDate, formatQty, saleNo } from "@/lib/format";
+import { formatRub, lineTotal, discountLabel } from "@/lib/money";
 import { listCashboxes } from "@/lib/services/cash";
 import { listProducts } from "@/lib/services/catalog";
 import { listClients } from "@/lib/services/clients";
@@ -45,7 +45,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
     <div className="flex flex-col gap-4">
       <StockTabs active="sales" />
       <Allowed perms={s.perms} section="stock">
-        <PageTitle tab={`РТ-${sale.number}`}
+        <PageTitle tab={`${saleNo(sale.number, sale.numberPrefix)}`}
           actions={
             <DocToolbar
               exitHref="/app/stock/sales"
@@ -57,7 +57,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
             />
           }
         >
-          Продажа РТ-{sale.number} от {formatDate(sale.date)} <Badge tone={posted ? "green" : "amber"}>{docStatus(posted)}</Badge>
+          Продажа {saleNo(sale.number, sale.numberPrefix)} от {formatDate(sale.date)} <Badge tone={posted ? "green" : "amber"}>{docStatus(posted)}</Badge>
         </PageTitle>
         <Card>
           <ActionForm doc action={updateSaleAction.bind(null, sale.id)} className="flex flex-wrap items-end gap-3">
@@ -99,13 +99,14 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
                     {formatQty(Number(l.qty))} {l.product.unit}
                   </td>
                   <td className={`${td} text-right whitespace-nowrap`}>{formatRub(l.price)}</td>
-                  <td className={`${td} text-right`}>{l.discount ? `${l.discount}%` : ""}</td>
+                  <td className={`${td} text-right`}>{discountLabel(l)}</td>
                   <td className={`${td} text-right whitespace-nowrap`}>
                     {formatRub(
                       lineTotal({
                         qty: Number(l.qty),
                         price: l.price,
                         discount: l.discount,
+                        discountSum: l.discountSum,
                       }),
                     )}
                   </td>

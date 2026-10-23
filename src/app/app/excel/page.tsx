@@ -2,6 +2,7 @@ import { Card, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { EXCEL_KINDS, MAX_ROWS, type ExcelKind } from "@/lib/services/excel";
+import { AdDocsForm } from "./ad-docs-form";
 import { ImportForm } from "./import-form";
 
 const link = "rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50";
@@ -23,6 +24,19 @@ export default async function ExcelPage() {
         <Card>
           <p className="text-sm text-slate-600">Нет доступа к клиентам и справочникам.</p>
         </Card>
+      )}
+      {can(s.perms, "orders", "CREATE") && can(s.perms, "stock", "CREATE") && (
+        <div id="autodealer" className="scroll-mt-4">
+          <Card title="Документы из АвтоДилера">
+            <p className="mb-3 text-sm text-slate-600">
+              Заказ-наряды, приходные и расходные накладные из выгрузки АвтоДилера — по одному файлу за раз. Документ находится по ID
+              АвтоДилера: повторная загрузка обновляет его, а не создаёт дубль. Клиент ищется по VIN, госномеру, телефону и наименованию,
+              не найденный — добавляется. Работы, которых нет в справочнике, остаются только в заказ-нарядах. Сначала загрузите
+              приходные накладные, затем заказ-наряды и расходные.
+            </p>
+            <AdDocsForm />
+          </Card>
+        </div>
       )}
       {kinds.map((k) => {
         const def = EXCEL_KINDS[k];

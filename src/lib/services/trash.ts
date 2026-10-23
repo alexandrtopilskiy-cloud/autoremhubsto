@@ -1,6 +1,7 @@
 // 12.6 Корзина. Удалённый документ сохраняется снимком (сам документ, его строки и ссылки на него из других
 // записей) и удаляется из рабочих таблиц, поэтому списки и отчёты его не видят без доп. фильтров.
 // Восстановление создаёт записи заново с прежними id и номером.
+import { orderNo, receiptNo, saleNo } from "../format";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { NotFoundError, UserError } from "../errors";
@@ -45,7 +46,7 @@ export const TRASH_KINDS = {
     model: "workOrder",
     section: "orders",
     href: (id) => `/app/orders/${id}`,
-    title: (d) => `Заказ-наряд ЗН-${d.number}`,
+    title: (d) => `Заказ-наряд ${orderNo(d.number as number, d.numberPrefix as string)}`,
     children: [
       { model: "workOrderWork", fk: "orderId" },
       { model: "workOrderItem", fk: "orderId" },
@@ -84,7 +85,7 @@ export const TRASH_KINDS = {
     model: "receipt",
     section: "stock",
     href: (id) => `/app/stock/receipts/${id}`,
-    title: (d) => `Приходная накладная ПН-${d.number}`,
+    title: (d) => `Приходная накладная ${receiptNo(d.number as number, d.numberPrefix as string)}`,
     children: [{ model: "receiptLine", fk: "receiptId" }],
     attachments: "RECEIPT",
     check: draft("Приход"),
@@ -94,7 +95,7 @@ export const TRASH_KINDS = {
     model: "sale",
     section: "stock",
     href: (id) => `/app/stock/sales/${id}`,
-    title: (d) => `Продажа РТ-${d.number}`,
+    title: (d) => `Продажа ${saleNo(d.number as number, d.numberPrefix as string)}`,
     children: [{ model: "saleLine", fk: "saleId" }],
     check: async (tx, d) => {
       await draft("Продажа")(tx, d);

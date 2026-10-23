@@ -274,7 +274,7 @@ export default async function ClientPage({
                   <tr key={o.id} className="border-b last:border-0">
                     <td className={td}>
                       <Link className="text-blue-600 hover:underline" href={`/app/orders/${o.id}`}>
-                        {orderNo(o.number)}
+                        {orderNo(o.number, o.numberPrefix)}
                       </Link>
                     </td>
                     <td className={td}>{formatDate(o.acceptedAt)}</td>
@@ -304,7 +304,7 @@ export default async function ClientPage({
                     {r.order && (
                       <Link href={`/app/orders/${r.order.id}`} className="text-blue-600 hover:underline">
                         {" "}
-                        · из {orderNo(r.order.number)}
+                        · из {orderNo(r.order.number, r.order.numberPrefix)}
                       </Link>
                     )}
                   </li>

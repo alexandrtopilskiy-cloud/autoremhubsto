@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/auth";
 import { PreviewHint, PreviewLines, PreviewRow, PreviewTitle } from "@/components/list-view";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
 import { previewHref, previewId } from "@/lib/list-query";
-import { formatDate, formatQty } from "@/lib/format";
+import { formatDate, formatQty, receiptNo } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listSuppliers } from "@/lib/services/stock";
 import { getSupplierOrder, listSupplierOrders, supplierOrderStatusLabel } from "@/lib/services/supplier-orders";
@@ -36,7 +36,7 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
       <PreviewRow label="Приход">
         {o.receipt ? (
           <Link className="text-blue-600 hover:underline" href={`/app/stock/receipts/${o.receipt.id}`}>
-            ПН-{o.receipt.number}
+            {receiptNo(o.receipt.number, o.receipt.numberPrefix)}
           </Link>
         ) : null}
       </PreviewRow>
@@ -121,7 +121,7 @@ export default async function SupplierOrdersPage({ searchParams }: { searchParam
                       <td className={td}>
                         {o.receipt && (
                           <span className="text-blue-600">
-                            ПН-{o.receipt.number}
+                            {receiptNo(o.receipt.number, o.receipt.numberPrefix)}
                           </span>
                         )}
                       </td>
