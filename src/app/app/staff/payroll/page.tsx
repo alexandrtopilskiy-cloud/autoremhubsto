@@ -36,7 +36,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
       include: { employee: true },
       orderBy: { date: "asc" },
     }),
-    listCashboxes(s.companyId),
+    listCashboxes(s.companyId).then((b) => b.filter((x) => !x.hidden)),
   ]);
   const preview = previewId(sp);
   const sel = rows.find((r) => r.employeeId === preview);

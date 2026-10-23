@@ -283,39 +283,7 @@ export async function supplierDebts(companyId: string): Promise<ReportTable> {
   };
 }
 
-// --- 11.9 ДДС ---
-
-export async function cashFlow(companyId: string, p: Period): Promise<ReportTable> {
-  const [boxes, pays, ops] = await Promise.all([
-    prisma.cashbox.findMany({ where: { companyId }, orderBy: { createdAt: "asc" } }),
-    prisma.payment.findMany({ where: { companyId, paidAt: { gte: p.from, lt: p.to } } }),
-    prisma.cashOperation.findMany({ where: { companyId, date: { gte: p.from, lt: p.to }, category: { not: TRANSFER } } }),
-  ]);
-  const entries = [
-    ...pays.map((x) => ({ cashboxId: x.cashboxId ?? "", amount: x.amount, category: x.amount < 0 ? "Возврат клиенту" : "Оплата заказ-нарядов" })),
-    ...ops.map((x) => ({ cashboxId: x.cashboxId, amount: x.amount, category: x.category })),
-  ];
-  const map = new Map<string, Row>();
-  for (const e of entries) {
-    const dir = e.amount < 0 ? "Расход" : "Приход";
-    const key = `${dir}\u0000${e.category}`;
-    const r = map.get(key) ?? { dir, category: e.category, total: 0 };
-    r[`b_${e.cashboxId}`] = ((r[`b_${e.cashboxId}`] as number) ?? 0) + e.amount;
-    r.total = (r.total as number) + e.amount;
-    map.set(key, r);
-  }
-  const rows = [...map.values()].sort((a, b) =>
-    a.dir === b.dir ? Math.abs(b.total as number) - Math.abs(a.total as number) : a.dir === "Приход" ? -1 : 1,
-  );
-  const boxCols: Col[] = boxes.map((b) => ({ key: `b_${b.id}`, label: b.name, kind: "money" }));
-  if (entries.some((e) => !e.cashboxId)) boxCols.push({ key: "b_", label: "Без кассы", kind: "money" });
-  return {
-    title: "Движение денежных средств",
-    columns: [{ key: "dir", label: "Вид" }, { key: "category", label: "Статья" }, ...boxCols, { key: "total", label: "Итого", kind: "money" }],
-    rows,
-    totals: sumRows(rows, [...boxCols.map((c) => c.key), "total"], "Сальдо"),
-  };
-}
+// 11.9 ДДС — отдельный отчёт в разделе «Деньги»: services/cash-flow.ts
 
 // --- 11.12 остатки на дату ---
 

@@ -91,7 +91,7 @@ export default async function OrderPage({
     worksForPicker(s.companyId),
     stockBalances(s.companyId),
     getCompany(s.companyId),
-    listCashboxes(s.companyId),
+    listCashboxes(s.companyId).then((b) => b.filter((x) => !x.hidden)),
     orderSummary(s.companyId, id),
     listRecommendations(s.companyId, { clientId: o.clientId }),
     orderPartsRequests(s.companyId, id),

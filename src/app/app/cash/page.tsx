@@ -8,7 +8,8 @@ import { previewHref, previewId } from "@/lib/list-query";
 import { formatDate } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { can } from "@/lib/permissions";
-import { cashJournal, EXPENSE_CATEGORIES, INCOME_CATEGORIES, listCashboxes } from "@/lib/services/cash";
+import { cashJournal, listCashboxes } from "@/lib/services/cash";
+import { listCategories } from "@/lib/services/cash-categories";
 import { getCompany } from "@/lib/services/settings";
 import { listSuppliers } from "@/lib/services/stock";
 import { addDays, isDateStr, localToUtc, todayLocal } from "@/lib/time";
@@ -28,7 +29,8 @@ export default async function CashPage({
   const to = isDateStr(sp.to) ? sp.to : todayLocal(tz);
   const from = isDateStr(sp.from) ? sp.from : `${to.slice(0, 8)}01`;
 
-  const [boxes, suppliers] = await Promise.all([listCashboxes(s.companyId), listSuppliers(s.companyId)]);
+  const [boxes, suppliers, categories] = await Promise.all([listCashboxes(s.companyId), listSuppliers(s.companyId), listCategories(s.companyId)]);
+  const active = boxes.filter((b) => !b.hidden);
   const box = boxes.find((b) => b.id === sp.box)?.id;
   const journal = await cashJournal(s.companyId, localToUtc(from, "00:00", tz), localToUtc(addDays(to, 1), "00:00", tz), box);
   const income = journal.filter((r) => r.amount > 0).reduce((a, r) => a + r.amount, 0);
@@ -41,7 +43,7 @@ export default async function CashPage({
       <PageTitle>Касса</PageTitle>
       <Allowed perms={s.perms} section="cash">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {boxes.map((b) => (
+          {active.map((b) => (
             <Card key={b.id}>
               <p className="text-sm text-slate-600">{b.name}</p>
               <p className={`text-xl font-semibold ${b.balance < 0 ? "text-red-600" : ""}`}>{formatRub(b.balance)}</p>
@@ -60,7 +62,7 @@ export default async function CashPage({
               </Field>
               <Field label="Касса">
                 <Select name="cashboxId">
-                  {boxes.map((b) => (
+                  {active.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
                     </option>
@@ -74,14 +76,18 @@ export default async function CashPage({
                 <Select name="category" defaultValue="">
                   <option value="">Выберите</option>
                   <optgroup label="Расход">
-                    {EXPENSE_CATEGORIES.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
+                    {categories
+                      .filter((c) => !c.income)
+                      .map((c) => (
+                        <option key={c.id}>{c.name}</option>
+                      ))}
                   </optgroup>
                   <optgroup label="Приход">
-                    {INCOME_CATEGORIES.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
+                    {categories
+                      .filter((c) => c.income)
+                      .map((c) => (
+                        <option key={c.id}>{c.name}</option>
+                      ))}
                   </optgroup>
                 </Select>
               </Field>
@@ -104,8 +110,8 @@ export default async function CashPage({
           <Card title="Перемещение денег">
             <ActionForm action={transferAction} reset className="flex flex-wrap items-end gap-3">
               <Field label="Откуда">
-                <Select name="fromId" defaultValue={boxes[0]?.id}>
-                  {boxes.map((b) => (
+                <Select name="fromId" defaultValue={active[0]?.id}>
+                  {active.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
                     </option>
@@ -113,8 +119,8 @@ export default async function CashPage({
                 </Select>
               </Field>
               <Field label="Куда">
-                <Select name="toId" defaultValue={boxes[1]?.id}>
-                  {boxes.map((b) => (
+                <Select name="toId" defaultValue={active[1]?.id}>
+                  {active.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
                     </option>

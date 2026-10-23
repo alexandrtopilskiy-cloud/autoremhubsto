@@ -48,6 +48,7 @@ enum AppointmentStage {
 enum CashboxKind {
   CASH
   BANK
+  CARD
 }
 
 enum StockMoveKind {
@@ -144,6 +145,7 @@ model Company {
   receipts         Receipt[]
   stockMoves       StockMove[]
   cashboxes        Cashbox[]
+  cashCategories   CashCategory[]
   cashOps          CashOperation[]
   workplaces       Workplace[]
   appointments     Appointment[]
@@ -645,10 +647,29 @@ model Cashbox {
   company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   name      String
   kind      CashboxKind
+  hidden    Boolean         @default(false) // скрыт из выбора в формах, в отчётах остаётся
   createdAt DateTime        @default(now())
   payments  Payment[]
   ops       CashOperation[]
 
+  @@index([companyId])
+}
+
+// Статья доходов или расходов для отчёта ДДС. Операция ссылается на статью по названию (CashOperation.category);
+// у системных статей (system) название можно менять — операции находят их по ключу.
+model CashCategory {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  income    Boolean // true — поступление, false — выплата
+  group     String?
+  system    String? // revenue | refund | suppliers | payroll
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, name])
+  @@unique([companyId, system])
   @@index([companyId])
 }
 

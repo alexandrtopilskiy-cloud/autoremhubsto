@@ -3,7 +3,6 @@ import { formatDate, formatQty } from "./format";
 import { formatRub } from "./money";
 import {
   adsReport,
-  cashFlow,
   clientDebts,
   executorsReport,
   managersReport,
@@ -17,7 +16,7 @@ import {
   type ReportTable,
 } from "./services/reports";
 
-export type ReportKind = "orders" | "works" | "executors" | "managers" | "debts" | "cashflow" | "stock" | "ads";
+export type ReportKind = "orders" | "works" | "executors" | "managers" | "debts" | "stock" | "ads";
 
 /** range — период «с … по», date — на дату, none — на сейчас; costs — отчёт показывает закупочные цены. */
 type Def = {
@@ -33,7 +32,6 @@ export const REPORTS: Record<ReportKind, Def> = {
   executors: { label: "Исполнители", period: "range", build: async (c, p) => [await executorsReport(c, p)] },
   managers: { label: "Менеджеры", period: "range", build: async (c, p) => [await managersReport(c, p)] },
   debts: { label: "Долги", period: "none", build: async (c) => Promise.all([clientDebts(c), supplierDebts(c)]) },
-  cashflow: { label: "ДДС", period: "range", build: async (c, p) => [await cashFlow(c, p)] },
   stock: { label: "Склад на дату", period: "date", costs: true, build: async (c, p) => [await stockAt(c, p.to)] },
   ads: { label: "Реклама", period: "range", build: async (c, p) => [await adsReport(c, p)] },
 };
