@@ -39,6 +39,7 @@ export const MENU: MenuItem[] = [
     icon: "money",
     children: [
       { href: "/app/cash", section: "cash", label: "Касса" },
+      { href: "/app/cash/flow", section: "cash", label: "Движение денег (ДДС)" },
       { href: "/app/staff/payroll", section: "staff", label: "Зарплата" },
     ],
   },
@@ -69,6 +70,7 @@ export const MENU_BOTTOM: MenuItem[] = [
     children: [
       { href: "/app/settings/users", section: "settings", label: "Пользователи и доступ" },
       { href: "/app/settings", section: "settings", label: "Настройки компании" },
+      { href: "/app/settings/money", section: "settings", label: "Статьи и счета" },
       { href: "/app/settings/roles", section: "settings", label: "Роли и права" },
       { href: "/app/documents/trash", section: "documents", label: "Корзина" },
     ],

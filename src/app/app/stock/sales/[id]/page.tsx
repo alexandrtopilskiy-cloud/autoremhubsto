@@ -37,7 +37,7 @@ export default async function SalePage({ params }: { params: Promise<{ id: strin
   const [clients, products, cashboxes] = await Promise.all([
     listClients(s.companyId),
     listProducts(s.companyId),
-    listCashboxes(s.companyId),
+    listCashboxes(s.companyId).then((b) => b.filter((x) => !x.hidden)),
   ]);
   const posted = sale.status === "POSTED";
   const t = sale.totals;

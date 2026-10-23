@@ -454,7 +454,7 @@ async function cashboxes(tx: Tx, companyId: string, pays: { account: string; met
   for (const p of pays) {
     const k = norm(p.account);
     if (by.has(k)) continue;
-    const c = await tx.cashbox.create({ data: { companyId, name: p.account, kind: p.method === "CASH" ? "CASH" : "BANK" } });
+    const c = await tx.cashbox.create({ data: { companyId, name: p.account, kind: p.method === "CASH" ? "CASH" : k.includes("карт") ? "CARD" : "BANK" } });
     by.set(k, c.id);
     made.push(p.account);
   }

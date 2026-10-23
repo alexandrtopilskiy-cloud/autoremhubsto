@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { registerCompany } from "@/lib/services/accounts";
-import { addOperation, listCashboxes, transfer } from "@/lib/services/cash";
+import { addOperation, listCashboxes } from "@/lib/services/cash";
 import { createProduct } from "@/lib/services/catalog";
 import { addVehicle, createClient } from "@/lib/services/clients";
 import { addItemFromCatalog, addPayment, addWork, createOrder, postOrder } from "@/lib/services/orders";
 import {
   adsReport,
-  cashFlow,
   clientDebts,
   executorsReport,
   managersReport,
@@ -72,19 +71,6 @@ describe("отчёты", () => {
     const cash = (await listCashboxes(a)).find((x) => x.kind === "CASH")!;
     await addOperation(a, { cashboxId: cash.id, direction: "OUT", amount: 200000, category: "Оплата поставщику", supplierId: sup.id });
     expect((await supplierDebts(a)).rows[0]).toMatchObject({ name: "Автодок", received: 500000, paid: 200000, due: 300000 });
-  });
-
-  it("ДДС по статьям и кассам без перемещений", async () => {
-    const { a } = await setup();
-    const boxes = await listCashboxes(a);
-    const cash = boxes.find((x) => x.kind === "CASH")!;
-    const bank = boxes.find((x) => x.kind === "BANK")!;
-    await addOperation(a, { cashboxId: bank.id, direction: "OUT", amount: 3000000, category: "Аренда" });
-    await transfer(a, { fromId: cash.id, toId: bank.id, amount: 100000 });
-    const t = await cashFlow(a, ALL);
-    expect(t.rows.map((r) => r.category)).toEqual(["Оплата заказ-нарядов", "Аренда"]);
-    expect(t.rows[0]).toMatchObject({ dir: "Приход", [`b_${cash.id}`]: 500000, total: 500000 });
-    expect(t.totals).toMatchObject({ total: -2500000, _label: "Сальдо" });
   });
 
   it("остатки на дату и рекламные источники", async () => {

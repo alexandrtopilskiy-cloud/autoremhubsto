@@ -5,13 +5,10 @@ import { NotFoundError, UserError } from "../errors";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
-export const INCOME_CATEGORIES = ["Внесение наличных", "Прочий приход"];
-export const EXPENSE_CATEGORIES = ["Оплата поставщику", "Аренда", "Зарплата", "Коммунальные платежи", "Инкассация", "Прочий расход"];
-
 /** Наличные идут в кассу, остальные способы — на расчётный счёт. */
 export function defaultCashbox(db: Db, companyId: string, method: PaymentMethod) {
   return db.cashbox.findFirst({
-    where: { companyId, kind: method === "CASH" ? "CASH" : "BANK" },
+    where: { companyId, kind: method === "CASH" ? "CASH" : "BANK", hidden: false },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -24,7 +21,7 @@ async function ownCashbox(db: Db, companyId: string, id: string) {
 
 export const cashboxSchema = z.object({
   name: z.string().trim().min(1, "Укажите название"),
-  kind: z.enum(["CASH", "BANK"]),
+  kind: z.enum(["CASH", "BANK", "CARD"]),
 });
 
 export async function createCashbox(companyId: string, input: unknown) {
