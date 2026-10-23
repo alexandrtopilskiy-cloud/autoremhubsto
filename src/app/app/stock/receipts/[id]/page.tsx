@@ -5,10 +5,10 @@ import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
-import { formatDate, formatQty } from "@/lib/format";
+import { formatDate, formatQty, receiptNo } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listProducts } from "@/lib/services/catalog";
-import { getReceipt, listSuppliers } from "@/lib/services/stock";
+import { getReceipt, listSuppliers, receiptLineSum } from "@/lib/services/stock";
 import {
   addReceiptLineAction,
   postReceiptAction,
@@ -36,7 +36,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     <div className="flex flex-col gap-4">
       <StockTabs active="receipts" />
       <Allowed perms={s.perms} section="stock" flag="costs">
-        <PageTitle tab={`ПН-${r.number}`}
+        <PageTitle tab={`${receiptNo(r.number, r.numberPrefix)}`}
           actions={
             <DocToolbar
               exitHref="/app/stock/receipts"
@@ -48,7 +48,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
             />
           }
         >
-          Приход ПН-{r.number} от {formatDate(r.date)}{" "}
+          Приход {receiptNo(r.number, r.numberPrefix)} от {formatDate(r.date)}{" "}
           <Badge tone={posted ? "green" : "amber"}>{posted ? "Проведён" : "Черновик"}</Badge>
         </PageTitle>
         <Card>
@@ -92,7 +92,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
                     {formatQty(Number(l.qty))} {l.product.unit}
                   </td>
                   <td className={`${td} text-right whitespace-nowrap`}>{formatRub(l.cost)}</td>
-                  <td className={`${td} text-right whitespace-nowrap`}>{formatRub(Math.round(Number(l.qty) * l.cost))}</td>
+                  <td className={`${td} text-right whitespace-nowrap`}>{formatRub(receiptLineSum(l))}</td>
                   <td className={`${td} text-right`}>
                     {!posted && (
                       <ActionForm action={removeReceiptLineAction.bind(null, r.id, l.id)}>
@@ -121,6 +121,30 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
             </ActionForm>
           )}
         </Card>
+        {r.payments.length > 0 && (
+          <Card title={`Оплаты поставщику · оплачено ${formatRub(r.paid)}${r.due > 0 ? `, долг ${formatRub(r.due)}` : ""}`}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className={th}>Дата</th>
+                  <th className={th}>Касса / счёт</th>
+                  <th className={th}>Комментарий</th>
+                  <th className={`${th} text-right`}>Сумма</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.payments.map((p) => (
+                  <tr key={p.id} className="border-b last:border-0">
+                    <td className={td}>{formatDate(p.date)}</td>
+                    <td className={td}>{p.cashbox.name}</td>
+                    <td className={td}>{p.comment}</td>
+                    <td className={`${td} text-right whitespace-nowrap`}>{formatRub(-p.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        )}
         <Attachments companyId={s.companyId} kind="RECEIPT" docId={r.id} path={`/app/stock/receipts/${r.id}`} />
       </Allowed>
     </div>

@@ -109,6 +109,6 @@ export function sortBy<T>(rows: T[], key: (r: T) => string | number | Date | nul
 
 /** Номер документа из строки поиска: «125», «ЗН-125», «к-7». */
 export function docNumber(q: string): number | null {
-  const m = q.trim().match(/^(?:[а-яa-z]{1,3}\s*-?\s*)?(\d{1,9})$/i);
+  const m = q.trim().match(/^(?:[а-яa-z]{1,3}\s*-?\s*)?[aа]?(\d{1,9})$/i); // «ЗН-A519»: буква повторившегося номера
   return m ? Number(m[1]) : null;
 }

@@ -72,7 +72,7 @@ export async function listRecommendations(
           }
         : {}),
     },
-    include: { client: true, vehicle: true, order: { select: { id: true, number: true } } },
+    include: { client: true, vehicle: true, order: { select: { id: true, number: true, numberPrefix: true } } },
     orderBy: { createdAt: "desc" },
     take: 300,
   });

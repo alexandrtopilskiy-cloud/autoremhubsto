@@ -55,7 +55,7 @@ export default async function AppointmentListPage({
               <PreviewRow label="Заказ-наряд">
                 {sel.order ? (
                   <Link href={`/app/orders/${sel.order.id}`} className="text-blue-600 hover:underline">
-                    {orderNo(sel.order.number)}
+                    {orderNo(sel.order.number, sel.order.numberPrefix)}
                   </Link>
                 ) : null}
               </PreviewRow>
@@ -130,7 +130,7 @@ export default async function AppointmentListPage({
                       <td className={td}>
                         {a.order && (
                           <span className="text-blue-600">
-                            {orderNo(a.order.number)}
+                            {orderNo(a.order.number, a.order.numberPrefix)}
                           </span>
                         )}
                       </td>

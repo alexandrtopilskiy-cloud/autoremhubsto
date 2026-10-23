@@ -117,7 +117,7 @@ export async function cashJournal(companyId: string, from: Date, to: Date, cashb
   const [pays, ops] = await Promise.all([
     prisma.payment.findMany({
       where: { ...where, paidAt: { gte: from, lt: to } },
-      include: { cashbox: true, order: { select: { id: true, number: true, client: { select: { name: true } } } } },
+      include: { cashbox: true, order: { select: { id: true, number: true, numberPrefix: true, client: { select: { name: true } } } } },
     }),
     prisma.cashOperation.findMany({
       where: { ...where, date: { gte: from, lt: to } },

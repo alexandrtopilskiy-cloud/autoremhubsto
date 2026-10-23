@@ -145,7 +145,7 @@ export async function searchEstimates(companyId: string, q: EstimateQuery, tz: n
   const all = (
     await prisma.estimate.findMany({
       where,
-      include: { client: true, vehicle: true, lines: true, order: { select: { id: true, number: true } } },
+      include: { client: true, vehicle: true, lines: true, order: { select: { id: true, number: true, numberPrefix: true } } },
       orderBy: { number: "desc" },
     })
   ).map((e) => ({ ...e, totals: estimateTotals(e.lines) }));
@@ -199,7 +199,7 @@ export async function clientPreview(companyId: string, id: string) {
       include: { works: true, items: true, payments: true },
       orderBy: { number: "desc" },
     })
-  ).map((o) => ({ id: o.id, number: o.number, acceptedAt: o.acceptedAt, stage: o.stage, totals: totalsOf(o) }));
+  ).map((o) => ({ id: o.id, number: o.number, numberPrefix: o.numberPrefix, acceptedAt: o.acceptedAt, stage: o.stage, totals: totalsOf(o) }));
   return {
     ...c,
     orders: orders.slice(0, 5),
@@ -256,7 +256,7 @@ export async function searchEverywhere(
   const q = query.trim();
   if (q.length < 2 && docNumber(q) === null) return null;
   // «ЗН-12», «К-12», «РТ-12» ищут номер только в своём виде документов, просто «12» — во всех
-  const prefix = q.match(/^([а-яё]{1,3})\s*-?\s*\d+$/i)?.[1].toUpperCase();
+  const prefix = q.match(/^([а-яё]{1,3})\s*-?\s*[aа]?\d+$/i)?.[1].toUpperCase();
   const num = (kind: string) => (!prefix || prefix === kind ? docNumber(q) : null);
   const none = Promise.resolve([]);
   const [clients, orders, estimates, sales, products] = await Promise.all([

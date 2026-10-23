@@ -40,7 +40,7 @@ export default async function AppointmentPage({ params }: { params: Promise<{ id
         actions={
           a.order ? (
             <Link href={`/app/orders/${a.order.id}`} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50">
-              Открыть {orderNo(a.order.number)}
+              Открыть {orderNo(a.order.number, a.order.numberPrefix)}
             </Link>
           ) : a.stage !== "CANCELLED" ? (
             <ActionForm action={createOrderFromAppointmentAction.bind(null, a.id)}>

@@ -75,7 +75,7 @@ export async function listSupplierOrders(companyId: string, status?: SupplierOrd
     include: {
       supplier: true,
       lines: true,
-      receipt: { select: { id: true, number: true } },
+      receipt: { select: { id: true, number: true, numberPrefix: true } },
     },
     orderBy: { number: "desc" },
     take: 200,
@@ -90,7 +90,7 @@ export async function getSupplierOrder(companyId: string, id: string) {
     include: {
       supplier: true,
       lines: { orderBy: { position: "asc" }, include: { product: true } },
-      receipt: { select: { id: true, number: true, status: true } },
+      receipt: { select: { id: true, number: true, numberPrefix: true, status: true } },
     },
   });
   return { ...o, total: receiptTotal(o.lines) };

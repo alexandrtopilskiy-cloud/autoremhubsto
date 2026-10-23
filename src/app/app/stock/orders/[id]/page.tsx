@@ -5,7 +5,7 @@ import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
-import { formatDate, formatQty } from "@/lib/format";
+import { formatDate, formatQty, receiptNo } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listGroups, listProducts } from "@/lib/services/catalog";
 import { listSuppliers } from "@/lib/services/stock";
@@ -83,7 +83,7 @@ export default async function SupplierOrderPage({ params }: { params: Promise<{ 
           <p className="text-sm">
             По заказу создан приход{" "}
             <Link className="text-blue-600 hover:underline" href={`/app/stock/receipts/${o.receipt.id}`}>
-              ПН-{o.receipt.number}
+              {receiptNo(o.receipt.number, o.receipt.numberPrefix)}
             </Link>
             {o.receipt.status === "DRAFT" && ", проверьте количество и проведите его"}.
           </p>

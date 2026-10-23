@@ -56,7 +56,7 @@ export async function removeRequestLine(companyId: string, id: string, lineId: s
 const include = {
   lines: { include: { product: true } },
   requestedBy: { select: { name: true } },
-  order: { select: { id: true, number: true, client: { select: { name: true } }, vehicle: true } },
+  order: { select: { id: true, number: true, numberPrefix: true, client: { select: { name: true } }, vehicle: true } },
 } satisfies Prisma.PartsRequestInclude;
 
 export function listPartsRequests(companyId: string, status?: PartsRequestStatus) {

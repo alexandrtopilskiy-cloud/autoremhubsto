@@ -1,6 +1,6 @@
 // Общий журнал документов сервиса и склада за период.
 import { prisma } from "../db";
-import { orderNo } from "../format";
+import { orderNo, receiptNo, saleNo } from "../format";
 import { estimateStatusLabel, estimateTotals } from "./estimates";
 import { stageLabel, totalsOf } from "./orders";
 import { requestStatusLabel } from "./parts-requests";
@@ -51,7 +51,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
     want("request")
       ? prisma.partsRequest.findMany({
           where: { companyId, createdAt: { gte: p.from, lt: p.to } },
-          include: { order: { select: { number: true, client: { select: { name: true } } } } },
+          include: { order: { select: { number: true, numberPrefix: true, client: { select: { name: true } } } } },
         })
       : [],
     want("sale")
@@ -69,7 +69,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       id: o.id,
       type: "order" as const,
       date: o.acceptedAt,
-      number: orderNo(o.number),
+      number: orderNo(o.number, o.numberPrefix),
       party: o.client.name,
       total: totalsOf(o).total,
       status: o.status === "POSTED" ? "Проведён" : stageLabel(o.stage),
@@ -91,7 +91,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       id: r.id,
       type: "receipt" as const,
       date: r.date,
-      number: `ПН-${r.number}`,
+      number: `${receiptNo(r.number, r.numberPrefix)}`,
       party: r.supplier?.name ?? "",
       total: receiptTotal(r.lines),
       status: r.status === "POSTED" ? "Проведена" : "Черновик",
@@ -103,7 +103,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       type: "request" as const,
       date: r.createdAt,
       number: `ТР-${r.number}`,
-      party: `${orderNo(r.order.number)}, ${r.order.client.name}`,
+      party: `${orderNo(r.order.number, r.order.numberPrefix)}, ${r.order.client.name}`,
       total: null,
       status: requestStatusLabel(r.status),
       posted: r.status === "ISSUED",
@@ -113,7 +113,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       id: x.id,
       type: "sale" as const,
       date: x.date,
-      number: `РТ-${x.number}`,
+      number: `${saleNo(x.number, x.numberPrefix)}`,
       party: x.client?.name ?? "Розничный покупатель",
       total: saleTotals(x).total,
       status: posted(x.status),

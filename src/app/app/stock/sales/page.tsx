@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/auth";
 import { PreviewHint, PreviewLines, PreviewRow, PreviewTitle } from "@/components/list-view";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
 import { previewHref, previewId } from "@/lib/list-query";
-import { formatDate, formatQty } from "@/lib/format";
+import { formatDate, formatQty, saleNo } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listClients } from "@/lib/services/clients";
 import { getSale, listSales } from "@/lib/services/warehouse";
@@ -22,7 +22,7 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
   if (!x) return <p className="text-sm text-slate-500">Продажа не найдена.</p>;
   return (
     <>
-      <PreviewTitle title={`РТ-${x.number} от ${formatDate(x.date)}`} href={`${PATH}/${x.id}`} />
+      <PreviewTitle title={`${saleNo(x.number, x.numberPrefix)} от ${formatDate(x.date)}`} href={`${PATH}/${x.id}`} />
       <PreviewRow label="Статус">{docStatus(x.status === "POSTED")}</PreviewRow>
       <PreviewRow label="Покупатель">
         {x.client ? (
@@ -98,7 +98,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
                     <ListRow key={x.id} previewHref={previewHref(PATH, sp, x.id)} openHref={`${PATH}/${x.id}`} selected={preview === x.id}>
                       <td className={td}>
                         <span className="text-blue-600">
-                          РТ-{x.number}
+                          {saleNo(x.number, x.numberPrefix)}
                         </span>
                       </td>
                       <td className={td}>{formatDate(x.date)}</td>

@@ -163,15 +163,15 @@ export async function clientOrderStats(companyId: string, clientId: string) {
 }
 
 type WithLines = {
-  works: { normHours: Prisma.Decimal; price: number; discount: number }[];
-  items: { qty: Prisma.Decimal; price: number; discount: number }[];
+  works: { normHours: Prisma.Decimal; price: number; discount: number; discountSum?: number | null }[];
+  items: { qty: Prisma.Decimal; price: number; discount: number; discountSum?: number | null }[];
   payments: { amount: number }[];
 };
 
 export function totalsOf(o: WithLines) {
   return orderTotals({
-    works: o.works.map((w) => ({ qty: Number(w.normHours), price: w.price, discount: w.discount })),
-    items: o.items.map((i) => ({ qty: Number(i.qty), price: i.price, discount: i.discount })),
+    works: o.works.map((w) => ({ qty: Number(w.normHours), price: w.price, discount: w.discount, discountSum: w.discountSum })),
+    items: o.items.map((i) => ({ qty: Number(i.qty), price: i.price, discount: i.discount, discountSum: i.discountSum })),
     payments: o.payments,
   });
 }

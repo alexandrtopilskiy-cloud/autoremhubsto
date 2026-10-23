@@ -32,7 +32,7 @@ export default async function RecommendationsPage({ searchParams }: { searchPara
                 title={sel.name}
                 sub={`${formatDate(sel.createdAt)} · ${recStatusLabel(sel.status)}`}
                 href={sel.order ? `/app/orders/${sel.order.id}` : `/app/clients/${sel.clientId}`}
-                open={sel.order ? `Открыть ${orderNo(sel.order.number)}` : "Открыть клиента"}
+                open={sel.order ? `Открыть ${orderNo(sel.order.number, sel.order.numberPrefix)}` : "Открыть клиента"}
               />
               <PreviewRow label="Клиент">
                 <Link href={`/app/clients/${sel.clientId}`} className="text-blue-600 hover:underline">
@@ -101,7 +101,7 @@ export default async function RecommendationsPage({ searchParams }: { searchPara
                         {r.comment && <div className="text-xs text-slate-500">{r.comment}</div>}
                         {r.order && (
                           <span className="text-xs text-blue-600">
-                            из {orderNo(r.order.number)}
+                            из {orderNo(r.order.number, r.order.numberPrefix)}
                           </span>
                         )}
                       </td>

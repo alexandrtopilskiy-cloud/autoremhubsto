@@ -75,7 +75,7 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
           {c.orders.map((o) => (
             <li key={o.id} className="flex justify-between gap-2">
               <Link href={`/app/orders/${o.id}`} className="text-blue-600 hover:underline">
-                {orderNo(o.number)} от {formatDate(o.acceptedAt)}
+                {orderNo(o.number, o.numberPrefix)} от {formatDate(o.acceptedAt)}
               </Link>
               <span className="text-slate-500">
                 {stageLabel(o.stage)} · {formatRub(o.totals.total)}

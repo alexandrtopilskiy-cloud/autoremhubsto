@@ -4,7 +4,7 @@ import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "
 import { requireSession } from "@/lib/auth";
 import { PreviewHint, PreviewLines, PreviewRow, PreviewTitle } from "@/components/list-view";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
-import { formatDate, formatQty } from "@/lib/format";
+import { formatDate, formatQty, receiptNo } from "@/lib/format";
 import { previewHref, previewId } from "@/lib/list-query";
 import { formatRub } from "@/lib/money";
 import { getReceipt, listReceipts, listSuppliers } from "@/lib/services/stock";
@@ -18,7 +18,7 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
   if (!r) return <p className="text-sm text-slate-500">Приход не найден.</p>;
   return (
     <>
-      <PreviewTitle title={`ПН-${r.number} от ${formatDate(r.date)}`} href={`${PATH}/${r.id}`} />
+      <PreviewTitle title={`${receiptNo(r.number, r.numberPrefix)} от ${formatDate(r.date)}`} href={`${PATH}/${r.id}`} />
       <PreviewRow label="Статус">{r.status === "POSTED" ? "Проведён" : "Черновик"}</PreviewRow>
       <PreviewRow label="Поставщик">{r.supplier?.name}</PreviewRow>
       <PreviewRow label="Документ поставщика">{r.supplierDoc}</PreviewRow>
@@ -81,7 +81,7 @@ export default async function ReceiptsPage({ searchParams }: { searchParams: Pro
                     <ListRow key={r.id} previewHref={previewHref(PATH, sp, r.id)} openHref={`${PATH}/${r.id}`} selected={preview === r.id}>
                       <td className={td}>
                         <span className="text-blue-600">
-                          ПН-{r.number}
+                          {receiptNo(r.number, r.numberPrefix)}
                         </span>
                         {r.supplierDoc && <span className="text-slate-500"> ({r.supplierDoc})</span>}
                       </td>

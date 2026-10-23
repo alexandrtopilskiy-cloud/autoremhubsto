@@ -35,7 +35,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
               <>
                 <PreviewTitle title={`ТР-${r.number}`} sub={formatDate(r.createdAt, true)} href={`/app/orders/${r.order.id}`} open="Открыть заказ-наряд" />
                 <PreviewRow label="Статус">{requestStatusLabel(r.status)}</PreviewRow>
-                <PreviewRow label="Заказ-наряд">{orderNo(r.order.number)}</PreviewRow>
+                <PreviewRow label="Заказ-наряд">{orderNo(r.order.number, r.order.numberPrefix)}</PreviewRow>
                 <PreviewRow label="Клиент">{r.order.client.name}</PreviewRow>
                 <PreviewRow label="Автомобиль">{r.order.vehicle ? vehicleTitle(r.order.vehicle) : null}</PreviewRow>
                 <PreviewRow label="Запросил">{r.requestedBy?.name}</PreviewRow>
@@ -111,7 +111,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
                         <td className={`${td} whitespace-nowrap`}>{formatDate(x.createdAt, true)}</td>
                         <td className={td}>
                           <span className="text-blue-600">
-                            {orderNo(x.order.number)}
+                            {orderNo(x.order.number, x.order.numberPrefix)}
                           </span>
                         </td>
                         <td className={td}>

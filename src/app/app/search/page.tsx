@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Card, Input, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { formatDate, orderNo, vehicleTitle } from "@/lib/format";
+import { formatDate, orderNo, vehicleTitle, saleNo } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { searchEverywhere } from "@/lib/services/lists";
@@ -85,7 +85,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               <Item
                 key={o.id}
                 href={`/app/orders/${o.id}`}
-                title={`${orderNo(o.number)} от ${formatDate(o.acceptedAt)}`}
+                title={`${orderNo(o.number, o.numberPrefix)} от ${formatDate(o.acceptedAt)}`}
                 note={[o.client.name, o.vehicle ? vehicleTitle(o.vehicle) : "", stageLabel(o.stage)].filter(Boolean).join(" · ")}
               />
             ))}
@@ -100,7 +100,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               <Item
                 key={x.id}
                 href={`/app/stock/sales/${x.id}`}
-                title={`РТ-${x.number} от ${formatDate(x.date)}`}
+                title={`${saleNo(x.number, x.numberPrefix)} от ${formatDate(x.date)}`}
                 note={x.client?.name ?? "Без клиента"}
               />
             ))}

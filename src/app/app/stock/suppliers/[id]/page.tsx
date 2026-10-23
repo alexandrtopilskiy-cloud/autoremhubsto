@@ -4,7 +4,7 @@ import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { formatDate } from "@/lib/format";
+import { formatDate, receiptNo } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { supplierPreview } from "@/lib/services/stock";
@@ -47,7 +47,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 {p.receipts.map((r) => (
                   <li key={r.id} className="flex justify-between gap-2">
                     <Link href={`/app/stock/receipts/${r.id}`} className="text-blue-600 hover:underline">
-                      ПН-{r.number} от {formatDate(r.date)}
+                      {receiptNo(r.number, r.numberPrefix)} от {formatDate(r.date)}
                     </Link>
                     <span className="tabular-nums">{formatRub(r.total)}</span>
                   </li>

@@ -5,7 +5,7 @@ import { Prisma, type StockMoveKind } from "@prisma/client";
 import { prisma } from "../db";
 import { nextNumber } from "../counters";
 import { NotFoundError, UserError } from "../errors";
-import { formatQty } from "../format";
+import { formatQty, saleNo } from "../format";
 import { lineTotal } from "../money";
 import { averageCosts } from "./stock";
 import { pricing } from "./prices";
@@ -92,10 +92,10 @@ export const salePaymentSchema = z.object({
 export const SALE_PAYMENT = "Оплата реализаций";
 
 export function saleTotals(sale: {
-  lines: { qty: Prisma.Decimal | number; price: number; discount: number }[];
+  lines: { qty: Prisma.Decimal | number; price: number; discount: number; discountSum?: number | null }[];
   payments: { amount: number }[];
 }) {
-  const total = sale.lines.reduce((s, l) => s + lineTotal({ qty: Number(l.qty), price: l.price, discount: l.discount }), 0);
+  const total = sale.lines.reduce((s, l) => s + lineTotal({ qty: Number(l.qty), price: l.price, discount: l.discount, discountSum: l.discountSum }), 0);
   const paid = sale.payments.reduce((s, p) => s + p.amount, 0);
   return { total, paid, due: total - paid };
 }
@@ -239,7 +239,7 @@ export async function addSalePayment(companyId: string, saleId: string, input: u
         amount: d.amount,
         category: SALE_PAYMENT,
         saleId,
-        comment: [`РТ-${sale.number}`, client?.name].filter(Boolean).join(", "),
+        comment: [`${saleNo(sale.number, sale.numberPrefix)}`, client?.name].filter(Boolean).join(", "),
       },
     });
   });

@@ -40,7 +40,7 @@ export default async function PrintInspection({ params }: { params: Promise<{ id
       <p className="font-semibold">{org?.name ?? s.companyName}</p>
       <p className="text-slate-600">{[org?.inn && `ИНН ${org.inn}`, org?.address, org?.phone].filter(Boolean).join(", ")}</p>
       <h1 className="my-4 text-center text-lg font-bold">
-        Акт осмотра автомобиля к заказ-наряду {orderNo(o.number)} от {formatDate(o.acceptedAt)}
+        Акт осмотра автомобиля к заказ-наряду {orderNo(o.number, o.numberPrefix)} от {formatDate(o.acceptedAt)}
       </h1>
       <table className="mb-4 w-full">
         <tbody>

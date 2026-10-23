@@ -50,7 +50,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ id: s
           >
             {e.order ? (
               <Link href={`/app/orders/${e.order.id}`} className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white">
-                Открыть {orderNo(e.order.number)}
+                Открыть {orderNo(e.order.number, e.order.numberPrefix)}
               </Link>
             ) : (
               <ActionForm action={estimateToOrderAction.bind(null, e.id)}>

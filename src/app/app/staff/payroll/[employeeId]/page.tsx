@@ -60,7 +60,7 @@ export default async function PayslipPage({
                 <tr key={i}>
                   <td className={cell}>
                     <Link className="text-blue-600 print:text-inherit" href={`/app/orders/${l.orderId}`}>
-                      {orderNo(l.number)}
+                      {orderNo(l.number, l.numberPrefix)}
                     </Link>
                   </td>
                   <td className={cell}>{formatDate(l.closedAt)}</td>

@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty } from "@/lib/format";
-import { formatRub, lineTotal } from "@/lib/money";
+import { formatRub, lineTotal, discountLabel } from "@/lib/money";
 import { getSale } from "@/lib/services/warehouse";
 
 /** 5.6 Товарный чек к продаже без ремонта. */
@@ -55,13 +55,14 @@ export default async function SaleReceipt({ params }: { params: Promise<{ id: st
               <td className={`${cell} text-center`}>{l.product.unit}</td>
               <td className={`${cell} text-right`}>{formatQty(Number(l.qty))}</td>
               <td className={`${cell} text-right whitespace-nowrap`}>{formatRub(l.price)}</td>
-              <td className={`${cell} text-right`}>{l.discount ? `${l.discount}%` : ""}</td>
+              <td className={`${cell} text-right`}>{discountLabel(l)}</td>
               <td className={`${cell} text-right whitespace-nowrap`}>
                 {formatRub(
                   lineTotal({
                     qty: Number(l.qty),
                     price: l.price,
                     discount: l.discount,
+                    discountSum: l.discountSum,
                   }),
                 )}
               </td>

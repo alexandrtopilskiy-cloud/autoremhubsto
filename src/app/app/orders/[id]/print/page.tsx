@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
-import { formatRub, lineTotal } from "@/lib/money";
+import { formatRub, lineTotal, discountLabel } from "@/lib/money";
 import { getOrder } from "@/lib/services/orders";
 import { listRecommendations } from "@/lib/services/recommendations";
 import { PrintButton } from "./print-button";
@@ -30,7 +30,7 @@ export default async function PrintOrder({ params }: { params: Promise<{ id: str
         {[org?.inn && `ИНН ${org.inn}`, org?.address, org?.phone].filter(Boolean).join(", ")}
       </p>
       <h1 className="my-4 text-center text-lg font-bold">
-        Заказ-наряд {orderNo(o.number)} от {formatDate(o.acceptedAt)}
+        Заказ-наряд {orderNo(o.number, o.numberPrefix)} от {formatDate(o.acceptedAt)}
       </h1>
       <table className="mb-4 w-full">
         <tbody>
@@ -63,12 +63,12 @@ export default async function PrintOrder({ params }: { params: Promise<{ id: str
       {[
         {
           title: "Работы",
-          rows: o.works.map((w) => ({ id: w.id, name: w.name, qty: Number(w.normHours), price: w.price, discount: w.discount })),
+          rows: o.works.map((w) => ({ id: w.id, name: w.name, qty: Number(w.normHours), price: w.price, discount: w.discount, discountSum: w.discountSum })),
           unit: "н/ч",
         },
         {
           title: "Запчасти и материалы",
-          rows: o.items.map((i) => ({ id: i.id, name: i.name, qty: Number(i.qty), price: i.price, discount: i.discount })),
+          rows: o.items.map((i) => ({ id: i.id, name: i.name, qty: Number(i.qty), price: i.price, discount: i.discount, discountSum: i.discountSum })),
           unit: "кол-во",
         },
       ]
@@ -94,7 +94,7 @@ export default async function PrintOrder({ params }: { params: Promise<{ id: str
                     <td className={cell}>{r.name}</td>
                     <td className={`${cell} text-right`}>{formatQty(r.qty)}</td>
                     <td className={`${cell} text-right whitespace-nowrap`}>{formatRub(r.price)}</td>
-                    <td className={`${cell} text-right`}>{r.discount ? `${r.discount}%` : ""}</td>
+                    <td className={`${cell} text-right`}>{discountLabel(r)}</td>
                     <td className={`${cell} text-right whitespace-nowrap`}>{formatRub(lineTotal(r))}</td>
                   </tr>
                 ))}

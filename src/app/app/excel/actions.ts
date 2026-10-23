@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { UserError } from "@/lib/errors";
 import { can, LEVELS, SECTIONS } from "@/lib/permissions";
 import { EXCEL_KINDS, importExcel, isExcelKind, type ImportReport } from "@/lib/services/excel";
+import { importAdDocs, type AdDocsReport } from "@/lib/services/excel-autodealer-docs";
 
 export type ImportState = { error?: string; report?: ImportReport; at?: number } | undefined;
 
@@ -26,6 +27,26 @@ export async function importAction(kind: string, _: ImportState, fd: FormData): 
       canDiscount: s.perms.flags.discounts,
     });
     if (report.saved) revalidatePath(kind === "clients" ? "/app/clients" : `/app/catalog/${kind}`);
+    return { report, at: Date.now() };
+  } catch (e) {
+    if (e instanceof UserError) return { error: e.message };
+    throw e;
+  }
+}
+
+export type AdDocsState = { error?: string; report?: AdDocsReport; at?: number } | undefined;
+
+/** Документы из АвтоДилера: заказ-наряды, приходные и расходные накладные. Нужно право создавать в «Заказ-нарядах» и «Складе». */
+export async function importAdDocsAction(_: AdDocsState, fd: FormData): Promise<AdDocsState> {
+  const s = await requireSession();
+  if (!can(s.perms, "orders", "CREATE") || !can(s.perms, "stock", "CREATE"))
+    return { error: "Нужен уровень «Создание» на разделы «Заказ-наряды» и «Склад»" };
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Выберите файл .xlsx" };
+  if (file.size > 10 * 1024 * 1024) return { error: "Файл больше 10 МБ" };
+  try {
+    const report = await importAdDocs(s.companyId, Buffer.from(await file.arrayBuffer()), { save: fd.get("mode") === "save" });
+    if (report.saved) revalidatePath("/app", "layout");
     return { report, at: Date.now() };
   } catch (e) {
     if (e instanceof UserError) return { error: e.message };

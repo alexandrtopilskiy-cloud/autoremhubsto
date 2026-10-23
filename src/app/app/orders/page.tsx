@@ -22,7 +22,7 @@ async function Preview({ companyId, id, query }: { companyId: string; id: string
   if (!o) return null;
   return (
     <>
-      <PreviewHead title={`${orderNo(o.number)} от ${formatDate(o.acceptedAt)}`} href={`/app/orders/${o.id}`} close={listHref(PATH, query, { preview: "" })} />
+      <PreviewHead title={`${orderNo(o.number, o.numberPrefix)} от ${formatDate(o.acceptedAt)}`} href={`/app/orders/${o.id}`} close={listHref(PATH, query, { preview: "" })} />
       <PreviewRow label="Стадия">{stageLabel(o.stage)}</PreviewRow>
       <PreviewRow label="Статус">{o.status === "POSTED" ? "Проведён" : "Черновик"}</PreviewRow>
       <PreviewRow label="Клиент">
@@ -140,7 +140,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                     <ListRow key={o.id} previewHref={listHref(PATH, query, { preview: o.id })} openHref={`/app/orders/${o.id}`} selected={query.preview === o.id}>
                       <td className={td}>
                         <span className="text-blue-600">
-                          {orderNo(o.number)}
+                          {orderNo(o.number, o.numberPrefix)}
                         </span>
                       </td>
                       <td className={td}>{formatDate(o.acceptedAt)}</td>
