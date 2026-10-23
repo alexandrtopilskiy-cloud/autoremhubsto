@@ -64,8 +64,11 @@ async function Preview({ companyId, id, query }: { companyId: string; id: string
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
   const query = parseListQuery(await searchParams, { sorts: ORDER_SORTS, sort: "number", filters: ORDER_FILTERS });
-  const [company, orgs, employees] = await Promise.all([getCompany(s.companyId), listOrganizations(s.companyId), listEmployees(s.companyId, "MANAGER")]);
-  const list = await searchOrders(s.companyId, query, company.utcOffset);
+  const [list, orgs, employees] = await Promise.all([
+    getCompany(s.companyId).then((c) => searchOrders(s.companyId, query, c.utcOffset)),
+    listOrganizations(s.companyId),
+    listEmployees(s.companyId, "MANAGER"),
+  ]);
   const { f } = query;
   const remover = can(s.perms, "orders", "FULL");
   return (

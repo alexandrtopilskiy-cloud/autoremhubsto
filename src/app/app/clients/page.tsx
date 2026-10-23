@@ -91,12 +91,12 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
   const query = parseListQuery(await searchParams, { sorts: CLIENT_SORTS, sort: "name", dir: "asc", filters: CLIENT_FILTERS });
-  const [lists, categories, sources] = await Promise.all([
+  const [lists, categories, sources, list] = await Promise.all([
     dicts(s.companyId, ["CLIENT_SOURCE"]),
     listCategories(s.companyId),
     clientSources(s.companyId),
+    searchClients(s.companyId, query),
   ]);
-  const list = await searchClients(s.companyId, query);
   const btn = "rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50";
   return (
     <div className="flex flex-col gap-4">
