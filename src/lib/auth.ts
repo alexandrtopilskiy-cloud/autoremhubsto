@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { SESSION_COOKIE, destroySession, resolveSession, type SessionCtx } from "./auth-core";
 
 export { createSession } from "./auth-core";
@@ -16,9 +17,10 @@ export async function setSessionCookie(token: string, expiresAt: Date) {
   });
 }
 
-export async function currentSession(): Promise<SessionCtx | null> {
+/** Сессия текущего запроса: рамка кабинета и страница проверяют её один раз на двоих. */
+export const currentSession = cache(async (): Promise<SessionCtx | null> => {
   return resolveSession((await cookies()).get(SESSION_COOKIE)?.value);
-}
+});
 
 /** Для страниц и действий внутри кабинета: без сессии — на вход. */
 export async function requireSession(): Promise<SessionCtx> {

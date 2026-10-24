@@ -14,6 +14,7 @@ import { getSale, listSales } from "@/lib/services/warehouse";
 import { docStatus } from "../product-select";
 import { StockTabs } from "../tabs";
 import { createSaleAction } from "../warehouse-actions";
+import { previewSession } from "@/lib/preview";
 
 const PATH = "/app/stock/sales";
 
@@ -43,6 +44,13 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
       />
     </>
   );
+}
+
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(id: string) {
+  "use server";
+  const s = await previewSession("stock");
+  return s ? <Preview companyId={s.companyId} id={id} /> : null;
 }
 
 export default async function SalesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -77,6 +85,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           </Card>
         </NewPanel>
         <PreviewPane
+          load={loadPreview}
           selected={preview}
           panel={preview ? <Preview companyId={s.companyId} id={preview} /> : <PreviewHint what="продажу" open="документ" />}
           list={

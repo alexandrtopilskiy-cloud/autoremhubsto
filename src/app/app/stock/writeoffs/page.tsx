@@ -13,6 +13,7 @@ import { StockTabs } from "../tabs";
 import { createWriteOffAction } from "../warehouse-actions";
 import { dicts } from "@/lib/services/dictionaries";
 import { DictList } from "@/components/dict-list";
+import { previewSession } from "@/lib/preview";
 
 const PATH = "/app/stock/writeoffs";
 
@@ -28,6 +29,13 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
       <PreviewLines title="Товары" lines={w.lines.map((l) => ({ key: l.id, name: l.product.name, right: `${formatQty(Number(l.qty))} ${l.product.unit}` }))} />
     </>
   );
+}
+
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(id: string) {
+  "use server";
+  const s = await previewSession("stock");
+  return s ? <Preview companyId={s.companyId} id={id} /> : null;
 }
 
 export default async function WriteOffsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -53,6 +61,7 @@ export default async function WriteOffsPage({ searchParams }: { searchParams: Pr
           </Card>
         </NewPanel>
         <PreviewPane
+          load={loadPreview}
           selected={preview}
           panel={preview ? <Preview companyId={s.companyId} id={preview} /> : <PreviewHint what="списание" open="документ" />}
           list={

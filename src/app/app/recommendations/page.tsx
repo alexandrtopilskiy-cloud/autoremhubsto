@@ -10,6 +10,7 @@ import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listRecommendations, REC_STATUSES, recStatusLabel } from "@/lib/services/recommendations";
 import { setRecStatusAction } from "./actions";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/recommendations";
 
@@ -57,7 +58,7 @@ export default async function RecommendationsPage({ searchParams }: { searchPara
             <p className="mb-3 text-sm text-slate-600">
               Работы и товары, которые предложили клиенту, но он не стал делать. Перенести рекомендацию в наряд можно из заказ-наряда этого клиента.
             </p>
-            <form className="mb-3 flex flex-wrap items-center gap-2">
+            <LiveForm className="mb-3 flex flex-wrap items-center gap-2">
               <Input name="q" defaultValue={sp.q} placeholder="Работа, товар, клиент, телефон или госномер" className="min-w-80" />
               <Select name="status" defaultValue={status ?? "ALL"}>
                 {REC_STATUSES.map((x) => (
@@ -71,7 +72,7 @@ export default async function RecommendationsPage({ searchParams }: { searchPara
               <Link href="/app/recommendations/print" target="_blank" className="ml-auto text-sm text-blue-600 hover:underline">
                 Печать открытых
               </Link>
-            </form>
+            </LiveForm>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

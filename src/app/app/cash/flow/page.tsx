@@ -9,6 +9,7 @@ import { listCashboxes } from "@/lib/services/cash";
 import { getCompany } from "@/lib/services/settings";
 import { flowQuery, flowParams, flowPresets } from "./params";
 import { FlowTable, type FlowRow } from "./flow-table";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/cash/flow";
 const seg = (on: boolean) => `px-3 py-1.5 text-sm ${on ? "bg-blue-600 text-white" : "bg-white hover:bg-slate-50"}`;
@@ -105,7 +106,7 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Pro
       </PageTitle>
 
       <Card>
-        <form className="flex flex-wrap items-end gap-x-5 gap-y-3">
+        <LiveForm className="flex flex-wrap items-end gap-x-5 gap-y-3">
           <input type="hidden" name="by" value={p.by} />
           <input type="hidden" name="split" value={p.split} />
           <Field label="С">
@@ -128,7 +129,7 @@ export default async function CashFlowPage({ searchParams }: { searchParams: Pro
           <a href={`${PATH}/export?${flowQuery(p)}`} className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
             Скачать для Excel
           </a>
-        </form>
+        </LiveForm>
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
           <div className="flex flex-wrap gap-1.5">
             {flowPresets(tz).map((x) => (

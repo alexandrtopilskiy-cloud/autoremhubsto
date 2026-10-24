@@ -15,6 +15,8 @@ import { ListRow, PreviewPane, SearchBox } from "@/components/preview-pane";
 import { ClampList } from "@/components/clamp-list";
 import { listCategories } from "@/lib/services/prices";
 import { dicts } from "@/lib/services/dictionaries";
+import { previewSession } from "@/lib/preview";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/clients";
 const CARS: [string, string, string] = ["автомобиль", "автомобиля", "автомобилей"];
@@ -88,15 +90,22 @@ async function Preview({ companyId, id }: { companyId: string; id: string }) {
   );
 }
 
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(id: string) {
+  "use server";
+  const s = await previewSession("clients");
+  return s ? <Preview companyId={s.companyId} id={id} /> : null;
+}
+
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
   const query = parseListQuery(await searchParams, { sorts: CLIENT_SORTS, sort: "name", dir: "asc", filters: CLIENT_FILTERS });
-  const [lists, categories, sources] = await Promise.all([
+  const [lists, categories, sources, list] = await Promise.all([
     dicts(s.companyId, ["CLIENT_SOURCE"]),
     listCategories(s.companyId),
     clientSources(s.companyId),
+    searchClients(s.companyId, query),
   ]);
-  const list = await searchClients(s.companyId, query);
   const btn = "rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50";
   return (
     <div className="flex flex-col gap-4">
@@ -136,6 +145,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         </Card>
       </NewPanel>
       <PreviewPane
+        load={loadPreview}
         selected={query.preview}
         panel={
           query.preview ? (
@@ -146,7 +156,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         }
         list={
           <>
-            <form id={FORM} action={PATH} className="mb-3 flex flex-wrap items-center gap-2">
+            <LiveForm id={FORM} action={PATH} className="mb-3 flex flex-wrap items-center gap-2">
               <input type="hidden" name="sort" value={query.sort} />
               <input type="hidden" name="dir" value={query.dir} />
               <FilterSelect name="kind" label="Тип" value={query.f.kind} options={CLIENT_KINDS} />
@@ -170,7 +180,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               <Link href={PATH} className="px-2 py-1.5 text-sm text-blue-600 hover:underline">
                 Сбросить
               </Link>
-            </form>
+            </LiveForm>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

@@ -2,8 +2,10 @@
 // Списки: один клик по строке — просмотр справа, двойной — карточка или документ в новой вкладке.
 // Панель просмотра: ширина меняется перетаскиванием левой границы, «Скрыть» и клик мимо панели её сворачивают.
 // Ширина и «скрыто» запоминаются одни на все списки.
+// Если списку передан load, клик по строке загружает только панель, а сам список не пересчитывается.
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useBusy, useIsBusy, useListNav } from "./busy";
 
 const ROW = "data-preview-row";
 const STORE = "ar.preview";
@@ -12,6 +14,12 @@ const MAX = 760;
 
 // клики по кнопкам, ссылкам и полям внутри строки строку не открывают
 const inControl = (e: React.MouseEvent) => !!(e.target as Element).closest("a,button,input,select,textarea,label");
+
+/** id записи из адреса просмотра (?preview=…). */
+const previewOf = (href: string) => new URL(href, "http://x").searchParams.get("preview") ?? undefined;
+
+/** Выбор строки, когда панель загружается отдельно от списка. */
+const Selection = createContext<{ selected?: string; select: (id: string, href: string) => void } | null>(null);
 
 /** Строка списка: клик — просмотр справа, двойной клик — открыть (без openHref строка только показывает просмотр). */
 export function ListRow({
@@ -26,12 +34,20 @@ export function ListRow({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const go = useListNav();
+  const sel = useContext(Selection);
+  const id = previewOf(previewHref);
+  const active = sel ? !!id && sel.selected === id : selected;
   return (
     <tr
       {...{ [ROW]: "" }}
-      onClick={(e) => !inControl(e) && router.replace(previewHref, { scroll: false })}
+      onClick={(e) => {
+        if (inControl(e)) return;
+        if (sel && id) sel.select(id, previewHref);
+        else go(previewHref);
+      }}
       onDoubleClick={(e) => openHref && !inControl(e) && router.push(openHref)}
-      className={`cursor-pointer border-b select-none last:border-0 ${selected ? "bg-blue-100" : "hover:bg-slate-50"}`}
+      className={`cursor-pointer border-b select-none last:border-0 ${active ? "bg-blue-100" : "hover:bg-slate-50"}`}
     >
       {children}
     </tr>
@@ -49,10 +65,48 @@ function load(): Saved {
   }
 }
 
-export function PreviewPane({ list, panel, selected }: { list: ReactNode; panel: ReactNode; selected?: string }) {
+export function PreviewPane({
+  list,
+  panel,
+  selected,
+  load: loadPanel,
+}: {
+  list: ReactNode;
+  panel: ReactNode;
+  selected?: string;
+  /** Панель для записи id (серверное действие страницы); без него клик по строке перерисовывает всю страницу. */
+  load?: (id: string) => Promise<ReactNode>;
+}) {
   const [s, setS] = useState<Saved>({ width: 420, hidden: false });
   const pane = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+  const busy = useIsBusy();
+
+  // запись, выбранная кликом, и её загруженная панель; новый ответ сервера (фильтры, страница) сбрасывает выбор к адресу
+  const [chosen, setChosen] = useState(selected);
+  const [loaded, setLoaded] = useState<{ id: string; node: ReactNode } | null>(null);
+  const [loading, start] = useTransition();
+  useBusy(loading);
+  const want = useRef(selected);
+  useEffect(() => {
+    setChosen(selected);
+    setLoaded(null);
+    want.current = selected;
+  }, [selected, panel]);
+  const select = (id: string, href: string) => {
+    if (!loadPanel) return;
+    want.current = id;
+    setChosen(id);
+    setS((x) => (x.hidden ? { ...x, hidden: false } : x));
+    window.history.replaceState(null, "", href);
+    start(async () => {
+      const node = await loadPanel(id);
+      // пока панель грузилась, могли выбрать другую строку
+      if (want.current === id) setLoaded({ id, node });
+    });
+  };
+  const shown = loaded && loaded.id === chosen ? loaded.node : panel;
+  const stale = chosen !== selected && !(loaded && loaded.id === chosen);
 
   useEffect(() => setS(load()), []);
   const save = (next: Saved) => {
@@ -100,7 +154,9 @@ export function PreviewPane({ list, panel, selected }: { list: ReactNode; panel:
 
   return (
     <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:gap-0">
-      <div className="min-w-0 flex-1 lg:pr-3">{list}</div>
+      <div className={`min-w-0 flex-1 transition-opacity lg:pr-3 ${busy && !loading ? "opacity-60" : ""}`} aria-busy={busy || undefined}>
+        <Selection.Provider value={loadPanel ? { selected: chosen, select } : null}>{list}</Selection.Provider>
+      </div>
       {s.hidden ? (
         <button
           type="button"
@@ -133,7 +189,7 @@ export function PreviewPane({ list, panel, selected }: { list: ReactNode; panel:
                 Скрыть ›
               </button>
             </div>
-            <div className="p-4">{panel}</div>
+            <div className={`p-4 transition-opacity ${stale ? "opacity-50" : ""}`}>{shown}</div>
           </aside>
         </div>
       )}
@@ -141,21 +197,14 @@ export function PreviewPane({ list, panel, selected }: { list: ReactNode; panel:
   );
 }
 
-/** Показывает список с условиями из формы фильтров без перезагрузки страницы. */
-function applyFilters(router: ReturnType<typeof useRouter>, form: string) {
-  const f = document.getElementById(form) as HTMLFormElement | null;
-  if (!f) return;
-  const p = new URLSearchParams();
-  for (const [k, v] of new FormData(f)) if (typeof v === "string" && v) p.set(k, v);
-  router.replace(`${f.getAttribute("action")}?${p}`, { scroll: false });
-}
+/** Применяет форму фильтров (LiveForm) без перезагрузки страницы. */
+const applyFilters = (form: string) => (document.getElementById(form) as HTMLFormElement | null)?.requestSubmit();
 
 /** Галочка-фильтр: список обновляется сразу при нажатии. */
 export function FilterCheck({ form, name, checked, label }: { form: string; name: string; checked: boolean; label: string }) {
-  const router = useRouter();
   return (
     <label className="flex items-center gap-1.5 text-sm text-slate-600">
-      <input type="checkbox" name={name} value="1" form={form} defaultChecked={checked} onChange={() => applyFilters(router, form)} className="h-4 w-4" />
+      <input type="checkbox" name={name} value="1" form={form} defaultChecked={checked} onChange={() => applyFilters(form)} className="h-4 w-4" />
       {label}
     </label>
   );
@@ -163,7 +212,6 @@ export function FilterCheck({ form, name, checked, label }: { form: string; name
 
 /** Поле поиска: ищет, когда перестали печатать (без перезагрузки страницы, курсор остаётся в поле), или по Enter. */
 export function SearchBox({ form, defaultValue, placeholder, label = "Поиск" }: { form: string; defaultValue?: string; placeholder: string; label?: string }) {
-  const router = useRouter();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   return (
     <input
@@ -176,7 +224,7 @@ export function SearchBox({ form, defaultValue, placeholder, label = "Поиск
       autoComplete="off"
       onChange={() => {
         clearTimeout(timer.current);
-        timer.current = setTimeout(() => applyFilters(router, form), 400);
+        timer.current = setTimeout(() => applyFilters(form), 400);
       }}
       className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-[15px] outline-none focus:border-blue-500"
     />

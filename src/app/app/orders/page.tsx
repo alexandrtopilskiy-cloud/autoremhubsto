@@ -14,6 +14,7 @@ import { can } from "@/lib/permissions";
 import { TrashButton } from "@/components/trash-button";
 import { IconLink } from "@/components/icon-button";
 import { trashDocAction } from "@/app/app/trash-actions";
+import { previewSession } from "@/lib/preview";
 
 const PATH = "/app/orders";
 
@@ -61,11 +62,21 @@ async function Preview({ companyId, id, query }: { companyId: string; id: string
   );
 }
 
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(query: OrderQuery, id: string) {
+  "use server";
+  const s = await previewSession("orders");
+  return s ? <Preview companyId={s.companyId} id={id} query={query} /> : null;
+}
+
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
   const query = parseListQuery(await searchParams, { sorts: ORDER_SORTS, sort: "number", filters: ORDER_FILTERS });
-  const [company, orgs, employees] = await Promise.all([getCompany(s.companyId), listOrganizations(s.companyId), listEmployees(s.companyId, "MANAGER")]);
-  const list = await searchOrders(s.companyId, query, company.utcOffset);
+  const [list, orgs, employees] = await Promise.all([
+    getCompany(s.companyId).then((c) => searchOrders(s.companyId, query, c.utcOffset)),
+    listOrganizations(s.companyId),
+    listEmployees(s.companyId, "MANAGER"),
+  ]);
   const { f } = query;
   const remover = can(s.perms, "orders", "FULL");
   return (
@@ -74,6 +85,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         Заказ-наряды
       </PageTitle>
       <PreviewPane
+        load={loadPreview.bind(null, query)}
         selected={query.preview}
         panel={
           query.preview ? (

@@ -11,6 +11,7 @@ import { APPOINTMENT_STAGES, appointmentStage, listAppointments, listWorkplaces 
 import { getCompany } from "@/lib/services/settings";
 import { addDays, dateLabel, isDateStr, localDate, localTime, localToUtc, todayLocal } from "@/lib/time";
 import { ScheduleTabs } from "../tabs";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/schedule/list";
 
@@ -66,7 +67,7 @@ export default async function AppointmentListPage({
         }
         list={
           <Card>
-            <form className="mb-3 flex flex-wrap items-end gap-2">
+            <LiveForm className="mb-3 flex flex-wrap items-end gap-2">
               <Field label="С">
                 <Input type="date" name="from" defaultValue={from} />
               </Field>
@@ -94,7 +95,7 @@ export default async function AppointmentListPage({
                 </Select>
               </Field>
               <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Показать</button>
-            </form>
+            </LiveForm>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

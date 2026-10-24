@@ -11,8 +11,17 @@ import { listGroups } from "@/lib/services/catalog";
 import { stockBalances } from "@/lib/services/stock";
 import { StockTabs } from "./tabs";
 import { ProductPreview } from "../catalog/products/preview";
+import { previewSession } from "@/lib/preview";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/stock";
+
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(id: string) {
+  "use server";
+  const s = await previewSession("stock");
+  return s ? <ProductPreview companyId={s.companyId} id={id} costs={s.perms.flags.costs} /> : null;
+}
 
 export default async function StockPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
@@ -31,11 +40,12 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
       <PageTitle>Склад</PageTitle>
       <StockTabs active="balances" />
       <PreviewPane
+        load={loadPreview}
         selected={preview}
         panel={preview ? <ProductPreview companyId={s.companyId} id={preview} costs={costs} /> : <PreviewHint what="товар" open="карточку товара" />}
         list={
           <Card>
-            <form className="mb-3 flex flex-wrap items-center gap-2">
+            <LiveForm className="mb-3 flex flex-wrap items-center gap-2">
               <Input name="q" defaultValue={q} placeholder="Наименование, артикул, бренд или штрихкод" className="min-w-80" />
               <Select name="group" defaultValue={group ?? ""} aria-label="Группа">
                 <option value="">Все группы</option>
@@ -55,7 +65,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                   Товара на складе по закупочным ценам: <b>{formatRub(total)}</b>
                 </span>
               )}
-            </form>
+            </LiveForm>
             {short > 0 && (
               <p className="mb-3 text-sm text-red-700">
                 Ниже минимального остатка: <b>{short}</b>.{" "}

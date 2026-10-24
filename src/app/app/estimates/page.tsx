@@ -10,6 +10,7 @@ import { formatRub } from "@/lib/money";
 import { ESTIMATE_STATUSES, estimateStatusLabel, getEstimate } from "@/lib/services/estimates";
 import { ESTIMATE_FILTERS, ESTIMATE_SORTS, searchEstimates, type EstimateQuery } from "@/lib/services/lists";
 import { getCompany } from "@/lib/services/settings";
+import { previewSession } from "@/lib/preview";
 
 const PATH = "/app/estimates";
 
@@ -57,6 +58,13 @@ async function Preview({ companyId, id, query }: { companyId: string; id: string
   );
 }
 
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(query: EstimateQuery, id: string) {
+  "use server";
+  const s = await previewSession("orders");
+  return s ? <Preview companyId={s.companyId} id={id} query={query} /> : null;
+}
+
 export default async function EstimatesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
   const query = parseListQuery(await searchParams, { sorts: ESTIMATE_SORTS, sort: "number", filters: ESTIMATE_FILTERS });
@@ -68,6 +76,7 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
         Калькуляции
       </PageTitle>
       <PreviewPane
+        load={loadPreview.bind(null, query)}
         selected={query.preview}
         panel={
           query.preview ? (

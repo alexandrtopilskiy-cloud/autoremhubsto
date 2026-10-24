@@ -16,6 +16,8 @@ import { createWorkAction } from "../../manage-actions";
 import { CatalogTabs } from "../tabs";
 import { CheckAll, GroupList, MoveBar, WorkCheck } from "./client";
 import { workPrice } from "./price";
+import { previewSession } from "@/lib/preview";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/catalog/works";
 const FORM = "work-filters";
@@ -45,6 +47,13 @@ async function Preview({ companyId, id, hourPrice }: { companyId: string; id: st
       </PreviewRow>
     </>
   );
+}
+
+/** Панель просмотра по клику на строку: загружается отдельно, список не пересчитывается. */
+async function loadPreview(id: string) {
+  "use server";
+  const s = await previewSession("catalog");
+  return s ? <Preview companyId={s.companyId} id={id} hourPrice={(await getCompany(s.companyId)).hourPrice} /> : null;
 }
 
 export default async function WorksPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -121,6 +130,7 @@ export default async function WorksPage({ searchParams }: { searchParams: Promis
           />
         </div>
         <PreviewPane
+          load={loadPreview}
           selected={query.preview}
           panel={
             query.preview ? (
@@ -131,7 +141,7 @@ export default async function WorksPage({ searchParams }: { searchParams: Promis
           }
           list={
             <>
-              <form id={FORM} action={PATH} className="mb-3 flex flex-wrap items-center gap-2">
+              <LiveForm id={FORM} action={PATH} className="mb-3 flex flex-wrap items-center gap-2">
                 <h2 className="w-full text-lg font-semibold">{title}</h2>
                 {group && <input type="hidden" name="group" value={group} />}
                 <input type="hidden" name="sort" value={query.sort} />
@@ -146,7 +156,7 @@ export default async function WorksPage({ searchParams }: { searchParams: Promis
                   ))}
                 </Select>
                 <button className={btn}>Найти</button>
-              </form>
+              </LiveForm>
               <Allowed perms={s.perms} section="catalog" level="EDIT" quiet>
                 <MoveBar groups={g.groups} />
               </Allowed>

@@ -96,7 +96,7 @@ export function IconButton({
 /** То же для ссылки (печать). */
 export function IconLink({ icon, label, href, small, newTab }: { icon: IconName; label: string; href: string; small?: boolean; newTab?: boolean }) {
   return (
-    <Link href={href} aria-label={label} target={newTab ? "_blank" : undefined} className={box("plain", small)}>
+    <Link href={href} prefetch={false} aria-label={label} target={newTab ? "_blank" : undefined} className={box("plain", small)}>
       <Glyph icon={icon} small={small} />
       <Tip label={label} />
     </Link>
