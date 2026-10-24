@@ -11,6 +11,7 @@ import { listPartsRequests, REQUEST_STATUSES, requestStatusLabel } from "@/lib/s
 import { stockBalances } from "@/lib/services/stock";
 import { StockTabs } from "../tabs";
 import { cancelRequestAction, issueRequestAction } from "../actions";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/stock/requests";
 const tone = (st: PartsRequestStatus) => (st === "NEW" ? "amber" : st === "ISSUED" ? "green" : "slate");
@@ -76,7 +77,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
           }
           list={
             <Card>
-              <form className="mb-3 flex flex-wrap items-center gap-2">
+              <LiveForm className="mb-3 flex flex-wrap items-center gap-2">
                 <Select name="status" defaultValue={status ?? "ALL"}>
                   {REQUEST_STATUSES.map((x) => (
                     <option key={x.value} value={x.value}>
@@ -90,7 +91,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
                   Мастер запрашивает товар в заказ-наряде. Выдать или отклонить требование можно в просмотре справа; при выдаче товары добавляются в наряд,
                   списание со склада — при проведении наряда.
                 </span>
-              </form>
+              </LiveForm>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>

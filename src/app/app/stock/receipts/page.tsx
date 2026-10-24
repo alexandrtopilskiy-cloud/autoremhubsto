@@ -2,12 +2,14 @@ import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { PreviewHint, PreviewLines, PreviewRow, PreviewTitle } from "@/components/list-view";
+import { FilterSelect, ListFilters, Pager, PreviewHint, PreviewLines, PreviewRow, PreviewTitle, SortTh } from "@/components/list-view";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
 import { formatDate, formatQty, receiptNo } from "@/lib/format";
-import { previewHref, previewId } from "@/lib/list-query";
+import { listHref, parseListQuery } from "@/lib/list-query";
 import { formatRub } from "@/lib/money";
-import { getReceipt, listReceipts, listSuppliers } from "@/lib/services/stock";
+import { getReceipt, listSuppliers } from "@/lib/services/stock";
+import { RECEIPT_FILTERS, RECEIPT_SORTS, searchReceipts } from "@/lib/services/lists";
+import { getCompany } from "@/lib/services/settings";
 import { createReceiptAction } from "../actions";
 import { StockTabs } from "../tabs";
 import { previewSession } from "@/lib/preview";
@@ -41,9 +43,12 @@ async function loadPreview(id: string) {
 
 export default async function ReceiptsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
-  const sp = await searchParams;
-  const preview = previewId(sp);
-  const [receipts, suppliers] = await Promise.all([listReceipts(s.companyId), listSuppliers(s.companyId)]);
+  const query = parseListQuery(await searchParams, { sorts: RECEIPT_SORTS, sort: "number", filters: RECEIPT_FILTERS });
+  const preview = query.preview;
+  const [list, suppliers] = await Promise.all([
+    getCompany(s.companyId).then((c) => searchReceipts(s.companyId, query, c.utcOffset)),
+    listSuppliers(s.companyId),
+  ]);
   return (
     <div className="flex flex-col gap-4">
       <PageTitle create="#new" createLabel="Новый приход">Склад</PageTitle>
@@ -75,42 +80,78 @@ export default async function ReceiptsPage({ searchParams }: { searchParams: Pro
           panel={preview ? <Preview companyId={s.companyId} id={preview} /> : <PreviewHint what="приход" open="накладную" />}
           list={
             <Card>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className={th}>Номер</th>
-                    <th className={th}>Дата</th>
-                    <th className={th}>Поставщик</th>
-                    <th className={th}>Статус</th>
-                    <th className={`${th} text-right`}>Сумма</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {receipts.map((r) => (
-                    <ListRow key={r.id} previewHref={previewHref(PATH, sp, r.id)} openHref={`${PATH}/${r.id}`} selected={preview === r.id}>
-                      <td className={td}>
-                        <span className="text-blue-600">
-                          {receiptNo(r.number, r.numberPrefix)}
-                        </span>
-                        {r.supplierDoc && <span className="text-slate-500"> ({r.supplierDoc})</span>}
-                      </td>
-                      <td className={td}>{formatDate(r.date)}</td>
-                      <td className={td}>{r.supplier?.name}</td>
-                      <td className={td}>
-                        <Badge tone={r.status === "POSTED" ? "green" : "amber"}>{r.status === "POSTED" ? "Проведён" : "Черновик"}</Badge>
-                      </td>
-                      <td className={`${td} text-right whitespace-nowrap`}>{formatRub(r.total)}</td>
-                    </ListRow>
-                  ))}
-                  {receipts.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className={`${td} text-slate-500`}>
-                        Приходов пока нет
-                      </td>
+              <ListFilters path={PATH} query={query} placeholder="Номер, номер поставщика, поставщик или комментарий">
+                <FilterSelect
+                  name="status"
+                  label="Статус"
+                  value={query.f.status}
+                  options={[
+                    { value: "DRAFT", label: "Черновик" },
+                    { value: "POSTED", label: "Проведён" },
+                  ]}
+                />
+                <FilterSelect
+                  name="supplier"
+                  label="Поставщик"
+                  value={query.f.supplier}
+                  options={[...suppliers.map((p) => ({ value: p.id, label: p.name })), { value: "none", label: "Не указан" }]}
+                />
+              </ListFilters>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <SortTh path={PATH} query={query} sort="number">
+                        Номер
+                      </SortTh>
+                      <SortTh path={PATH} query={query} sort="date">
+                        Дата
+                      </SortTh>
+                      <SortTh path={PATH} query={query} sort="supplier">
+                        Поставщик
+                      </SortTh>
+                      <th className={th}>Статус</th>
+                      <SortTh path={PATH} query={query} sort="total" right>
+                        Сумма
+                      </SortTh>
                     </tr>
+                  </thead>
+                  <tbody>
+                    {list.rows.map((r) => (
+                      <ListRow key={r.id} previewHref={listHref(PATH, query, { preview: r.id })} openHref={`${PATH}/${r.id}`} selected={preview === r.id}>
+                        <td className={td}>
+                          <span className="text-blue-600">{receiptNo(r.number, r.numberPrefix)}</span>
+                          {r.supplierDoc && <span className="text-slate-500"> ({r.supplierDoc})</span>}
+                        </td>
+                        <td className={td}>{formatDate(r.date)}</td>
+                        <td className={td}>{r.supplier?.name}</td>
+                        <td className={td}>
+                          <Badge tone={r.status === "POSTED" ? "green" : "amber"}>{r.status === "POSTED" ? "Проведён" : "Черновик"}</Badge>
+                        </td>
+                        <td className={`${td} text-right whitespace-nowrap`}>{formatRub(r.total)}</td>
+                      </ListRow>
+                    ))}
+                    {list.rows.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className={`${td} text-slate-500`}>
+                          Приходов не найдено
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {list.total > 0 && (
+                    <tfoot>
+                      <tr className="border-t font-medium">
+                        <td className={td} colSpan={4}>
+                          Итого по отбору
+                        </td>
+                        <td className={`${td} text-right whitespace-nowrap`}>{formatRub(list.sums.total)}</td>
+                      </tr>
+                    </tfoot>
                   )}
-                </tbody>
-              </table>
+                </table>
+              </div>
+              <Pager path={PATH} query={query} total={list.total} page={list.page} pages={list.pages} />
             </Card>
           }
         />

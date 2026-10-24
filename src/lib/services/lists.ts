@@ -3,9 +3,17 @@
 import type { DocStatus, EstimateStatus, OrderStage, Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { docNumber, paginate, periodWhere, sortBy, type ListQuery } from "../list-query";
-import { estimateTotals, ESTIMATE_STATUSES } from "./estimates";
-import { syncOrderTotals } from "./order-totals";
-import { STAGES, totalsOf } from "./orders";
+import { ESTIMATE_STATUSES } from "./estimates";
+import { syncEstimateTotals, syncOrderTotals, syncReceiptTotals, syncSaleTotals } from "./doc-totals";
+import { STAGES } from "./orders";
+
+/** Страница списка из базы: сначала количество, затем строки страницы (номер страницы не больше последней). */
+async function pageOf<T>(q: Pick<ListQuery, "page" | "per">, count: () => Promise<number>, rows: (skip: number, take: number) => Promise<T[]>) {
+  const total = await count();
+  const pages = Math.max(1, Math.ceil(total / q.per));
+  const page = Math.min(q.page, pages);
+  return { rows: await rows((page - 1) * q.per, q.per), total, page, pages, per: q.per };
+}
 
 const ci = (q: string) => ({ contains: q, mode: "insensitive" as const });
 const plate = (q: string) => q.toUpperCase().replace(/\s+/g, "");
@@ -161,20 +169,100 @@ export async function searchEstimates(companyId: string, q: EstimateQuery, tz: n
         }
       : {}),
   };
-  const all = (
-    await prisma.estimate.findMany({
-      where,
-      include: { client: true, vehicle: true, lines: true, order: { select: { id: true, number: true, numberPrefix: true } } },
-      orderBy: { number: "desc" },
-    })
-  ).map((e) => ({ ...e, totals: estimateTotals(e.lines) }));
-  const key = {
-    number: (e: (typeof all)[number]) => e.number,
-    date: (e: (typeof all)[number]) => e.createdAt,
-    client: (e: (typeof all)[number]) => e.client.name,
-    total: (e: (typeof all)[number]) => e.totals.total,
-  }[q.sort];
-  return paginate(sortBy(all, key, q.dir), q);
+  await syncEstimateTotals(companyId);
+  const dir = q.dir;
+  const sort: Prisma.EstimateOrderByWithRelationInput =
+    q.sort === "date" ? { createdAt: dir } : q.sort === "client" ? { client: { name: dir } } : q.sort === "total" ? { total: dir } : { number: dir };
+  return pageOf(q, () => prisma.estimate.count({ where }), (skip, take) =>
+    prisma.estimate
+      .findMany({
+        where,
+        include: { client: true, vehicle: true, order: { select: { id: true, number: true, numberPrefix: true } } },
+        orderBy: [sort, { number: "desc" }, { id: "desc" }],
+        skip,
+        take,
+      })
+      .then((rows) => rows.map((e) => ({ ...e, totals: { works: e.worksTotal, items: e.itemsTotal, total: e.total } }))),
+  );
+}
+
+// ---------- приходные накладные ----------
+
+export const RECEIPT_SORTS = ["number", "date", "supplier", "total"] as const;
+export const RECEIPT_FILTERS = ["status", "supplier"] as const;
+export type ReceiptQuery = ListQuery<(typeof RECEIPT_SORTS)[number]>;
+
+/** Приходные: номер (свой или поставщика), поставщик; отбор по статусу, поставщику и периоду. */
+export async function searchReceipts(companyId: string, q: ReceiptQuery, tz: number) {
+  const n = q.q ? docNumber(q.q) : null;
+  const { status, supplier } = q.f;
+  const where: Prisma.ReceiptWhereInput = {
+    companyId,
+    ...(status === "DRAFT" || status === "POSTED" ? { status: status as DocStatus } : {}),
+    ...(supplier ? { supplierId: supplier === "none" ? null : supplier } : {}),
+    ...(periodWhere(q, tz) ? { date: periodWhere(q, tz) } : {}),
+    ...(q.q
+      ? {
+          OR: [
+            ...(n !== null ? [{ number: n }] : []),
+            { supplierDoc: ci(q.q) },
+            { supplier: { name: ci(q.q) } },
+            { comment: ci(q.q) },
+          ],
+        }
+      : {}),
+  };
+  await syncReceiptTotals(companyId);
+  const dir = q.dir;
+  const sort: Prisma.ReceiptOrderByWithRelationInput =
+    q.sort === "date" ? { date: dir } : q.sort === "supplier" ? { supplier: { name: dir } } : q.sort === "total" ? { total: dir } : { number: dir };
+  const [page, agg] = await Promise.all([
+    pageOf(q, () => prisma.receipt.count({ where }), (skip, take) =>
+      prisma.receipt.findMany({ where, include: { supplier: true }, orderBy: [sort, { number: "desc" }, { id: "desc" }], skip, take }),
+    ),
+    prisma.receipt.aggregate({ where, _sum: { total: true } }),
+  ]);
+  return { ...page, sums: { total: agg._sum.total ?? 0 } };
+}
+
+// ---------- продажи ----------
+
+export const SALE_SORTS = ["number", "date", "client", "total", "due"] as const;
+export const SALE_FILTERS = ["status", "debt"] as const;
+export type SaleQuery = ListQuery<(typeof SALE_SORTS)[number]>;
+
+/** Продажи без ремонта: номер, покупатель (имя, телефон, госномер), комментарий; отбор по статусу, долгу и периоду. */
+export async function searchSales(companyId: string, q: SaleQuery, tz: number) {
+  const n = q.q ? docNumber(q.q) : null;
+  const { status, debt } = q.f;
+  const where: Prisma.SaleWhereInput = {
+    companyId,
+    ...(status === "DRAFT" || status === "POSTED" ? { status: status as DocStatus } : {}),
+    ...(debt === "1" ? { due: { gt: 0 } } : {}),
+    ...(periodWhere(q, tz) ? { date: periodWhere(q, tz) } : {}),
+    ...(q.q ? { OR: [...(n !== null ? [{ number: n }] : []), { client: { OR: clientMatch(q.q) } }, { comment: ci(q.q) }] } : {}),
+  };
+  await syncSaleTotals(companyId);
+  const dir = q.dir;
+  const sort: Prisma.SaleOrderByWithRelationInput =
+    q.sort === "date"
+      ? { date: dir }
+      : q.sort === "client"
+        ? { client: { name: dir } }
+        : q.sort === "total"
+          ? { total: dir }
+          : q.sort === "due"
+            ? { due: dir }
+            : { number: dir };
+  const [page, agg] = await Promise.all([
+    pageOf(q, () => prisma.sale.count({ where }), (skip, take) =>
+      prisma.sale
+        .findMany({ where, include: { client: true }, orderBy: [sort, { number: "desc" }, { id: "desc" }], skip, take })
+        .then((rows) => rows.map((x) => ({ ...x, totals: { total: x.total, paid: x.paid, due: x.due } }))),
+    ),
+    prisma.sale.aggregate({ where, _sum: { total: true, due: true } }),
+  ]);
+  return { ...page, sums: { total: agg._sum.total ?? 0, due: agg._sum.due ?? 0 } };
 }
 
 // ---------- клиенты ----------
@@ -192,33 +280,33 @@ export async function searchClients(companyId: string, q: ClientQuery) {
     ...(kind === "PERSON" || kind === "ENTREPRENEUR" || kind === "LEGAL" ? { kind } : {}),
     ...(q.q ? { AND: clientWords(q.q) } : {}),
   };
-  // сначала только id для сортировки (имена — по алфавиту без учёта регистра), затем строки нужной страницы
-  const keys = await prisma.client.findMany({
-    where,
-    select: { id: true, name: true, code: true, createdAt: true },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-  });
-  const page = paginate(
-    sortBy(keys, (c) => (q.sort === "name" ? c.name : q.sort === "code" ? (c.code ?? "") : c.createdAt), q.dir),
-    q,
+  const dir = q.dir;
+  const sort: Prisma.ClientOrderByWithRelationInput =
+    q.sort === "name" ? { name: dir } : q.sort === "code" ? { code: { sort: dir, nulls: "last" } } : { createdAt: dir };
+  return pageOf(q, () => prisma.client.count({ where }), (skip, take) =>
+    prisma.client.findMany({ where, include: { vehicles: true }, orderBy: [sort, { createdAt: "asc" }, { id: "asc" }], skip, take }),
   );
-  const ids = page.rows.map((c) => c.id);
-  const found = await prisma.client.findMany({ where: { id: { in: ids } }, include: { vehicles: true } });
-  const rows = ids.map((id) => found.find((c) => c.id === id)!);
-  return { ...page, rows };
 }
 
 /** Клиент для панели просмотра: автомобили, последние заказ-наряды и общий долг. */
 export async function clientPreview(companyId: string, id: string) {
   const c = await prisma.client.findFirst({ where: { id, companyId }, include: { vehicles: { orderBy: [{ code: "asc" }, { createdAt: "asc" }] }, contacts: { orderBy: [{ sort: "asc" }, { code: "asc" }] } } });
   if (!c) return null;
+  await syncOrderTotals(companyId);
   const orders = (
     await prisma.workOrder.findMany({
       where: { companyId, clientId: id },
-      include: { works: true, items: true, payments: true },
+      select: { id: true, number: true, numberPrefix: true, acceptedAt: true, stage: true, worksTotal: true, itemsTotal: true, total: true, paid: true, due: true },
       orderBy: { number: "desc" },
     })
-  ).map((o) => ({ id: o.id, number: o.number, numberPrefix: o.numberPrefix, acceptedAt: o.acceptedAt, stage: o.stage, totals: totalsOf(o) }));
+  ).map((o) => ({
+    id: o.id,
+    number: o.number,
+    numberPrefix: o.numberPrefix,
+    acceptedAt: o.acceptedAt,
+    stage: o.stage,
+    totals: { works: o.worksTotal, items: o.itemsTotal, total: o.total, paid: o.paid, due: o.due },
+  }));
   return {
     ...c,
     orders: orders.slice(0, 5),

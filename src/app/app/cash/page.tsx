@@ -2,9 +2,9 @@ import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { PreviewHint, PreviewRow, PreviewTitle } from "@/components/list-view";
+import { Pager, PreviewHint, PreviewRow, PreviewTitle } from "@/components/list-view";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
-import { previewHref, previewId } from "@/lib/list-query";
+import { listHref, paginate, PER_PAGE, type ListQuery } from "@/lib/list-query";
 import { formatDate } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { can } from "@/lib/permissions";
@@ -21,7 +21,7 @@ const PATH = "/app/cash";
 export default async function CashPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; box?: string; preview?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; box?: string; preview?: string; page?: string; per?: string }>;
 }) {
   const s = await requireSession();
   const sp = await searchParams;
@@ -36,8 +36,21 @@ export default async function CashPage({
   const journal = await cashJournal(s.companyId, localToUtc(from, "00:00", tz), localToUtc(addDays(to, 1), "00:00", tz), box);
   const income = journal.filter((r) => r.amount > 0).reduce((a, r) => a + r.amount, 0);
   const expense = journal.filter((r) => r.amount < 0).reduce((a, r) => a + r.amount, 0);
-  const preview = previewId(sp);
+  const preview = sp.preview || undefined;
   const sel = journal.find((r) => r.id === preview);
+  // журнал за период страницами: строки страницы, итоги — по всему периоду
+  const query: ListQuery = {
+    q: "",
+    from,
+    to,
+    page: Math.max(1, Math.floor(Number(sp.page)) || 1),
+    per: PER_PAGE.find((p) => String(p) === sp.per) ?? 50,
+    sort: "date",
+    dir: "desc",
+    preview,
+    f: box ? { box } : {},
+  };
+  const page = paginate(journal, query);
 
   return (
     <div className="flex flex-col gap-4">
@@ -197,6 +210,13 @@ export default async function CashPage({
                     ))}
                   </Select>
                 </Field>
+                <Select name="per" defaultValue={String(query.per)} aria-label="Строк на странице">
+                  {PER_PAGE.map((p) => (
+                    <option key={p} value={p}>
+                      {p} строк
+                    </option>
+                  ))}
+                </Select>
                 <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Показать</button>
                 <span className="ml-auto text-sm">
                   Приход <b className="text-green-700">{formatRub(income)}</b> · Расход <b className="text-red-600">{formatRub(-expense)}</b>
@@ -214,8 +234,8 @@ export default async function CashPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {journal.map((r) => (
-                      <ListRow key={r.id} previewHref={previewHref(PATH, sp, r.id)} openHref={r.orderId ? `/app/orders/${r.orderId}` : undefined} selected={preview === r.id}>
+                    {page.rows.map((r) => (
+                      <ListRow key={r.id} previewHref={listHref(PATH, query, { preview: r.id })} openHref={r.orderId ? `/app/orders/${r.orderId}` : undefined} selected={preview === r.id}>
                         <td className={`${td} whitespace-nowrap`}>{formatDate(r.date, true)}</td>
                         <td className={td}>{r.cashbox}</td>
                         <td className={td}>
@@ -243,6 +263,7 @@ export default async function CashPage({
                   </tbody>
                 </table>
               </div>
+              <Pager path={PATH} query={query} total={page.total} page={page.page} pages={page.pages} />
             </Card>
           }
         />

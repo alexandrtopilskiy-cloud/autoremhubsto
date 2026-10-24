@@ -7,6 +7,7 @@ import { formatRub } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { searchEverywhere } from "@/lib/services/lists";
 import { stageLabel } from "@/lib/services/orders";
+import { LiveForm } from "@/components/busy";
 
 function Group({ title, all, children, empty }: { title: string; all?: string; children: ReactNode; empty: boolean }) {
   if (empty) return null;
@@ -55,7 +56,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     <div className="flex flex-col gap-4">
       <PageTitle>Поиск</PageTitle>
       <Card>
-        <form className="flex gap-2">
+        <LiveForm className="flex gap-2">
           <Input
             name="q"
             defaultValue={q}
@@ -64,7 +65,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             autoFocus
           />
           <button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50">Найти</button>
-        </form>
+        </LiveForm>
         {q && !found && <p className="mt-3 text-sm text-slate-500">Введите хотя бы два символа или номер документа.</p>}
         {nothing && <p className="mt-3 text-sm text-slate-500">Ничего не найдено.</p>}
       </Card>

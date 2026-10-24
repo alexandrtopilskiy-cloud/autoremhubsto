@@ -104,16 +104,6 @@ export function receiptTotal(lines: { qty: Prisma.Decimal | number; cost: number
   return lines.reduce((s, l) => s + receiptLineSum(l), 0);
 }
 
-export async function listReceipts(companyId: string) {
-  const rs = await prisma.receipt.findMany({
-    where: { companyId },
-    include: { supplier: true, lines: true },
-    orderBy: { number: "desc" },
-    take: 200,
-  });
-  return rs.map((r) => ({ ...r, total: receiptTotal(r.lines) }));
-}
-
 export async function getReceipt(companyId: string, id: string) {
   await ownReceipt(prisma, companyId, id);
   const r = await prisma.receipt.findUniqueOrThrow({

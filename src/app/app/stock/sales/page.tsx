@@ -4,13 +4,15 @@ import { ActionForm, Submit } from "@/components/form";
 import { Allowed } from "@/components/manager-only";
 import { Badge, Card, Field, Input, NewPanel, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { PreviewHint, PreviewLines, PreviewRow, PreviewTitle } from "@/components/list-view";
+import { FilterSelect, ListFilters, Pager, PreviewHint, PreviewLines, PreviewRow, PreviewTitle, SortTh } from "@/components/list-view";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
-import { previewHref, previewId } from "@/lib/list-query";
+import { listHref, parseListQuery } from "@/lib/list-query";
 import { formatDate, formatQty, saleNo } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { listClients } from "@/lib/services/clients";
-import { getSale, listSales } from "@/lib/services/warehouse";
+import { getSale } from "@/lib/services/warehouse";
+import { SALE_FILTERS, SALE_SORTS, searchSales } from "@/lib/services/lists";
+import { getCompany } from "@/lib/services/settings";
 import { docStatus } from "../product-select";
 import { StockTabs } from "../tabs";
 import { createSaleAction } from "../warehouse-actions";
@@ -55,9 +57,12 @@ async function loadPreview(id: string) {
 
 export default async function SalesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const s = await requireSession();
-  const sp = await searchParams;
-  const preview = previewId(sp);
-  const [sales, clients] = await Promise.all([listSales(s.companyId), listClients(s.companyId)]);
+  const query = parseListQuery(await searchParams, { sorts: SALE_SORTS, sort: "number", filters: SALE_FILTERS });
+  const preview = query.preview;
+  const [list, clients] = await Promise.all([
+    getCompany(s.companyId).then((c) => searchSales(s.companyId, query, c.utcOffset)),
+    listClients(s.companyId),
+  ]);
   return (
     <div className="flex flex-col gap-4">
       <PageTitle create="#new" createLabel="Новая продажа без ремонта">Склад</PageTitle>
@@ -90,51 +95,86 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           panel={preview ? <Preview companyId={s.companyId} id={preview} /> : <PreviewHint what="продажу" open="документ" />}
           list={
             <Card>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className={th}>Номер</th>
-                    <th className={th}>Дата</th>
-                    <th className={th}>Покупатель</th>
-                    <th className={th}>Статус</th>
-                    <th className={`${th} text-right`}>Сумма</th>
-                    <th className={`${th} text-right`}>Долг</th>
-                    <th className={th} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {sales.map((x) => (
-                    <ListRow key={x.id} previewHref={previewHref(PATH, sp, x.id)} openHref={`${PATH}/${x.id}`} selected={preview === x.id}>
-                      <td className={td}>
-                        <span className="text-blue-600">
-                          {saleNo(x.number, x.numberPrefix)}
-                        </span>
-                      </td>
-                      <td className={td}>{formatDate(x.date)}</td>
-                      <td className={td}>{x.client?.name ?? "Розничный покупатель"}</td>
-                      <td className={td}>
-                        <Badge tone={x.status === "POSTED" ? "green" : "amber"}>{docStatus(x.status === "POSTED")}</Badge>
-                      </td>
-                      <td className={`${td} text-right whitespace-nowrap`}>{formatRub(x.totals.total)}</td>
-                      <td className={`${td} text-right whitespace-nowrap ${x.totals.due > 0 ? "text-red-600" : ""}`}>
-                        {x.totals.due !== 0 && formatRub(x.totals.due)}
-                      </td>
-                      <td className={`${td} py-1.5`}>
-                        <div className="flex justify-end">
-                          <IconLink small newTab icon="print" label="Печать" href={`${PATH}/${x.id}/print`} />
-                        </div>
-                      </td>
-                    </ListRow>
-                  ))}
-                  {sales.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className={`${td} text-slate-500`}>
-                        Продаж пока нет
-                      </td>
+              <ListFilters path={PATH} query={query} placeholder="Номер, покупатель, телефон, госномер или комментарий">
+                <FilterSelect
+                  name="status"
+                  label="Статус"
+                  value={query.f.status}
+                  options={[
+                    { value: "DRAFT", label: "Черновик" },
+                    { value: "POSTED", label: "Проведена" },
+                  ]}
+                />
+                <FilterSelect name="debt" label="Долг" value={query.f.debt} options={[{ value: "1", label: "Только с долгом" }]} />
+              </ListFilters>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <SortTh path={PATH} query={query} sort="number">
+                        Номер
+                      </SortTh>
+                      <SortTh path={PATH} query={query} sort="date">
+                        Дата
+                      </SortTh>
+                      <SortTh path={PATH} query={query} sort="client">
+                        Покупатель
+                      </SortTh>
+                      <th className={th}>Статус</th>
+                      <SortTh path={PATH} query={query} sort="total" right>
+                        Сумма
+                      </SortTh>
+                      <SortTh path={PATH} query={query} sort="due" right>
+                        Долг
+                      </SortTh>
+                      <th className={th} />
                     </tr>
+                  </thead>
+                  <tbody>
+                    {list.rows.map((x) => (
+                      <ListRow key={x.id} previewHref={listHref(PATH, query, { preview: x.id })} openHref={`${PATH}/${x.id}`} selected={preview === x.id}>
+                        <td className={td}>
+                          <span className="text-blue-600">{saleNo(x.number, x.numberPrefix)}</span>
+                        </td>
+                        <td className={td}>{formatDate(x.date)}</td>
+                        <td className={td}>{x.client?.name ?? "Розничный покупатель"}</td>
+                        <td className={td}>
+                          <Badge tone={x.status === "POSTED" ? "green" : "amber"}>{docStatus(x.status === "POSTED")}</Badge>
+                        </td>
+                        <td className={`${td} text-right whitespace-nowrap`}>{formatRub(x.totals.total)}</td>
+                        <td className={`${td} text-right whitespace-nowrap ${x.totals.due > 0 ? "text-red-600" : ""}`}>
+                          {x.totals.due !== 0 && formatRub(x.totals.due)}
+                        </td>
+                        <td className={`${td} py-1.5`}>
+                          <div className="flex justify-end">
+                            <IconLink small newTab icon="print" label="Печать" href={`${PATH}/${x.id}/print`} />
+                          </div>
+                        </td>
+                      </ListRow>
+                    ))}
+                    {list.rows.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className={`${td} text-slate-500`}>
+                          Продаж не найдено
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {list.total > 0 && (
+                    <tfoot>
+                      <tr className="border-t font-medium">
+                        <td className={td} colSpan={4}>
+                          Итого по отбору
+                        </td>
+                        <td className={`${td} text-right whitespace-nowrap`}>{formatRub(list.sums.total)}</td>
+                        <td className={`${td} text-right whitespace-nowrap`}>{list.sums.due !== 0 ? formatRub(list.sums.due) : ""}</td>
+                        <td className={td} />
+                      </tr>
+                    </tfoot>
                   )}
-                </tbody>
-              </table>
+                </table>
+              </div>
+              <Pager path={PATH} query={query} total={list.total} page={list.page} pages={list.pages} />
             </Card>
           }
         />

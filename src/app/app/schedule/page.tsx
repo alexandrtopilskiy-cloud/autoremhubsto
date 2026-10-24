@@ -21,6 +21,7 @@ import {
   weekStart,
 } from "@/lib/time";
 import { ScheduleTabs } from "./tabs";
+import { LiveForm } from "@/components/busy";
 
 const SLOT = 30; // минут в строке сетки
 const ROW_PX = 40;
@@ -96,7 +97,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
       ) : view === "month" ? (
         <Card>
           {allPlaces.length > 1 && (
-            <form className="mb-3 flex items-center gap-2 text-sm">
+            <LiveForm className="mb-3 flex items-center gap-2 text-sm">
               <input type="hidden" name="view" value="month" />
               <input type="hidden" name="date" value={date} />
               <select name="wp" defaultValue={wp?.id ?? ""} aria-label="Пост" className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5">
@@ -108,7 +109,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
                 ))}
               </select>
               <button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50">Показать</button>
-            </form>
+            </LiveForm>
           )}
           <div className="overflow-x-auto">
             <div className="grid min-w-[720px] grid-cols-7 border-t border-l text-xs">
