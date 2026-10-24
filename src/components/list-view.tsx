@@ -99,7 +99,7 @@ export function SortTh<S extends string>({
 }) {
   const active = query.sort === sort;
   // текстовые колонки сначала по алфавиту, номера, даты и суммы — сначала большие
-  const dir = active ? (query.dir === "desc" ? "asc" : "desc") : sort === "client" || sort === "name" ? "asc" : "desc";
+  const dir = active ? (query.dir === "desc" ? "asc" : "desc") : sort === "client" || sort === "name" || sort === "supplier" ? "asc" : "desc";
   return (
     <th
       className={`${th} ${right ? "text-right" : ""}`}

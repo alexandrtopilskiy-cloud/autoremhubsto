@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
-import { PreviewHint, PreviewRow, PreviewTitle } from "@/components/list-view";
+import { Pager, PreviewHint, PreviewRow, PreviewTitle } from "@/components/list-view";
 import { ListRow, PreviewPane } from "@/components/preview-pane";
-import { previewHref, previewId } from "@/lib/list-query";
+import { listHref, paginate, PER_PAGE, type ListQuery } from "@/lib/list-query";
 import { formatDate } from "@/lib/format";
 import { formatRub } from "@/lib/money";
 import { reportPeriod } from "@/lib/report-period";
 import { DOC_TYPES, documentJournal, type DocType } from "@/lib/services/documents";
 import { getCompany } from "@/lib/services/settings";
+import { LiveForm } from "@/components/busy";
 
 const PATH = "/app/documents";
 
-export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; type?: string; preview?: string }> }) {
+export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string; type?: string; preview?: string; page?: string; per?: string }> }) {
   const s = await requireSession();
   const sp = await searchParams;
   const company = await getCompany(s.companyId);
@@ -20,8 +21,20 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
   const type = DOC_TYPES.some((t) => t.value === sp.type) ? (sp.type as DocType) : undefined;
   const rows = await documentJournal(s.companyId, period, type);
   const label = (t: DocType) => DOC_TYPES.find((x) => x.value === t)!.label;
-  const preview = previewId(sp);
+  const preview = sp.preview || undefined;
   const sel = rows.find((r) => r.id === preview);
+  const query: ListQuery = {
+    q: "",
+    from,
+    to,
+    page: Math.max(1, Math.floor(Number(sp.page)) || 1),
+    per: PER_PAGE.find((p) => String(p) === sp.per) ?? 50,
+    sort: "date",
+    dir: "desc",
+    preview,
+    f: type ? { type } : {},
+  };
+  const page = paginate(rows, query);
   return (
     <div className="flex flex-col gap-4">
       <PageTitle
@@ -49,7 +62,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         }
         list={
           <Card>
-            <form className="mb-3 flex flex-wrap items-end gap-2">
+            <LiveForm className="mb-3 flex flex-wrap items-end gap-2">
               <Field label="С">
                 <Input type="date" name="from" defaultValue={from} />
               </Field>
@@ -66,9 +79,16 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
                   ))}
                 </Select>
               </Field>
+              <Select name="per" defaultValue={String(query.per)} aria-label="Строк на странице">
+                {PER_PAGE.map((p) => (
+                  <option key={p} value={p}>
+                    {p} строк
+                  </option>
+                ))}
+              </Select>
               <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Показать</button>
               <span className="ml-auto text-sm text-slate-600">Документов: {rows.length}</span>
-            </form>
+            </LiveForm>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -82,8 +102,8 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
-                    <ListRow key={r.id} previewHref={previewHref(PATH, sp, r.id)} openHref={r.href} selected={preview === r.id}>
+                  {page.rows.map((r) => (
+                    <ListRow key={r.id} previewHref={listHref(PATH, query, { preview: r.id })} openHref={r.href} selected={preview === r.id}>
                       <td className={`${td} whitespace-nowrap`}>{formatDate(r.date, true)}</td>
                       <td className={td}>{label(r.type)}</td>
                       <td className={td}>
@@ -108,6 +128,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
                 </tbody>
               </table>
             </div>
+            <Pager path={PATH} query={query} total={page.total} page={page.page} pages={page.pages} />
           </Card>
         }
       />

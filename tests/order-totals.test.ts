@@ -4,9 +4,15 @@ import { registerCompany } from "@/lib/services/accounts";
 import { createClient } from "@/lib/services/clients";
 import { ORDER_FILTERS, ORDER_SORTS, searchOrders } from "@/lib/services/lists";
 import { addItem, addPayment, addWork, createOrder, getOrder, removeWork } from "@/lib/services/orders";
-import { syncOrderTotals } from "@/lib/services/order-totals";
+import { syncOrderTotals } from "@/lib/services/doc-totals";
 import { moveToTrash, restoreFromTrash } from "@/lib/services/trash";
 import { prisma } from "@/lib/db";
+import { createProduct } from "@/lib/services/catalog";
+import { listCashboxes } from "@/lib/services/cash";
+import { addEstimateLine, createEstimate } from "@/lib/services/estimates";
+import { ESTIMATE_FILTERS, ESTIMATE_SORTS, RECEIPT_FILTERS, RECEIPT_SORTS, SALE_FILTERS, SALE_SORTS, searchEstimates, searchReceipts, searchSales } from "@/lib/services/lists";
+import { addReceiptLine, createReceipt } from "@/lib/services/stock";
+import { addSaleLine, addSalePayment, createSale } from "@/lib/services/warehouse";
 
 const TZ = 180;
 const orders = (sp: Record<string, string>) => parseListQuery(sp, { sorts: ORDER_SORTS, sort: "number", filters: ORDER_FILTERS });
@@ -67,5 +73,34 @@ describe("хранимые суммы заказ-наряда", () => {
     const t = await moveToTrash(a, "ORDER", o.id);
     await restoreFromTrash(a, t.id);
     await expectSynced(a, o.id);
+  });
+
+  it("приходные, продажи и калькуляции: суммы, долг, поиск и итоги в списке", async () => {
+    const a = await company();
+    const oil = await createProduct(a, { name: "Масло", price: 90000 });
+    const r = await createReceipt(a, { supplierDoc: "УПД-15" });
+    await addReceiptLine(a, r.id, { productId: oil.id, qty: 4, cost: 50000 });
+    await addReceiptLine(a, r.id, { productId: oil.id, qty: 1.5, cost: 20001 });
+    await createReceipt(a, {});
+    const rq = (sp: Record<string, string>) => parseListQuery(sp, { sorts: RECEIPT_SORTS, sort: "number", filters: RECEIPT_FILTERS });
+    const receipts = await searchReceipts(a, rq({ sort: "total" }), TZ);
+    expect(receipts.rows.map((x) => x.total)).toEqual([230002, 0]);
+    expect(receipts.sums.total).toBe(230002);
+    expect((await searchReceipts(a, rq({ q: "упд-15" }), TZ)).rows.map((x) => x.id)).toEqual([r.id]);
+
+    const s = await createSale(a, {});
+    await addSaleLine(a, s.id, { productId: oil.id, qty: 2 });
+    await addSalePayment(a, s.id, { amount: 50000, cashboxId: (await listCashboxes(a))[0].id });
+    const sq = (sp: Record<string, string>) => parseListQuery(sp, { sorts: SALE_SORTS, sort: "number", filters: SALE_FILTERS });
+    const sales = await searchSales(a, sq({ debt: "1" }), TZ);
+    expect(sales.rows[0].totals).toEqual({ total: 180000, paid: 50000, due: 130000 });
+    expect(sales.sums).toEqual({ total: 180000, due: 130000 });
+
+    const c = await createClient(a, { name: "Иванов" });
+    const e = await createEstimate(a, { clientId: c.id });
+    await addEstimateLine(a, e.id, { kind: "WORK", name: "Покраска", qty: 2, price: 500000 });
+    await addEstimateLine(a, e.id, { kind: "ITEM", name: "Краска", qty: 1, price: 70000 });
+    const eq = (sp: Record<string, string>) => parseListQuery(sp, { sorts: ESTIMATE_SORTS, sort: "number", filters: ESTIMATE_FILTERS });
+    expect((await searchEstimates(a, eq({}), TZ)).rows[0].totals).toEqual({ works: 1000000, items: 70000, total: 1070000 });
   });
 });

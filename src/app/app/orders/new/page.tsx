@@ -8,6 +8,7 @@ import { listEmployees } from "@/lib/services/employees";
 import { createOrderAction } from "../actions";
 import { dicts } from "@/lib/services/dictionaries";
 import { DictList } from "@/components/dict-list";
+import { LiveForm } from "@/components/busy";
 
 export default async function NewOrderPage({ searchParams }: { searchParams: Promise<{ clientId?: string; q?: string }> }) {
   const s = await requireSession();
@@ -21,10 +22,10 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
       <div className="flex flex-col gap-4">
         <PageTitle>Новый заказ-наряд: выберите клиента</PageTitle>
         <Card>
-          <form className="mb-3 flex gap-2">
+          <LiveForm className="mb-3 flex gap-2">
             <Input name="q" defaultValue={q} placeholder="Имя, телефон, госномер или VIN" className="min-w-72" />
             <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">Найти</button>
-          </form>
+          </LiveForm>
           <ul className="flex flex-col divide-y text-sm">
             {clients.map((c) => (
               <li key={c.id} className="py-2">

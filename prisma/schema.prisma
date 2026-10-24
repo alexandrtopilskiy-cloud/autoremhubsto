@@ -502,7 +502,7 @@ model WorkOrder {
   closedAt        DateTime?
   createdAt       DateTime         @default(now())
   // Суммы по строкам и оплатам, коп. — для списка: отбор, сортировка и итоги считаются в базе.
-  // Считает их totalsOf (services/order-totals.ts); триггер базы ставит totalsDirty при любом изменении
+  // Считает их totalsOf (services/doc-totals.ts); триггер базы ставит totalsDirty при любом изменении
   // строк и оплат, и устаревшие суммы пересчитываются перед чтением списка.
   worksTotal      Int              @default(0)
   itemsTotal      Int              @default(0)
@@ -626,12 +626,16 @@ model Receipt {
   date            DateTime        @default(now())
   comment         String?
   createdAt       DateTime        @default(now())
+  // Суммы для списков, коп.; пересчитывает services/doc-totals.ts, триггер базы ставит totalsDirty при изменении строк и оплат.
+  total           Int             @default(0)
+  totalsDirty     Boolean         @default(true)
   lines           ReceiptLine[]
   payments        CashOperation[]
 
   @@unique([companyId, numberPrefix, number])
   @@unique([companyId, externalId])
   @@index([companyId, date])
+  @@index([companyId, totalsDirty])
   @@index([supplierId])
 }
 
@@ -790,23 +794,29 @@ model Attachment {
 
 // Калькуляция: предварительный расчёт ремонта для клиента, переводится в заказ-наряд.
 model Estimate {
-  id        String         @id @default(cuid())
-  companyId String
-  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  number    Int
-  status    EstimateStatus @default(DRAFT)
-  clientId  String
-  client    Client         @relation(fields: [clientId], references: [id])
-  vehicleId String?
-  vehicle   Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  comment   String?
-  orderId   String?        @unique
-  order     WorkOrder?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  createdAt DateTime       @default(now())
-  lines     EstimateLine[]
+  id          String         @id @default(cuid())
+  companyId   String
+  company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number      Int
+  status      EstimateStatus @default(DRAFT)
+  clientId    String
+  client      Client         @relation(fields: [clientId], references: [id])
+  vehicleId   String?
+  vehicle     Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  comment     String?
+  orderId     String?        @unique
+  order       WorkOrder?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+  // Суммы для списков, коп.; пересчитывает services/doc-totals.ts, триггер базы ставит totalsDirty при изменении строк и оплат.
+  worksTotal  Int            @default(0)
+  itemsTotal  Int            @default(0)
+  total       Int            @default(0)
+  totalsDirty Boolean        @default(true)
+  lines       EstimateLine[]
 
   @@unique([companyId, number])
   @@index([companyId, createdAt])
+  @@index([companyId, totalsDirty])
   @@index([clientId])
 }
 
@@ -912,12 +922,18 @@ model Sale {
   date         DateTime        @default(now()) // при проведении — дата проведения
   comment      String?
   createdAt    DateTime        @default(now())
+  // Суммы для списков, коп.; пересчитывает services/doc-totals.ts, триггер базы ставит totalsDirty при изменении строк и оплат.
+  total        Int             @default(0)
+  paid         Int             @default(0)
+  due          Int             @default(0)
+  totalsDirty  Boolean         @default(true)
   lines        SaleLine[]
   payments     CashOperation[]
 
   @@unique([companyId, numberPrefix, number])
   @@unique([companyId, externalId])
   @@index([companyId, date])
+  @@index([companyId, totalsDirty])
   @@index([clientId])
 }
 

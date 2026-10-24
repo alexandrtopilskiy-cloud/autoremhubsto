@@ -11,6 +11,8 @@ const ROW = "data-preview-row";
 const STORE = "ar.preview";
 const MIN = 260;
 const MAX = 760;
+// мс между щелчками, после которых одиночный щелчок уже не станет двойным
+const DOUBLE_CLICK = 200;
 
 // клики по кнопкам, ссылкам и полям внутри строки строку не открывают
 const inControl = (e: React.MouseEvent) => !!(e.target as Element).closest("a,button,input,select,textarea,label");
@@ -19,7 +21,7 @@ const inControl = (e: React.MouseEvent) => !!(e.target as Element).closest("a,bu
 const previewOf = (href: string) => new URL(href, "http://x").searchParams.get("preview") ?? undefined;
 
 /** Выбор строки, когда панель загружается отдельно от списка. */
-const Selection = createContext<{ selected?: string; select: (id: string, href: string) => void } | null>(null);
+const Selection = createContext<{ selected?: string; select: (id: string) => void } | null>(null);
 
 /** Строка списка: клик — просмотр справа, двойной клик — открыть (без openHref строка только показывает просмотр). */
 export function ListRow({
@@ -38,15 +40,25 @@ export function ListRow({
   const sel = useContext(Selection);
   const id = previewOf(previewHref);
   const active = sel ? !!id && sel.selected === id : selected;
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const preview = () => (sel && id ? sel.select(id) : go(previewHref));
   return (
     <tr
       {...{ [ROW]: "" }}
       onClick={(e) => {
-        if (inControl(e)) return;
-        if (sel && id) sel.select(id, previewHref);
-        else go(previewHref);
+        // второй щелчок двойного клика — это открытие, а не новый просмотр
+        if (inControl(e) || e.detail > 1) return;
+        // у открываемых строк просмотр ждёт, не будет ли второго щелчка: иначе загрузка просмотра
+        // и открытие документа идут одновременно, и документ загружается дважды
+        clearTimeout(timer.current);
+        if (openHref) timer.current = setTimeout(preview, DOUBLE_CLICK);
+        else preview();
       }}
-      onDoubleClick={(e) => openHref && !inControl(e) && router.push(openHref)}
+      onDoubleClick={(e) => {
+        if (!openHref || inControl(e)) return;
+        clearTimeout(timer.current);
+        router.push(openHref);
+      }}
       className={`cursor-pointer border-b select-none last:border-0 ${active ? "bg-blue-100" : "hover:bg-slate-50"}`}
     >
       {children}
@@ -93,12 +105,12 @@ export function PreviewPane({
     setLoaded(null);
     want.current = selected;
   }, [selected, panel]);
-  const select = (id: string, href: string) => {
+  const select = (id: string) => {
     if (!loadPanel) return;
     want.current = id;
     setChosen(id);
     setS((x) => (x.hidden ? { ...x, hidden: false } : x));
-    window.history.replaceState(null, "", href);
+    // адрес страницы не меняется: замена адреса во время загрузки панели сбивала переход по двойному клику
     start(async () => {
       const node = await loadPanel(id);
       // пока панель грузилась, могли выбрать другую строку

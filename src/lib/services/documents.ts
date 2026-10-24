@@ -1,13 +1,13 @@
 // Общий журнал документов сервиса и склада за период.
 import { prisma } from "../db";
 import { orderNo, receiptNo, saleNo } from "../format";
-import { estimateStatusLabel, estimateTotals } from "./estimates";
-import { stageLabel, totalsOf } from "./orders";
+import { syncEstimateTotals, syncOrderTotals, syncReceiptTotals, syncSaleTotals } from "./doc-totals";
+import { estimateStatusLabel } from "./estimates";
+import { stageLabel } from "./orders";
 import { requestStatusLabel } from "./parts-requests";
 import type { Period } from "./reports";
 import { receiptTotal } from "./stock";
 import { supplierOrderStatusLabel } from "./supplier-orders";
-import { saleTotals } from "./warehouse";
 
 export const DOC_TYPES = [
   { value: "order", label: "Заказ-наряд" },
@@ -35,18 +35,25 @@ export type DocRow = {
 
 export async function documentJournal(companyId: string, p: Period, type?: DocType): Promise<DocRow[]> {
   const want = (t: DocType) => !type || type === t;
+  // суммы документов хранятся в них самих (doc-totals), строки не загружаются
+  await Promise.all([
+    want("order") && syncOrderTotals(companyId),
+    want("estimate") && syncEstimateTotals(companyId),
+    want("receipt") && syncReceiptTotals(companyId),
+    want("sale") && syncSaleTotals(companyId),
+  ]);
   const [orders, estimates, receipts, requests, sales, supplierOrders, writeOffs, inventories] = await Promise.all([
     want("order")
       ? prisma.workOrder.findMany({
           where: { companyId, acceptedAt: { gte: p.from, lt: p.to } },
-          include: { client: true, works: true, items: true, payments: true },
+          include: { client: true },
         })
       : [],
     want("estimate")
-      ? prisma.estimate.findMany({ where: { companyId, createdAt: { gte: p.from, lt: p.to } }, include: { client: true, lines: true } })
+      ? prisma.estimate.findMany({ where: { companyId, createdAt: { gte: p.from, lt: p.to } }, include: { client: true } })
       : [],
     want("receipt")
-      ? prisma.receipt.findMany({ where: { companyId, date: { gte: p.from, lt: p.to } }, include: { supplier: true, lines: true } })
+      ? prisma.receipt.findMany({ where: { companyId, date: { gte: p.from, lt: p.to } }, include: { supplier: true } })
       : [],
     want("request")
       ? prisma.partsRequest.findMany({
@@ -55,7 +62,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
         })
       : [],
     want("sale")
-      ? prisma.sale.findMany({ where: { companyId, date: { gte: p.from, lt: p.to } }, include: { client: true, lines: true, payments: true } })
+      ? prisma.sale.findMany({ where: { companyId, date: { gte: p.from, lt: p.to } }, include: { client: true } })
       : [],
     want("supplierOrder")
       ? prisma.supplierOrder.findMany({ where: { companyId, createdAt: { gte: p.from, lt: p.to } }, include: { supplier: true, lines: true } })
@@ -71,7 +78,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       date: o.acceptedAt,
       number: orderNo(o.number, o.numberPrefix),
       party: o.client.name,
-      total: totalsOf(o).total,
+      total: o.total,
       status: o.status === "POSTED" ? "Проведён" : stageLabel(o.stage),
       posted: o.status === "POSTED",
       href: `/app/orders/${o.id}`,
@@ -82,7 +89,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       date: e.createdAt,
       number: `К-${e.number}`,
       party: e.client.name,
-      total: estimateTotals(e.lines).total,
+      total: e.total,
       status: estimateStatusLabel(e.status),
       posted: false,
       href: `/app/estimates/${e.id}`,
@@ -93,7 +100,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       date: r.date,
       number: `${receiptNo(r.number, r.numberPrefix)}`,
       party: r.supplier?.name ?? "",
-      total: receiptTotal(r.lines),
+      total: r.total,
       status: r.status === "POSTED" ? "Проведена" : "Черновик",
       posted: r.status === "POSTED",
       href: `/app/stock/receipts/${r.id}`,
@@ -115,7 +122,7 @@ export async function documentJournal(companyId: string, p: Period, type?: DocTy
       date: x.date,
       number: `${saleNo(x.number, x.numberPrefix)}`,
       party: x.client?.name ?? "Розничный покупатель",
-      total: saleTotals(x).total,
+      total: x.total,
       status: posted(x.status),
       posted: x.status === "POSTED",
       href: `/app/stock/sales/${x.id}`,
