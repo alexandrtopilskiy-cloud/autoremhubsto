@@ -6,3 +6,9 @@ export class NotFoundError extends UserError {
     super(`${what} не найдена`);
   }
 }
+
+export const OFFLINE_READ_ONLY_MESSAGE = "СТО в резервном режиме. Изменения на сервере временно приостановлены.";
+
+export function isOfflineReadOnlyError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("STO_OFFLINE_READ_ONLY");
+}

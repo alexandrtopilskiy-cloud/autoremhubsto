@@ -150,10 +150,13 @@ export async function setMemberRole(companyId: string, actorUserId: string, id: 
 /** Отзывает доступ и завершает сессии пользователя в этой СТО. */
 export async function removeMember(companyId: string, actorUserId: string, id: string) {
   const m = await ownMembership(companyId, id, actorUserId);
-  await prisma.$transaction([
-    prisma.session.deleteMany({ where: { userId: m.userId, companyId } }),
-    prisma.membership.delete({ where: { id } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT offline_assert_cloud_writable(${companyId})`;
+    const reserve = await tx.offlineReserve.findUnique({ where: { companyId } });
+    if (reserve?.masterMembershipId === m.id) throw new UserError("Сначала смените или снимите мастера в настройках СТО");
+    await tx.session.deleteMany({ where: { userId: m.userId, companyId } });
+    await tx.membership.delete({ where: { id } });
+  });
 }
 
 // --- 8.7 свои роли ---

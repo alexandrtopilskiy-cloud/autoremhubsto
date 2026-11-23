@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
-import { UserError } from "@/lib/errors";
+import { isOfflineReadOnlyError, OFFLINE_READ_ONLY_MESSAGE, UserError } from "@/lib/errors";
 import { can, LEVELS, SECTIONS } from "@/lib/permissions";
 import { EXCEL_KINDS, importExcel, isExcelKind, type ImportReport } from "@/lib/services/excel";
 import { importAdDocs, type AdDocsReport } from "@/lib/services/excel-autodealer-docs";
@@ -12,6 +12,7 @@ export type ImportState = { error?: string; report?: ImportReport; at?: number }
 /** Загрузка файла: кнопка «Проверить» только проверяет, «Загрузить» записывает, если ошибок нет. */
 export async function importAction(kind: string, _: ImportState, fd: FormData): Promise<ImportState> {
   const s = await requireSession();
+  if (s.cloudReadOnly) return { error: OFFLINE_READ_ONLY_MESSAGE };
   if (!isExcelKind(kind)) return { error: "Нет такого справочника" };
   const def = EXCEL_KINDS[kind];
   if (!can(s.perms, def.section, "CREATE")) {
@@ -30,6 +31,7 @@ export async function importAction(kind: string, _: ImportState, fd: FormData): 
     return { report, at: Date.now() };
   } catch (e) {
     if (e instanceof UserError) return { error: e.message };
+    if (isOfflineReadOnlyError(e)) return { error: OFFLINE_READ_ONLY_MESSAGE };
     throw e;
   }
 }
@@ -39,6 +41,7 @@ export type AdDocsState = { error?: string; report?: AdDocsReport; at?: number }
 /** Документы из АвтоДилера: заказ-наряды, накладные, движение денег. Нужно право создавать в «Заказ-нарядах», «Складе» и «Кассе». */
 export async function importAdDocsAction(_: AdDocsState, fd: FormData): Promise<AdDocsState> {
   const s = await requireSession();
+  if (s.cloudReadOnly) return { error: OFFLINE_READ_ONLY_MESSAGE };
   if (!can(s.perms, "orders", "CREATE") || !can(s.perms, "stock", "CREATE") || !can(s.perms, "cash", "CREATE"))
     return { error: "Нужен уровень «Создание» на разделы «Заказ-наряды», «Склад» и «Касса»" };
   const file = fd.get("file");
@@ -50,6 +53,7 @@ export async function importAdDocsAction(_: AdDocsState, fd: FormData): Promise<
     return { report, at: Date.now() };
   } catch (e) {
     if (e instanceof UserError) return { error: e.message };
+    if (isOfflineReadOnlyError(e)) return { error: OFFLINE_READ_ONLY_MESSAGE };
     throw e;
   }
 }
