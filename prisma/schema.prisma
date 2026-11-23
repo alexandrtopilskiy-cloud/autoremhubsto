@@ -132,6 +132,7 @@ model Company {
   dayEnd           Int               @default(1260) // конец рабочего дня
   createdAt        DateTime          @default(now())
   memberships      Membership[]
+  offlineReserve   OfflineReserve?
   organizations    Organization[]
   clients          Client[]
   vehicles         Vehicle[]
@@ -208,8 +209,28 @@ model Membership {
   customRole   CompanyRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   createdAt    DateTime     @default(now())
 
+  offlineReserve OfflineReserve?
+
   @@unique([userId, companyId])
+  @@unique([companyId, id])
   @@index([companyId])
+}
+
+enum OfflineReservePhase {
+  ONLINE
+  OFFLINE
+  SYNCING
+}
+
+// Выбор мастера и состояние записи в облаке для одной СТО.
+model OfflineReserve {
+  companyId          String              @id
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  masterMembershipId String
+  master             Membership          @relation(fields: [companyId, masterMembershipId], references: [companyId, id], onDelete: NoAction)
+  phase              OfflineReservePhase @default(ONLINE)
+
+  @@unique([companyId, masterMembershipId])
 }
 
 // Своя роль СТО с правами по разделам (src/lib/permissions.ts).

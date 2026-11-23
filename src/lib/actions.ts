@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { UserError } from "./errors";
+import { isOfflineReadOnlyError, OFFLINE_READ_ONLY_MESSAGE, UserError } from "./errors";
 import { parseRub } from "./money";
 
 export type FormState = { error?: string; ok?: number } | undefined;
@@ -12,6 +12,7 @@ export async function run(fn: () => Promise<unknown>): Promise<FormState> {
   } catch (e) {
     if (e instanceof ZodError) return { error: e.issues[0]?.message ?? "Проверьте поля формы" };
     if (e instanceof UserError) return { error: e.message };
+    if (isOfflineReadOnlyError(e)) return { error: OFFLINE_READ_ONLY_MESSAGE };
     throw e;
   }
 }
