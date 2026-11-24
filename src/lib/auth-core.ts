@@ -38,6 +38,7 @@ export type SessionCtx = {
   roleName: string;
   perms: Permissions;
   cloudReadOnly: boolean;
+  isOfflineMaster: boolean;
 };
 
 export async function resolveSession(token: string | undefined): Promise<SessionCtx | null> {
@@ -54,7 +55,7 @@ export async function resolveSession(token: string | undefined): Promise<Session
   // Доступ к компании мог быть отозван после входа.
   const m = await prisma.membership.findUnique({
     where: { userId_companyId: { userId: s.userId, companyId: s.companyId } },
-    include: { company: { include: { offlineReserve: { select: { phase: true } } } }, customRole: true },
+    include: { company: { include: { offlineReserve: { select: { phase: true, masterMembershipId: true } } } }, customRole: true },
   });
   if (!m) return null;
   const custom = m.role !== "OWNER" ? m.customRole : null;
@@ -70,6 +71,7 @@ export async function resolveSession(token: string | undefined): Promise<Session
     roleName: custom?.name ?? roleLabel(m.role),
     perms: cloudReadOnly ? viewOnlyPermissions(perms) : perms,
     cloudReadOnly,
+    isOfflineMaster: m.id === m.company.offlineReserve?.masterMembershipId,
   };
 }
 
