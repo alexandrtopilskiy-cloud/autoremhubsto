@@ -30,9 +30,9 @@ export default async function OfflineDevicePage() {
         ) : (
           <>
             <ol className="mb-4 list-decimal space-y-2 pl-5 text-sm">
-              <li>На резервном ПК с Node.js 22 или новее <a href="/downloads/autoremhubsto-pair.mjs" download className="text-blue-600 hover:underline">скачайте скрипт привязки</a>.</li>
-              <li>Откройте терминал в папке со скриптом и выполните <code className="rounded bg-slate-100 px-1">node autoremhubsto-pair.mjs</code>.</li>
-              <li>Получите код ниже и вставьте его в терминал. После подтверждения проверьте статус на этой странице.</li>
+              <li>На резервном ПК <a href="/downloads/AutoRemHub-PC.exe" download className="text-blue-600 hover:underline">скачайте AutoRemHub-PC.exe для Windows x64</a> и запустите его.</li>
+              <li>Получите код ниже. Вставьте его в окно программы и нажмите «Привязать ПК».</li>
+              <li>После подтверждения нажмите «Проверить статус» в кабинете.</li>
             </ol>
             <PairForm pendingCode={pendingCode} />
           </>

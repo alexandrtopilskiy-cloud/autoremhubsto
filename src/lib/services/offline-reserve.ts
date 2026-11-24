@@ -85,7 +85,7 @@ export const workstationPairingSchema = z.object({
 }).strict();
 
 export async function pairWorkstation(input: z.infer<typeof workstationPairingSchema>) {
-  // Формат подписи совпадает с public/downloads/autoremhubsto-pair.mjs.
+  // Формат подписи совпадает с workstation/pair.go.
   const message = Buffer.from(`autoremhubsto/workstation-pair/v1\n${input.code}\n${input.name}`);
   let publicKey: string;
   try {
