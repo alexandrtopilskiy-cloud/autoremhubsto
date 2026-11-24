@@ -9,6 +9,8 @@ import { Icon } from "./icons";
 import { CLOSE_TAB_EVENT, TAB_TITLE_EVENT, tabTitles } from "./tab-title";
 
 const VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
+const WORKSPACE = "/app";
+const SEARCH_TAB: MenuLink = { href: "/app/search", label: "Поиск" };
 
 type User = { name: string; company: string; role: string };
 
@@ -40,10 +42,11 @@ export function AppShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const home = pathname === WORKSPACE;
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const links = menuLinks([...menu, ...bottom]);
-  const active = activeLink(links, pathname);
+  const active = pathname === SEARCH_TAB.href ? SEARCH_TAB : activeLink(links, pathname);
 
   useEffect(() => setCollapsed(read("ar.menu.collapsed", false)), []);
   useEffect(() => setDrawer(false), [pathname]);
@@ -84,7 +87,9 @@ export function AppShell({
         <Suspense fallback={<div className="h-9 shrink-0 bg-slate-100 print:hidden" />}>
           <TabBar active={active} onMenu={() => setDrawer(true)} />
         </Suspense>
-        <main className="min-h-0 flex-1 overflow-auto bg-white px-4 py-5 md:px-6 print:overflow-visible print:p-0">{children}</main>
+        <main className={`min-h-0 flex-1 overflow-auto bg-white px-4 py-5 md:px-6 print:overflow-visible print:p-0 ${home ? "flex flex-col" : ""}`}>
+          {children}
+        </main>
       </div>
     </div>
   );
@@ -119,7 +124,7 @@ function Sidebar({
     ));
   return (
     <>
-      <Link href="/app" className={`flex h-[72px] shrink-0 items-center gap-2.5 ${collapsed ? "px-3" : "px-4"}`} title={`AutoRemHub, версия ${VERSION}`}>
+      <Link href={WORKSPACE} className={`flex h-[72px] shrink-0 items-center gap-2.5 ${collapsed ? "px-3" : "px-4"}`} title={`AutoRemHub, версия ${VERSION}`}>
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-blue-400 text-sm font-bold text-blue-300">
           A
         </span>
@@ -260,37 +265,44 @@ const owns = (key: string, path: string) => path === key || path.startsWith(key 
 
 /**
  * Полоса вкладок рабочей области, как в АвтоДилере: каждый список, справочник и документ открывается
- * своей вкладкой, повторный переход возвращает в уже открытую. Запоминается в браузере.
+ * своей вкладкой. При открытии рабочей области список вкладок очищается.
  */
 function TabBar({ active, onMenu }: { active?: MenuLink; onMenu: () => void }) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const router = useRouter();
-  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [tabs, setTabs] = useState<Tab[] | null>(null);
   const current = pathname + (search ? `?${search}` : "");
   const key = active ? tabKey(active, pathname) : undefined;
+  const activeHref = active?.href;
+  const activeLabel = active?.label;
 
   useEffect(() => {
-    if (!active || !key) return;
+    if (pathname === WORKSPACE) {
+      save([]);
+      setTabs([]);
+      return;
+    }
+    if (!activeHref || !activeLabel || !key) return;
     setTabs(() => {
       const list = read<Tab[]>(STORE, []);
       const i = list.findIndex((t) => t.key === key);
-      const fallback = key === active.href ? active.label : key.endsWith("/new") ? `${active.label}: новый` : active.label;
-      const label = key === active.href ? active.label : (tabTitles.get(pathname) ?? (i >= 0 ? list[i].label : fallback));
-      const tab = { key, label, href: current, doc: key !== active.href };
+      const fallback = key.endsWith("/new") ? `${activeLabel}: новый` : activeLabel;
+      const label = key === activeHref ? activeLabel : (tabTitles.get(pathname) ?? (i >= 0 ? list[i].label : fallback));
+      const tab = { key, label, href: current, doc: key !== activeHref };
       const next = i >= 0 ? list.map((t, j) => (j === i ? tab : t)) : [...list, tab].slice(-MAX_TABS);
       save(next);
       return next;
     });
-  }, [active, key, current, pathname]);
+  }, [activeHref, activeLabel, key, current, pathname]);
 
   // название документа приходит со страницы (TabTitle)
   useEffect(() => {
     const onTitle = (e: Event) => {
       const { path, title } = (e as CustomEvent<{ path: string; title: string }>).detail;
       setTabs((list) => {
-        const own = list.find((t) => t.doc && owns(t.key, path));
-        if (!own || own.label === title) return list;
+        const own = list?.find((t) => t.doc && owns(t.key, path));
+        if (!list || !own || own.label === title) return list;
         const next = list.map((t) => (t === own ? { ...t, label: title } : t));
         save(next);
         return next;
@@ -305,6 +317,7 @@ function TabBar({ active, onMenu }: { active?: MenuLink; onMenu: () => void }) {
     const onClose = (e: Event) => {
       const { path } = (e as CustomEvent<{ path: string }>).detail;
       setTabs((list) => {
+        if (!list) return list;
         const next = list.filter((t) => !(t.doc && owns(t.key, path)));
         if (next.length === list.length) return list;
         save(next);
@@ -315,16 +328,22 @@ function TabBar({ active, onMenu }: { active?: MenuLink; onMenu: () => void }) {
     return () => window.removeEventListener(CLOSE_TAB_EVENT, onClose);
   }, []);
 
+  // До чтения из браузера показываем текущий раздел, если открыли его по прямой ссылке.
+  const shown = pathname === WORKSPACE ? [] : tabs ?? (active && key ? [{ key, label: active.label, href: current }] : []);
+
   const close = (k: string) => {
-    const i = tabs.findIndex((t) => t.key === k);
-    const next = tabs.filter((t) => t.key !== k);
+    const i = shown.findIndex((t) => t.key === k);
+    const next = shown.filter((t) => t.key !== k);
     setTabs(next);
     save(next);
-    if (k === key && next.length) router.push(next[Math.min(i, next.length - 1)].href);
+    if (k === key) router.replace(next[Math.min(i, next.length - 1)]?.href ?? WORKSPACE);
   };
 
-  // до чтения из браузера показываем хотя бы текущий раздел
-  const shown = tabs.length ? tabs : active && key ? [{ key, label: active.label, href: current }] : [];
+  const closeAll = () => {
+    save([]);
+    setTabs([]);
+    router.replace(WORKSPACE);
+  };
 
   return (
     <div className="flex h-9 shrink-0 items-stretch bg-slate-100 print:hidden">
@@ -354,6 +373,18 @@ function TabBar({ active, onMenu }: { active?: MenuLink; onMenu: () => void }) {
           );
         })}
       </div>
+      {shown.length > 0 && (
+        <button
+          type="button"
+          onClick={closeAll}
+          aria-label="Закрыть все вкладки"
+          title="Закрыть все вкладки"
+          className="flex shrink-0 items-center gap-1.5 px-2 text-xs text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+        >
+          <Icon name="close" className="h-4 w-4" />
+          <span className="hidden sm:inline">Закрыть все вкладки</span>
+        </button>
+      )}
       <form action="/app/search" role="search" className="flex items-center px-3">
         <label className="relative">
           <Icon name="search" className="pointer-events-none absolute top-1.5 left-2 h-3.5 w-3.5 text-slate-400" />

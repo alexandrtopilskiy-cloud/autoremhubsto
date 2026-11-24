@@ -1,10 +1,11 @@
-import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
-import { allowedNav } from "@/lib/nav";
+import Image from "next/image";
 
-/** Стартовая страница — первый доступный раздел: заказ-наряды, если они есть в правах. */
-export default async function AppHome() {
-  const s = await requireSession();
-  const nav = allowedNav(s.perms);
-  redirect((nav.find((n) => n.href === "/app/orders") ?? nav[0])?.href ?? "/app/settings");
+export default function AppHome() {
+  return (
+    <div className="grid min-h-0 flex-1 place-items-center">
+      <div className="relative h-4/5 w-4/5">
+        <Image src="/brand/workspace-logo.png" alt="STO.AUTOREMHUB" fill unoptimized priority sizes="80vw" className="object-contain" />
+      </div>
+    </div>
+  );
 }

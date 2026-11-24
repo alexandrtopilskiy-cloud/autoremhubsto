@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeLink, allowedMenu, allowedNav, MENU, MENU_BOTTOM, menuLinks, tabKey } from "@/lib/nav";
+import { activeLink, allowedMenu, MENU, MENU_BOTTOM, menuLinks, tabKey } from "@/lib/nav";
 import { SECTIONS, type Permissions } from "@/lib/permissions";
 
 const perms = (open: string[]): Permissions =>
@@ -17,10 +17,10 @@ describe("главное меню", () => {
     expect(allowedMenu(perms(["orders"]), MENU_BOTTOM).map((m) => m.key)).toEqual(["help"]);
   });
 
-  it("стартовая страница — заказ-наряды, если они доступны", () => {
-    expect(allowedNav(perms(["orders", "stock"]))[0].href).toBe("/app/orders");
-    expect(allowedNav(perms(["stock"]))[0].href).toBe("/app/stock");
-    expect(allowedNav(perms([])).map((item) => item.href)).toEqual(["/app/help"]);
+  it("справка доступна без прав на остальные разделы", () => {
+    const p = perms([]);
+    const links = menuLinks([...allowedMenu(p), ...allowedMenu(p, MENU_BOTTOM)]);
+    expect(links.map((item) => item.href)).toEqual(["/app/help"]);
   });
 
   it("подсвечивает самый точный пункт меню", () => {

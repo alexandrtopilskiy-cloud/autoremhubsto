@@ -100,8 +100,6 @@ export function activeLink(links: MenuLink[], pathname: string): MenuLink | unde
     .sort((a, b) => b.href.length - a.href.length)[0];
 }
 
-export const allowedNav = (p: Permissions) => menuLinks(allowedMenu(p, [...MENU, ...MENU_BOTTOM]));
-
 /**
  * Ключ вкладки рабочей области: у списка — ссылка меню, у документа или карточки — ссылка меню и id
  * (/app/orders/abc), так что каждый документ открывается своей вкладкой, а его подстраницы (печать, акт) — в ней же.
