@@ -1,7 +1,8 @@
-import Image, { type StaticImageData } from "next/image";
-import masterSettings from "../../../../public/help/offline/master-settings.png";
-import workstationDownload from "../../../../public/help/offline/workstation-download.png";
-import workstationLinked from "../../../../public/help/offline/workstation-linked.png";
+import Image from "next/image";
+
+const masterSettings = { src: "/help/offline/master-settings.png", width: 714, height: 235 };
+const workstationDownload = { src: "/help/offline/workstation-download.png", width: 714, height: 236 };
+const workstationLinked = { src: "/help/offline/workstation-linked.png", width: 714, height: 126 };
 
 export const offlineReserveSections = [
   { id: "appoint-master", title: "1. Назначить мастера" },
@@ -10,11 +11,11 @@ export const offlineReserveSections = [
   { id: "questions", title: "Частые вопросы" },
 ] as const;
 
-function Screenshot({ image, alt, caption }: { image: StaticImageData; alt: string; caption: string }) {
+function Screenshot({ image, alt, caption }: { image: { src: string; width: number; height: number }; alt: string; caption: string }) {
   return (
     <figure className="space-y-2">
       <a href={image.src} target="_blank" rel="noreferrer" aria-label={`Открыть изображение: ${alt}`} className="block rounded-md border border-slate-200">
-        <Image src={image} alt={alt} unoptimized className="h-auto w-full rounded-md" />
+        <Image {...image} alt={alt} unoptimized className="h-auto w-full rounded-md" />
       </a>
       <figcaption className="text-sm text-slate-600">{caption}</figcaption>
     </figure>
