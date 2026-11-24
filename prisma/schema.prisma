@@ -229,8 +229,19 @@ model OfflineReserve {
   masterMembershipId String
   master             Membership          @relation(fields: [companyId, masterMembershipId], references: [companyId, id], onDelete: NoAction)
   phase              OfflineReservePhase @default(ONLINE)
+  workstation        OfflineWorkstation?
 
   @@unique([companyId, masterMembershipId])
+}
+
+model OfflineWorkstation {
+  companyId        String         @id
+  reserve          OfflineReserve @relation(fields: [companyId], references: [companyId], onDelete: Cascade)
+  pairingHash      String?        @unique
+  pairingExpiresAt DateTime?
+  publicKey        String?
+  name             String?
+  pairedAt         DateTime?
 }
 
 // Своя роль СТО с правами по разделам (src/lib/permissions.ts).

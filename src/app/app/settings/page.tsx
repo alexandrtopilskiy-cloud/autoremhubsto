@@ -48,7 +48,10 @@ export default async function SettingsPage() {
     listOrganizations(s.companyId),
     listWorkplaces(s.companyId, { all: true }),
     s.role === "OWNER" ? listMembers(s.companyId) : [],
-    s.role === "OWNER" ? prisma.offlineReserve.findUnique({ where: { companyId: s.companyId } }) : null,
+    s.role === "OWNER" ? prisma.offlineReserve.findUnique({
+      where: { companyId: s.companyId },
+      include: { workstation: { select: { name: true, pairedAt: true, pairingExpiresAt: true } } },
+    }) : null,
   ]);
   return (
     <div className="flex flex-col gap-4">
@@ -62,7 +65,7 @@ export default async function SettingsPage() {
         Настройки СТО
       </PageTitle>
       <Allowed perms={s.perms} section="settings">
-        {s.role === "OWNER" && <OfflineReserveCard members={members} reserve={reserve} />}
+        {s.role === "OWNER" && <OfflineReserveCard members={members} reserve={reserve} isOfflineMaster={s.isOfflineMaster} />}
         <Card title="Компания">
           <ActionForm action={updateCompanyAction} className="flex flex-wrap items-end gap-3">
             <Field label="Название СТО" className="min-w-64 flex-1">

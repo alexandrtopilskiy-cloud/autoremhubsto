@@ -1,7 +1,7 @@
 import { can, type Permissions, type Section } from "./permissions";
 
-export type MenuIcon = "service" | "schedule" | "clients" | "stock" | "money" | "reports" | "catalog" | "manage";
-export type MenuLink = { href: string; section: Section; label: string };
+export type MenuIcon = "service" | "schedule" | "clients" | "stock" | "money" | "reports" | "catalog" | "manage" | "help";
+export type MenuLink = { href: string; section?: Section; label: string };
 export type MenuItem = { key: string; label: string; icon: MenuIcon; href?: string; section?: Section; children?: MenuLink[] };
 
 /** Главное меню кабинета (левая колонка): разделы и их подменю. */
@@ -75,13 +75,14 @@ export const MENU_BOTTOM: MenuItem[] = [
       { href: "/app/documents/trash", section: "documents", label: "Корзина" },
     ],
   },
+  { key: "help", label: "Справка — FAQ", icon: "help", href: "/app/help" },
 ];
 
 /** Меню с учётом прав: пункт виден, если есть хотя бы просмотр раздела; пустые группы скрываются. */
 export function allowedMenu(p: Permissions, menu: MenuItem[] = MENU): MenuItem[] {
   return menu.flatMap((m) => {
     if (m.children) {
-      const children = m.children.filter((c) => can(p, c.section));
+      const children = m.children.filter((c) => !c.section || can(p, c.section));
       return children.length ? [{ ...m, children }] : [];
     }
     return m.section && !can(p, m.section) ? [] : [m];
@@ -90,7 +91,7 @@ export function allowedMenu(p: Permissions, menu: MenuItem[] = MENU): MenuItem[]
 
 /** Все ссылки меню одним списком. */
 export const menuLinks = (menu: MenuItem[]): MenuLink[] =>
-  menu.flatMap((m) => m.children ?? (m.href && m.section ? [{ href: m.href, section: m.section, label: m.label }] : []));
+  menu.flatMap((m) => m.children ?? (m.href ? [{ href: m.href, section: m.section, label: m.label }] : []));
 
 /** Пункт меню, к которому относится страница: самая длинная совпавшая ссылка. */
 export function activeLink(links: MenuLink[], pathname: string): MenuLink | undefined {

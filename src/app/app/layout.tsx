@@ -6,10 +6,14 @@ import { logoutAction } from "./actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const s = await requireSession();
+  const bottom = allowedMenu(s.perms, MENU_BOTTOM);
+  if (s.isOfflineMaster) {
+    bottom.push({ key: "offline-device", label: "Резервный ПК", href: "/app/offline-device", section: "settings", icon: "manage" });
+  }
   return (
     <AppShell
       menu={allowedMenu(s.perms, MENU)}
-      bottom={allowedMenu(s.perms, MENU_BOTTOM)}
+      bottom={bottom}
       user={{ name: s.userName, company: s.companyName, role: s.roleName }}
       logout={logoutAction}
     >
