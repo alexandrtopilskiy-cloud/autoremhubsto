@@ -7,6 +7,7 @@ $cache = Join-Path (Get-Location) 'desktop-build-cache'
 New-Item -ItemType Directory -Force $stage, $cache, "$stage/app", "$stage/desktop", "$stage/postgres" | Out-Null
 
 npm install --prefix $cache --no-package-lock electron@42.11.18
+node "$cache/node_modules/electron/install.js"
 Copy-Item "$cache/node_modules/electron/dist" "$stage/runtime" -Recurse
 Rename-Item "$stage/runtime/electron.exe" 'AutoRemHub.exe'
 
