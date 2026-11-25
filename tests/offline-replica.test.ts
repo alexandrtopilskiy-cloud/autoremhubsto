@@ -1,13 +1,14 @@
 import { generateKeyPairSync, sign } from "node:crypto";
 import { expect, it } from "vitest";
 import { prisma } from "@/lib/db";
-import { registerCompany } from "@/lib/services/accounts";
+import { authenticate, registerCompany } from "@/lib/services/accounts";
 import { createClient } from "@/lib/services/clients";
 import { issueReplicaCode, readReplica, requestDesktopReplica, requestReplica } from "@/lib/services/offline-replica";
+import { restoreLocalCabinet } from "@/lib/services/local-cabinet";
 import { restoreReplica } from "@/lib/services/offline-replica-restore";
 import { verifyPassword } from "@/lib/auth-core";
 import { issueWorkstationCode, pairWorkstation, setOfflineMaster } from "@/lib/services/offline-reserve";
-import { createOrder } from "@/lib/services/orders";
+import { addWork, createOrder, getOrder, updateOrderHeader } from "@/lib/services/orders";
 
 async function fixture(label: string) {
   const { company, user } = await registerCompany({
@@ -29,7 +30,7 @@ async function fixture(label: string) {
   });
   const member = await prisma.membership.findUniqueOrThrow({ where: { userId_companyId: { userId: user.id, companyId: company.id } } });
   await setOfflineMaster(company.id, user.id, member.id);
-  return { company, user, payment, stock, attachment };
+  return { company, user, client, order, payment, stock, attachment };
 }
 
 it("сверяет снимок с данными только привязанной СТО и сбрасывает подтверждение при изменении оплаты или склада", async () => {
@@ -134,4 +135,37 @@ it("выдаёт снимок Windows только по коду владель�
   expect(await requestDesktopReplica(request("0".repeat(64)))).toEqual({ status: 409 });
   expect((await requestDesktopReplica(request(snapshot.body.digest))).status).toBe(200);
   expect(await requestDesktopReplica(request())).toEqual({ status: 403 });
+});
+
+it("входит с локальным паролем, редактирует и создаёт заказ-наряды после загрузки снимка", async () => {
+  const sample = await fixture("local-cabinet");
+  const snapshot = await prisma.$transaction((tx) => readReplica(tx, sample.company.id));
+  await prisma.$transaction(async (tx) => {
+    await tx.company.delete({ where: { id: sample.company.id } });
+    await tx.user.delete({ where: { id: sample.user.id } });
+  });
+
+  const device = generateKeyPairSync("ed25519");
+  const cloudRequests: object[] = [];
+  const account = { email: sample.user.email, password: "local-cabinet-password" };
+  const restored = await restoreLocalCabinet({ code: "X".repeat(32), password: account.password }, device.privateKey,
+    async (_path, request) => {
+      cloudRequests.push(request);
+      if ("digest" in request) return { digest: snapshot.digest };
+      return { ...snapshot, masterUserId: sample.user.id };
+    });
+  expect(restored.confirmed).toBe(true);
+  const { companyId } = await authenticate(account);
+  await expect(authenticate({ ...account, password: "password1" })).rejects.toThrow("Неверный email или пароль");
+
+  await updateOrderHeader(companyId, sample.order.id, { clientId: sample.client.id, reason: "Офлайн-диагностика" });
+  const created = await createOrder(companyId, { clientId: sample.client.id, reason: "Новый наряд" });
+  await addWork(companyId, created.id, { name: "Замена фильтра", normHours: 0.5, price: 150_000 });
+  expect((await getOrder(companyId, sample.order.id)).reason).toBe("Офлайн-диагностика");
+  expect((await getOrder(companyId, created.id)).works).toMatchObject([{ name: "Замена фильтра", price: 150_000 }]);
+  expect(created.number).toBe(sample.order.number + 1);
+  expect(cloudRequests).toHaveLength(2);
+  await expect(restoreLocalCabinet({ code: "X".repeat(32), password: account.password }, device.privateKey,
+    async () => { throw new Error("local data must be checked before requesting a new snapshot"); }))
+    .rejects.toThrow("Локальная база уже настроена");
 });

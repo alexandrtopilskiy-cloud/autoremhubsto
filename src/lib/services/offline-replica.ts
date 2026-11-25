@@ -178,7 +178,9 @@ async function serveReplica(
     }
     if (workstation.reserve.phase !== "ONLINE") return { status: 409 } as const;
     const replica = await readReplica(tx, companyId);
-    if (!input.digest) return { status: 200, body: replica } as const;
+    if (!input.digest) {
+      return { status: 200, body: desktop ? { ...replica, masterUserId: workstation.reserve.master.userId } : replica } as const;
+    }
     if (input.digest !== replica.digest) {
       await tx.offlineWorkstation.update({ where: { companyId }, data: { replicaVerifiedAt: null } });
       return { status: 409 } as const;
