@@ -16,7 +16,9 @@ tar -xzf (Join-Path $cache $pg) -C "$stage/postgres" --strip-components=2 packag
 tar -xOf (Join-Path $cache $pg) package/package.json | Set-Content "$stage/postgres/distribution.json" -Encoding utf8
 
 npm ci
+npx prisma generate
 npm run build
+if (Test-Path .next/cache) { Remove-Item .next/cache -Recurse -Force }
 Copy-Item .next, node_modules, prisma, public, package.json, next.config.ts "$stage/app" -Recurse
 # next.config.ts references the version helper at startup through Next's configuration loader.
 New-Item -ItemType Directory -Force "$stage/app/src/lib" | Out-Null
