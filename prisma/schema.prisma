@@ -235,13 +235,14 @@ model OfflineReserve {
 }
 
 model OfflineWorkstation {
-  companyId        String         @id
-  reserve          OfflineReserve @relation(fields: [companyId], references: [companyId], onDelete: Cascade)
-  pairingHash      String?        @unique
-  pairingExpiresAt DateTime?
-  publicKey        String?
-  name             String?
-  pairedAt         DateTime?
+  companyId         String         @id
+  reserve           OfflineReserve @relation(fields: [companyId], references: [companyId], onDelete: Cascade)
+  pairingHash       String?        @unique
+  pairingExpiresAt  DateTime?
+  publicKey         String?
+  name              String?
+  pairedAt          DateTime?
+  replicaVerifiedAt DateTime?
 }
 
 // Своя роль СТО с правами по разделам (src/lib/permissions.ts).
