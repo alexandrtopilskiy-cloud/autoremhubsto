@@ -1,6 +1,7 @@
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, randomBytes, verify } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { OFFLINE_READ_ONLY_MESSAGE, UserError } from "../errors";
 import { prisma } from "../db";
 import { lockReserve } from "./offline-reserve";
 
@@ -94,12 +95,55 @@ export const replicaRequestSchema = z.object({
   digest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict();
 
-type ReplicaRequest = z.infer<typeof replicaRequestSchema>;
+export const desktopReplicaRequestSchema = replicaRequestSchema.omit({ companyId: true }).extend({
+  code: z.string().regex(/^[A-Za-z0-9_-]{32}$/),
+});
 
-export async function requestReplica(userId: string, input: ReplicaRequest) {
+type ReplicaRequest = z.infer<typeof replicaRequestSchema>;
+type DesktopReplicaRequest = z.infer<typeof desktopReplicaRequestSchema>;
+
+function codeHash(code: string) {
+  return createHash("sha256").update(code).digest("hex");
+}
+
+export function issueReplicaCode(companyId: string, userId: string) {
+  return prisma.$transaction(async (tx) => {
+    await lockReserve(tx, companyId);
+    const device = await tx.offlineWorkstation.findUnique({
+      where: { companyId },
+      select: { pairedAt: true, reserve: { select: { phase: true, master: { select: { role: true, userId: true } } } } },
+    });
+    if (!device?.pairedAt || device.reserve.master.role !== "OWNER" || device.reserve.master.userId !== userId) {
+      throw new UserError("Код доступен владельцу, назначенному мастером и привязавшему ПК");
+    }
+    if (device.reserve.phase !== "ONLINE") throw new UserError(OFFLINE_READ_ONLY_MESSAGE);
+    const code = randomBytes(24).toString("base64url");
+    await tx.offlineWorkstation.update({
+      where: { companyId },
+      data: { replicaCodeHash: codeHash(code), replicaCodeExpiry: new Date(Date.now() + 15 * 60_000) },
+    });
+    return code;
+  });
+}
+
+export function requestReplica(userId: string, input: ReplicaRequest) {
+  return serveReplica(input, { userId, companyId: input.companyId });
+}
+
+export function requestDesktopReplica(input: DesktopReplicaRequest) {
+  return serveReplica(input, { code: input.code });
+}
+
+async function serveReplica(
+  input: ReplicaRequest | DesktopReplicaRequest,
+  access: { userId: string; companyId: string } | { code: string },
+) {
   if (Math.abs(Date.now() - input.at) > 120_000) return { status: 401 } as const;
   const purpose = input.digest ? "confirm" : "snapshot";
-  const message = Buffer.from(JSON.stringify(["autoremhubsto/replica/v1", purpose, input.companyId, input.at, input.digest ?? null]));
+  const desktop = "code" in access;
+  const scope = desktop ? access.code : access.companyId;
+  const protocol = desktop ? "autoremhubsto/desktop-replica/v1" : "autoremhubsto/replica/v1";
+  const message = Buffer.from(JSON.stringify([protocol, purpose, scope, input.at, input.digest ?? null]));
   try {
     const key = createPublicKey({ key: Buffer.from(input.publicKey, "base64url"), format: "der", type: "spki" });
     if (key.asymmetricKeyType !== "ed25519" || !verify(null, message, key, Buffer.from(input.signature, "base64url"))) {
@@ -109,31 +153,40 @@ export async function requestReplica(userId: string, input: ReplicaRequest) {
     return { status: 401 } as const;
   }
 
+  const hash = desktop ? codeHash(access.code) : null;
+  const companyId = hash
+    ? (await prisma.offlineWorkstation.findUnique({ where: { replicaCodeHash: hash }, select: { companyId: true } }))?.companyId
+    : scope;
+  if (!companyId) return { status: 403 } as const;
+
   return prisma.$transaction(async (tx) => {
     // Confirmation takes the exclusive side of the write lock. A cloud change
     // after confirmation clears the marker in the same transaction as the change.
-    if (input.digest) await lockReserve(tx, input.companyId);
+    if (input.digest) await lockReserve(tx, companyId);
     const workstation = await tx.offlineWorkstation.findUnique({
-      where: { companyId: input.companyId },
-      select: { publicKey: true, pairedAt: true, reserve: { select: { phase: true, master: { select: { role: true, userId: true } } } } },
+      where: { companyId },
+      select: { publicKey: true, pairedAt: true, replicaCodeHash: true, replicaCodeExpiry: true, reserve: { select: { phase: true, master: { select: { role: true, userId: true } } } } },
     });
     if (
       !workstation?.pairedAt || workstation.publicKey !== input.publicKey ||
-      workstation.reserve.master.role !== "OWNER" || workstation.reserve.master.userId !== userId
+      workstation.reserve.master.role !== "OWNER" ||
+      (desktop
+        ? workstation.replicaCodeHash !== hash || !workstation.replicaCodeExpiry || workstation.replicaCodeExpiry <= new Date()
+        : workstation.reserve.master.userId !== access.userId)
     ) {
       return { status: 403 } as const;
     }
     if (workstation.reserve.phase !== "ONLINE") return { status: 409 } as const;
-    const replica = await readReplica(tx, input.companyId);
+    const replica = await readReplica(tx, companyId);
     if (!input.digest) return { status: 200, body: replica } as const;
     if (input.digest !== replica.digest) {
-      await tx.offlineWorkstation.update({ where: { companyId: input.companyId }, data: { replicaVerifiedAt: null } });
+      await tx.offlineWorkstation.update({ where: { companyId }, data: { replicaVerifiedAt: null } });
       return { status: 409 } as const;
     }
     const verifiedAt = new Date();
     await tx.offlineWorkstation.update({
-      where: { companyId: input.companyId },
-      data: { replicaVerifiedAt: verifiedAt },
+      where: { companyId },
+      data: { replicaVerifiedAt: verifiedAt, ...(desktop ? { replicaCodeHash: null, replicaCodeExpiry: null } : {}) },
     });
     return { status: 200, body: { verifiedAt, digest: replica.digest } } as const;
   }, {

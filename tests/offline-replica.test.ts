@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { registerCompany } from "@/lib/services/accounts";
 import { createClient } from "@/lib/services/clients";
-import { readReplica, requestReplica } from "@/lib/services/offline-replica";
+import { issueReplicaCode, readReplica, requestDesktopReplica, requestReplica } from "@/lib/services/offline-replica";
 import { restoreReplica } from "@/lib/services/offline-replica-restore";
 import { verifyPassword } from "@/lib/auth-core";
 import { issueWorkstationCode, pairWorkstation, setOfflineMaster } from "@/lib/services/offline-reserve";
@@ -102,4 +102,36 @@ it("восстанавливает склад, оплату и вложения 
     expect(await verifyPassword(account.password, user.passwordHash)).toBe(true);
     expect(await verifyPassword("password1", user.passwordHash)).toBe(false);
   }, { timeout: 20_000 });
+});
+
+it("выдаёт снимок Windows только по коду владельца и подписи привязанного ПК", async () => {
+  const a = await fixture("desktop");
+  const b = await fixture("other-owner");
+  const keys = generateKeyPairSync("ed25519");
+  const otherKeys = generateKeyPairSync("ed25519");
+  const publicKey = keys.publicKey.export({ format: "der", type: "spki" }).toString("base64url");
+  const { code: pairCode } = await issueWorkstationCode(a.company.id, a.user.id);
+  const name = "Резервный ПК";
+  const signature = sign(null, Buffer.from(`autoremhubsto/workstation-pair/v1\n${pairCode}\n${name}`), keys.privateKey).toString("base64url");
+  expect(await pairWorkstation({ code: pairCode, name, publicKey, signature })).toBe(true);
+  await expect(issueReplicaCode(a.company.id, b.user.id)).rejects.toThrow("Код доступен владельцу");
+  const code = await issueReplicaCode(a.company.id, a.user.id);
+  const request = (digest?: string, device = keys, codeOverride = code) => {
+    const at = Date.now();
+    const body = JSON.stringify(["autoremhubsto/desktop-replica/v1", digest ? "confirm" : "snapshot", codeOverride, at, digest ?? null]);
+    return {
+      at, code: codeOverride, digest,
+      publicKey: device.publicKey.export({ format: "der", type: "spki" }).toString("base64url"),
+      signature: sign(null, Buffer.from(body), device.privateKey).toString("base64url"),
+    };
+  };
+
+  expect(await requestDesktopReplica(request(undefined, otherKeys))).toEqual({ status: 403 });
+  expect(await requestDesktopReplica(request(undefined, keys, pairCode))).toEqual({ status: 403 });
+  const snapshot = await requestDesktopReplica(request());
+  if (snapshot.status !== 200 || !("tables" in snapshot.body)) throw new Error("Snapshot missing");
+  expect(snapshot.body.companyId).toBe(a.company.id);
+  expect(await requestDesktopReplica(request("0".repeat(64)))).toEqual({ status: 409 });
+  expect((await requestDesktopReplica(request(snapshot.body.digest))).status).toBe(200);
+  expect(await requestDesktopReplica(request())).toEqual({ status: 403 });
 });

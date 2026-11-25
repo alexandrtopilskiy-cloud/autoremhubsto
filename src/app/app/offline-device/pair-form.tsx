@@ -3,10 +3,10 @@
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Submit } from "@/components/form";
-import { issueWorkstationCodeAction } from "./actions";
+import { issueReplicaCodeAction, issueWorkstationCodeAction } from "./actions";
 
-export function PairForm({ pendingCode }: { pendingCode: boolean }) {
-  const [state, action] = useActionState(issueWorkstationCodeAction, null);
+export function PairForm({ pendingCode = false, replica = false }: { pendingCode?: boolean; replica?: boolean }) {
+  const [state, action] = useActionState(replica ? issueReplicaCodeAction : issueWorkstationCodeAction, null);
   const router = useRouter();
   const code = state && "code" in state ? state.code : null;
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -25,7 +25,7 @@ export function PairForm({ pendingCode }: { pendingCode: boolean }) {
   return (
     <form action={action} className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <Submit>{code || pendingCode ? "Получить новый код" : "Получить код"}</Submit>
+        <Submit>{replica ? "Получить код загрузки" : code || pendingCode ? "Получить новый код" : "Получить код"}</Submit>
         <button type="button" className="rounded-md border border-slate-300 px-3 py-2 text-sm" onClick={() => router.refresh()}>
           Проверить статус
         </button>
@@ -33,7 +33,7 @@ export function PairForm({ pendingCode }: { pendingCode: boolean }) {
       {state && "error" in state && <p role="alert" className="text-sm text-red-600">{state.error}</p>}
       {code && (
         <div className="space-y-2 text-sm">
-          <p>Код действует 10 минут.</p>
+          <p>Код действует {replica ? 15 : 10} минут.</p>
           <div className="flex flex-wrap items-center gap-2">
             <code className="w-fit max-w-full select-all break-all rounded bg-slate-100 px-3 py-2 text-base">{code}</code>
             <button type="button" className="rounded-md border border-slate-300 px-3 py-2" onClick={() => void copyCode(code)}>

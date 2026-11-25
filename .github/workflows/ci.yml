@@ -27,7 +27,7 @@ jobs:
         with:
           go-version: '1.26.11'
           cache: false
-      - name: Build Windows workstation pairing app
+      - name: Build Windows workstation app
         working-directory: workstation
         run: |
           go test ./...
@@ -54,6 +54,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.11'
+          cache: false
+      - name: Test local snapshot with Windows DPAPI
+        working-directory: workstation
+        run: go test ./...
       - uses: actions/download-artifact@v4
         with:
           name: AutoRemHub-PC-windows-x64
