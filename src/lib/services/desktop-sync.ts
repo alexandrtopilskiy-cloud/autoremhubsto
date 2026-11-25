@@ -22,9 +22,39 @@ export const desktopSyncRequest = replicaRequestSchema.omit({ digest: true }).ex
 });
 type Request = z.infer<typeof desktopSyncRequest>;
 
+export const desktopSyncEnvelope = desktopSyncRequest.omit({ payload: true }).extend({ payloadHash: digest });
+type Envelope = z.infer<typeof desktopSyncEnvelope>;
+
+export function hashSyncPayload(payload: string) {
+  return createHash("sha256").update(payload).digest("hex");
+}
+
+function envelopeMessage(input: { companyId: string; deviceId: string; at: number; payloadHash: string }) {
+  return JSON.stringify(["autoremhubsto/desktop-sync/v1", input.companyId, input.deviceId, input.at, input.payloadHash]);
+}
+
 export function syncMessage(input: { companyId: string; deviceId: string; at: number; payload: string }) {
-  const hash = createHash("sha256").update(input.payload).digest("hex");
-  return JSON.stringify(["autoremhubsto/desktop-sync/v1", input.companyId, input.deviceId, input.at, hash]);
+  return envelopeMessage({ ...input, payloadHash: hashSyncPayload(input.payload) });
+}
+
+function validEnvelope(envelope: Envelope) {
+  try {
+    if (Math.abs(Date.now() - envelope.at) > 240_000) return false;
+    const key = createPublicKey({ key: Buffer.from(envelope.publicKey, "base64url"), type: "spki", format: "der" });
+    return key.asymmetricKeyType === "ed25519" &&
+      verify(null, Buffer.from(envelopeMessage(envelope)), key, Buffer.from(envelope.signature, "base64url"));
+  } catch {
+    return false;
+  }
+}
+
+export async function authorizeSyncEnvelope(envelope: Envelope) {
+  if (!validEnvelope(envelope)) return 401;
+  const workstation = await prisma.offlineWorkstation.findUnique({
+    where: { companyId: envelope.companyId },
+    select: { pairedAt: true, publicKey: true, reserve: { select: { master: { select: { role: true } } } } },
+  });
+  return workstation?.pairedAt && workstation.publicKey === envelope.publicKey && workstation.reserve.master.role === "OWNER" ? 200 : 403;
 }
 
 function signBaseline(secret: string, companyId: string, deviceId: string, digest: string) {
@@ -32,16 +62,7 @@ function signBaseline(secret: string, companyId: string, deviceId: string, diges
 }
 
 export async function requestDesktopSync(request: Request) {
-  try {
-    if (Math.abs(Date.now() - request.at) > 240_000) return { status: 401 } as const;
-    const key = createPublicKey({ key: Buffer.from(request.publicKey, "base64url"), type: "spki", format: "der" });
-    if (key.asymmetricKeyType !== "ed25519" ||
-        !verify(null, Buffer.from(syncMessage(request)), key, Buffer.from(request.signature, "base64url"))) {
-      return { status: 401 } as const;
-    }
-  } catch {
-    return { status: 401 } as const;
-  }
+  if (!validEnvelope({ ...request, payloadHash: hashSyncPayload(request.payload) })) return { status: 401 } as const;
 
   let decoded: unknown;
   try { decoded = JSON.parse(request.payload); } catch { return { status: 400 } as const; }

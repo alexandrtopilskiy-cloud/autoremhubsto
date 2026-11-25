@@ -1,11 +1,13 @@
 import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import { expect, it } from "vitest";
+import { POST } from "@/app/api/offline/workstation/sync/route";
 import { createSession, resolveSession } from "@/lib/auth-core";
 import { prisma } from "@/lib/db";
 import { registerCompany } from "@/lib/services/accounts";
 import { createClient } from "@/lib/services/clients";
 import { syncSnapshotSchema } from "@/lib/services/desktop-merge";
-import { requestDesktopSync, syncMessage } from "@/lib/services/desktop-sync";
+import { hashSyncPayload, requestDesktopSync, syncMessage } from "@/lib/services/desktop-sync";
 import { readReplica, replicaDigest } from "@/lib/services/offline-replica";
 import { issueWorkstationCode, pairWorkstation, setOfflineMaster } from "@/lib/services/offline-reserve";
 import { createOrder } from "@/lib/services/orders";
@@ -35,19 +37,38 @@ async function activate(f: Awaited<ReturnType<typeof fixture>>) {
     const input = { at: Date.now(), deviceId: device, companyId, payload: JSON.stringify(operation) };
     return requestDesktopSync({ ...input, publicKey, signature: signature(syncMessage(input)) });
   };
+  const transport = (operation: object, substitute?: string) => {
+    const payload = JSON.stringify(operation);
+    const at = Date.now();
+    const input = { companyId, deviceId, at, payload };
+    const body = new Uint8Array(gzipSync(substitute ?? payload));
+    return POST(new Request("http://localhost/api/offline/workstation/sync", {
+      method: "POST", body,
+      headers: {
+        "content-encoding": "gzip", "content-length": String(body.length),
+        "x-sto-company": companyId, "x-sto-device": deviceId, "x-sto-at": String(at),
+        "x-sto-key": publicKey, "x-sto-proof": signature(syncMessage(input)),
+        "x-sto-payload-hash": hashSyncPayload(payload),
+      },
+    }));
+  };
   const read = () => prisma.$transaction(tx => readReplica(tx, companyId));
   const baseline = await read();
   const enrolled = await call({ kind: "pulse", digest: baseline.digest, initialized: true });
   if (enrolled.status !== 200 || !("proof" in enrolled.body)) throw new Error("Checkpoint missing");
   const { proof } = enrolled.body;
   const expire = () => prisma.offlineDesktopSync.update({ where: { companyId }, data: { leaseUntil: new Date(0) } });
-  return { call, read, baseline, proof, expire, companyId };
+  return { call, transport, read, baseline, proof, expire, companyId };
 }
 
 it("закрывает запись по СТО, применяет данные и открывает доступ только после подтверждения второй базы", async () => {
   const a = await fixture("alpha"), b = await fixture("beta");
   const removed = await createOrder(a.company.id, { clientId: a.client.id });
   const sync = await activate(a);
+  const wire = await sync.transport({ kind: "probe" });
+  expect(wire.status).toBe(200);
+  expect(await wire.json()).toEqual({ mode: "online" });
+  expect((await sync.transport({ kind: "probe" }, '{"kind":"finish"}')).status).toBe(400);
   const { token } = await createSession(a.user.id, a.company.id);
   const cloudBeforeOutage = await prisma.client.update({ where: { id: a.client.id }, data: { name: "Обновлено онлайн" } });
   await sync.expire();

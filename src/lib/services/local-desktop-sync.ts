@@ -7,7 +7,7 @@ import { prisma } from "../db";
 import { UserError } from "../errors";
 import { deviceProof, workstationKey } from "./local-cabinet";
 import { applyReplica, syncSnapshotSchema } from "./desktop-merge";
-import { syncMessage } from "./desktop-sync";
+import { hashSyncPayload, syncMessage } from "./desktop-sync";
 import { readReplica } from "./offline-replica";
 import { lockReserve } from "./offline-reserve";
 
@@ -25,12 +25,17 @@ class ConnectionUnavailable extends Error {}
 async function cloudRequest(companyId: string, deviceId: string, operation: { kind: string; [key: string]: unknown }) {
   const key = await workstationKey(false);
   const unsigned = { companyId, deviceId, at: Date.now(), payload: JSON.stringify(operation) };
-  const body = await gzip(JSON.stringify({ ...unsigned, ...deviceProof(key, syncMessage(unsigned)) }));
+  const proof = deviceProof(key, syncMessage(unsigned));
+  const body = await gzip(unsigned.payload);
   if (body.length > 64 * 1024 * 1024) throw new UserError("Пакет синхронизации превышает 64 МБ. Локальные правки сохранены.");
   let response: Response;
   try {
     response = await fetch(cloudURL, { method: "POST", redirect: "error", signal: AbortSignal.timeout(operation.kind === "sync" ? 235_000 : 60_000),
-      headers: { "Content-Type": "application/json", "Content-Encoding": "gzip" }, body, cache: "no-store" });
+      headers: {
+        "Content-Type": "application/json", "Content-Encoding": "gzip",
+        "x-sto-company": companyId, "x-sto-device": deviceId, "x-sto-at": String(unsigned.at),
+        "x-sto-key": proof.publicKey, "x-sto-proof": proof.signature, "x-sto-payload-hash": hashSyncPayload(unsigned.payload),
+      }, body, cache: "no-store" });
   } catch {
     throw new ConnectionUnavailable();
   }
