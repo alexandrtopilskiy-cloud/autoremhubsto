@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { OFFLINE_READ_ONLY_MESSAGE, UserError } from "../errors";
 
-function lockReserve(tx: Prisma.TransactionClient, companyId: string) {
+export function lockReserve(tx: Prisma.TransactionClient, companyId: string) {
   // Тот же ключ, что и у триггера миграции offline_reserve.
   return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${companyId}, 61123))`;
 }

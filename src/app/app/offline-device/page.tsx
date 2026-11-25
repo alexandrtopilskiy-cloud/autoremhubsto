@@ -12,7 +12,7 @@ export default async function OfflineDevicePage() {
     where: { companyId: s.companyId, master: { userId: s.userId } },
     select: {
       phase: true,
-      workstation: { select: { name: true, pairedAt: true, pairingExpiresAt: true } },
+      workstation: { select: { name: true, pairedAt: true, pairingExpiresAt: true, replicaVerifiedAt: true } },
     },
   });
   if (!reserve) notFound();
@@ -37,7 +37,17 @@ export default async function OfflineDevicePage() {
             <PairForm pendingCode={pendingCode} />
           </>
         )}
-        <p className="mt-4 text-sm text-slate-600">Локальная работа и синхронизация станут доступны после установки офлайн-приложения.</p>
+        <div className="mt-4 border-t border-slate-200 pt-4 text-sm">
+          <h3 className="mb-1 font-semibold">Сверка данных с сервером</h3>
+          {reserve.phase !== "ONLINE" ? (
+            <p className="text-amber-800">{reserve.phase === "SYNCING" ? "Идёт синхронизация" : "На сервере доступен только просмотр"}</p>
+          ) : workstation?.replicaVerifiedAt ? (
+            <p className="text-emerald-800">Снимок данных подтверждён сервером</p>
+          ) : (
+            <p className="text-slate-600">Совпадение данных ещё не подтверждено.</p>
+          )}
+          <p className="mt-2 text-slate-600">Локальная работа и отправка изменений появятся с выпуском офлайн-кабинета для Windows.</p>
+        </div>
       </Card>
     </div>
   );

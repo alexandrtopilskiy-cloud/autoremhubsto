@@ -28,7 +28,7 @@ export function OfflineReserveGuide() {
     <div className="space-y-7 text-[15px] leading-relaxed text-slate-700">
       <p>Для каждой СТО можно назначить одного мастера офлайн-резерва и привязать один рабочий компьютер. Для первичной настройки нужны интернет и ПК с Windows x64.</p>
       <p className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-blue-950">
-        В этой версии доступны назначение мастера и привязка ПК. Работа без интернета станет доступна после выпуска локального приложения и синхронизации.
+        Сейчас можно назначить мастера и привязать ПК. Для работы без интернета потребуется отдельный офлайн-кабинет Windows, который загрузит данные СТО и сможет отправить изменения обратно.
       </p>
 
       <section id={master.id} className="scroll-mt-4 space-y-3 border-t border-slate-200 pt-5">
@@ -68,6 +68,14 @@ export function OfflineReserveGuide() {
         <details className="rounded-md border border-slate-200 px-3 py-2">
           <summary className="cursor-pointer font-medium text-slate-900">Что делать, если код истёк или уже использован?</summary>
           <p className="mt-2">Сначала нажмите «Проверить статус». Если ПК ещё не привязан, получите и скопируйте новый код.</p>
+        </details>
+        <details className="rounded-md border border-slate-200 px-3 py-2">
+          <summary className="cursor-pointer font-medium text-slate-900">Почему привязанный компьютер ещё не работает без интернета?</summary>
+          <p className="mt-2">Текущий EXE регистрирует устройство на сервере. До выпуска офлайн-кабинета для работы с заказ-нарядами, складом, кассой и оплатами нужен интернет. Повторять привязку для этого не требуется.</p>
+        </details>
+        <details className="rounded-md border border-slate-200 px-3 py-2">
+          <summary className="cursor-pointer font-medium text-slate-900">Что означает статус сверки данных?</summary>
+          <p className="mt-2">Статус отображается в разделе «Резервный ПК». Подтверждение относится к совпадению снимка данных с сервером. После изменений на сервере нужна новая сверка. Сам статус привязки показывает только регистрацию устройства.</p>
         </details>
         <details className="rounded-md border border-slate-200 px-3 py-2">
           <summary className="cursor-pointer font-medium text-slate-900">Как заменить компьютер или мастера?</summary>
