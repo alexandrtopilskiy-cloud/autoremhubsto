@@ -138,11 +138,11 @@ func pair(ctx context.Context, endpoint, code, name string, key ed25519.PrivateK
 }
 
 func registerWorkstation(ctx context.Context, code string) (string, error) {
-	home, err := os.UserHomeDir()
+	directory, err := workstationDirectory()
 	if err != nil {
-		return "", errors.New("Не удалось открыть профиль пользователя Windows.")
+		return "", err
 	}
-	key, err := loadOrCreateKey(filepath.Join(home, ".autoremhubsto"))
+	key, err := loadOrCreateKey(directory)
 	if err != nil {
 		return "", errors.New("Не удалось прочитать или создать ключ в профиле пользователя Windows.")
 	}

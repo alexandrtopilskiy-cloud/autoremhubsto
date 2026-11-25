@@ -243,6 +243,8 @@ model OfflineWorkstation {
   name              String?
   pairedAt          DateTime?
   replicaVerifiedAt DateTime?
+  replicaCodeHash   String?        @unique
+  replicaCodeExpiry DateTime?
 }
 
 // Своя роль СТО с правами по разделам (src/lib/permissions.ts).

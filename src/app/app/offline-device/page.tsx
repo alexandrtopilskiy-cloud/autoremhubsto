@@ -24,7 +24,16 @@ export default async function OfflineDevicePage() {
       <PageTitle>Резервный ПК</PageTitle>
       <Card title={workstation?.pairedAt ? "ПК привязан" : "Привязка рабочего компьютера"}>
         {workstation?.pairedAt ? (
-          <p className="text-sm">К этой СТО привязан ПК «{workstation.name}». Отвязать его может владелец в настройках компании.</p>
+          <>
+            <p className="text-sm">К этой СТО привязан ПК «{workstation.name}». Отвязать его может владелец в настройках компании.</p>
+            {s.role === "OWNER" && reserve.phase === "ONLINE" && (
+              <div className="mt-4 space-y-2 text-sm">
+                <p>На привязанном ПК скачайте и откройте <a href="/downloads/AutoRemHub-PC.exe" download className="text-blue-600 underline">AutoRemHub-PC.exe</a>.</p>
+                <p>Получите код загрузки, вставьте его в программу и нажмите «Загрузить снимок».</p>
+                <PairForm replica />
+              </div>
+            )}
+          </>
         ) : reserve.phase !== "ONLINE" ? (
           <p className="text-sm">Привязка доступна в обычном режиме работы СТО.</p>
         ) : (
@@ -46,7 +55,7 @@ export default async function OfflineDevicePage() {
           ) : (
             <p className="text-slate-600">Совпадение данных ещё не подтверждено.</p>
           )}
-          <p className="mt-2 text-slate-600">Локальная работа и отправка изменений появятся с выпуском офлайн-кабинета для Windows.</p>
+          <p className="mt-2 text-slate-600">Загруженные заказ-наряды открываются в Windows-программе без интернета в режиме просмотра.</p>
         </div>
       </Card>
     </div>

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -120,7 +122,7 @@ func focusCode(window uintptr) {
 	sendDlgItemMsg.Call(window, idCode, emSetSel, 0, ^uintptr(0))
 }
 
-func showPairingDialog() {
+func showPairingDialog(parent uintptr) bool {
 	type result struct {
 		name string
 		err  error
@@ -190,15 +192,25 @@ func showPairingDialog() {
 
 	template := pairingDialogTemplate()
 	instance, _, _ := getModuleHandle.Call(0)
-	code, _, _ := dialogBox.Call(instance, uintptr(unsafe.Pointer(&template[0])), 0, proc, 0)
+	code, _, _ := dialogBox.Call(instance, uintptr(unsafe.Pointer(&template[0])), parent, proc, 0)
 	runtime.KeepAlive(template)
 	if code == ^uintptr(0) {
-		showMessage(0, "Не удалось открыть окно привязки ПК.", 0x10)
+		showMessage(parent, "Не удалось открыть окно привязки ПК.", 0x10)
 	}
+	return code == idOK
 }
 
 func main() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	showPairingDialog()
+	directory, err := workstationDirectory()
+	if err != nil {
+		showMessage(0, err.Error(), 0x10)
+		return
+	}
+	_, err = os.Stat(filepath.Join(directory, "workstation-key.pem"))
+	if os.IsNotExist(err) && !showPairingDialog(0) {
+		return
+	}
+	showCabinetDialog(directory)
 }
