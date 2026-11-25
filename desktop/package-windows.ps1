@@ -29,4 +29,4 @@ $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
 if (!(Test-Path $iscc)) {
     choco install innosetup --yes --no-progress
 }
-& $iscc desktop/setup.iss
+& $iscc /Qp desktop/setup.iss
