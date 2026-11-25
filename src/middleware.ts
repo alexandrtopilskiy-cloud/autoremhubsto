@@ -13,7 +13,7 @@ export function middleware(request: NextRequest) {
   if (path === "/register" || path.startsWith("/api/offline/")) {
     return new NextResponse(null, { status: 404 });
   }
-  if (path === "/api/local/open" || request.cookies.get(LOCAL_ACCESS_COOKIE)?.value === token) {
+  if (path === "/api/local/open" || path === "/api/local/sync" || request.cookies.get(LOCAL_ACCESS_COOKIE)?.value === token) {
     return NextResponse.next();
   }
   return new NextResponse(null, { status: 403 });

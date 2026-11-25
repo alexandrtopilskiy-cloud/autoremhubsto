@@ -123,6 +123,7 @@ enum PaymentMethod {
 }
 
 model Company {
+  desktopSync OfflineDesktopSync?
   id               String            @id @default(cuid())
   name             String
   city             String?
@@ -1158,4 +1159,17 @@ model TrashItem {
   deletedByName String?
 
   @@index([companyId, deletedAt])
+}
+
+model OfflineDesktopSync {
+  companyId      String    @id
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deviceId       String
+  publicKey      String?
+  secret         String?
+  leaseUntil     DateTime?
+  lastSyncId     String?
+  lastSyncDigest String?
+  localMode      String?
+  checkpoint     Json?
 }

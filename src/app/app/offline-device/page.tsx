@@ -22,24 +22,27 @@ export default async function OfflineDevicePage() {
   return (
     <div className="flex flex-col gap-4">
       <PageTitle>Резервный ПК</PageTitle>
+      <Card title="Программа для Windows">
+        <a href="/downloads/windows-cabinet" className="text-sm text-blue-600 underline">Скачать установщик AutoRemHub СТО для Windows x64</a>
+      </Card>
       <Card title={workstation?.pairedAt ? "ПК привязан" : "Привязка рабочего компьютера"}>
         {workstation?.pairedAt ? (
           <>
             <p className="text-sm">К этой СТО привязан ПК «{workstation.name}». Отвязать его может владелец в настройках компании.</p>
-            {s.role === "OWNER" && reserve.phase === "ONLINE" && (
+            {s.role === "OWNER" && !s.cloudReadOnly && (
               <div className="mt-4 space-y-2 text-sm">
-                <p>На привязанном ПК скачайте и откройте <a href="/downloads/AutoRemHub-PC.exe" download className="text-blue-600 underline">AutoRemHub-PC.exe</a>.</p>
+                <p>На привязанном ПК откройте установленную Программу и выберите настройку офлайн-кабинета.</p>
                 <p>Получите код загрузки, вставьте его в программу и нажмите «Загрузить снимок».</p>
                 <PairForm replica />
               </div>
             )}
           </>
-        ) : reserve.phase !== "ONLINE" ? (
+        ) : s.cloudReadOnly ? (
           <p className="text-sm">Привязка доступна в обычном режиме работы СТО.</p>
         ) : (
           <>
             <ol className="mb-4 list-decimal space-y-2 pl-5 text-sm">
-              <li>На резервном ПК <a href="/downloads/AutoRemHub-PC.exe" download className="text-blue-600 hover:underline">скачайте AutoRemHub-PC.exe для Windows x64</a> и запустите его.</li>
+              <li>Установите Программу по ссылке выше и откройте настройку офлайн-кабинета.</li>
               <li>Получите код ниже. Вставьте его в окно программы и нажмите «Привязать ПК».</li>
               <li>После подтверждения нажмите «Проверить статус» в кабинете.</li>
             </ol>
@@ -55,7 +58,7 @@ export default async function OfflineDevicePage() {
           ) : (
             <p className="text-slate-600">Совпадение данных ещё не подтверждено.</p>
           )}
-          <p className="mt-2 text-slate-600">Загруженные заказ-наряды открываются в Windows-программе без интернета в режиме просмотра.</p>
+          <p className="mt-2 text-slate-600">После настройки резерва при потере связи с Программой веб-кабинет автоматически переходит в режим просмотра. Запись возобновляется после сверки баз.</p>
         </div>
       </Card>
     </div>

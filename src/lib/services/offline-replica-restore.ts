@@ -3,7 +3,7 @@ import { hashPassword } from "../auth-core";
 import { UserError } from "../errors";
 import { readReplica, replicaDigest, replicaFormat, replicaTables, type ReplicaTable } from "./offline-replica";
 
-type ReplicaSnapshot = {
+export type ReplicaSnapshot = {
   format: number;
   companyId: string;
   digest: string;
@@ -11,11 +11,11 @@ type ReplicaSnapshot = {
 };
 
 const models = new Map(Prisma.dmmf.datamodel.models.map((model) => [model.name, model]));
-const cacheFields: Record<string, number | boolean> = {
+export const cacheFields: Record<string, number | boolean> = {
   worksTotal: 0, itemsTotal: 0, total: 0, paid: 0, due: 0, totalsDirty: true,
 };
 
-function restoreOrder() {
+export function restoreOrder() {
   const pending = new Set<string>(replicaTables);
   const order: string[] = [];
   while (pending.size) {
