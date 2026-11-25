@@ -18,6 +18,13 @@ enum Role {
   MECHANIC
 }
 
+enum IntegrationProvider {
+  ROSSKO
+  EUROAVTO
+  AUTOEVRO
+  TECHNOVECTOR
+}
+
 enum ClientKind {
   PERSON
   ENTREPRENEUR
@@ -166,6 +173,7 @@ model Company {
   dictItems        DictionaryItem[]
   trash            TrashItem[]
   customDicts      DictKind[]        @default([]) // справочники, которые СТО уже меняла; остальные — стандартные
+  integrations     Integration[]
 }
 
 // Юрлицо или ИП внутри СТО: от его имени оформляются документы.
@@ -1123,4 +1131,20 @@ model TrashItem {
   deletedByName String?
 
   @@index([companyId, deletedAt])
+}
+
+// Интеграция с внешними сервисами (Rossko, ЕвроАвто, ТехноВектор и т.д.).
+// Ключи хранятся в зашифрованном виде в поле encryptedCredentials.
+model Integration {
+  id                   String              @id @default(cuid())
+  companyId            String
+  company              Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  provider             IntegrationProvider
+  encryptedCredentials String // Зашифрованный JSON со всеми ключами и настройками
+  isActive             Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@unique([companyId, provider])
+  @@index([companyId])
 }
