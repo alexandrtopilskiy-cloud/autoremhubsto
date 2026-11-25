@@ -49,7 +49,9 @@ function startChild(executable, args, options, log) {
   child.stderr.pipe(log, { end: false });
   const result = new Promise((resolve, reject) => {
     child.once("error", reject);
-    child.once("close", (code) => resolve(code));
+    // On Windows the PostgreSQL child can inherit pg_ctl's pipe handles.
+    // Its parent can exit successfully while those streams stay open.
+    child.once("exit", (code) => resolve(code));
   });
   // Consumers wait for startup or completion and report the error with the relevant step.
   result.catch(() => {});
