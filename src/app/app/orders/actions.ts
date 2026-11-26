@@ -5,7 +5,9 @@ import type { LineKind, OrderStage, RecommendationStatus } from "@prisma/client"
 import { requireSession, type SessionCtx } from "@/lib/auth";
 import { fields, num, rub, run, type FormState } from "@/lib/actions";
 import { guarded } from "@/lib/guard";
-import { resolveProductId } from "@/lib/services/catalog";
+import { prisma } from "@/lib/db";
+import { UserError } from "@/lib/errors";
+import { createProduct, createWork, createWorkGroup, resolveProductId } from "@/lib/services/catalog";
 import { assertCan, assertFlag, checkDiscount, type Level, type Section } from "@/lib/permissions";
 import {
   addItem,
@@ -14,12 +16,15 @@ import {
   addPayment,
   addWork,
   createOrder,
+  lockEditableOrder,
   postOrder,
   removeItem,
   removeWork,
   setStage,
   unpostOrder,
   updateOrderHeader,
+  updateWorkLine,
+  updateItemLine,
 } from "@/lib/services/orders";
 import { cancelRequest, issueRequest, removeRequestLine, requestPart } from "@/lib/services/parts-requests";
 import {
@@ -116,6 +121,54 @@ export async function addItemFromCatalogAction(orderId: string, _: FormState, fd
     checkDiscount(s.perms, fd.get("discount"));
     const f = fields(fd);
     return addItemFromCatalog(c, orderId, { ...f, refId: await resolveProductId(c, { productId: f.refId, barcode: f.barcode }), qty: num(fd, "qty") });
+  });
+}
+
+export async function attachCatalogLineAction(orderId: string, kind: LineKind, refId: string) {
+  return onOrder(orderId, (companyId, s) => {
+    const data = { refId, discount: s.perms.flags.discounts ? undefined : 0 };
+    if (kind === "WORK") return addWorkFromCatalog(companyId, orderId, data);
+    if (kind === "ITEM") return addItemFromCatalog(companyId, orderId, data);
+    throw new UserError("Неизвестный вид строки");
+  });
+}
+
+export async function createCatalogLineAction(orderId: string, kind: LineKind, fd: FormData) {
+  return onOrder(orderId, async (companyId, s) => {
+    assertCan(s.perms, "catalog", "CREATE");
+    if (fd.get("price")) assertFlag(s.perms, "prices");
+    const data = { ...fields(fd), price: fd.get("price") ? rub(fd, "price", "Цена") : 0 };
+    const discount = s.perms.flags.discounts ? undefined : 0;
+    await prisma.$transaction(async (tx) => {
+      await lockEditableOrder(tx, companyId, orderId);
+      if (kind === "WORK") {
+        const existingGroup = fields(fd).groupId;
+        const groupName = fields(fd).workGroupName;
+        const groupId = existingGroup || (groupName ? (await createWorkGroup(companyId, groupName, tx)).id : undefined);
+        const work = await createWork(companyId, { ...data, groupId, normHours: num(fd, "normHours") }, tx);
+        await addWorkFromCatalog(companyId, orderId, { refId: work.id, discount }, tx);
+      } else if (kind === "ITEM") {
+        const product = await createProduct(companyId, { ...data, minQty: num(fd, "minQty") }, tx);
+        await addItemFromCatalog(companyId, orderId, { refId: product.id, discount }, tx);
+      } else {
+        throw new UserError("Неизвестный вид строки");
+      }
+    });
+  });
+}
+
+export async function saveOrderLineAction(orderId: string, kind: LineKind, lineId: string, fd: FormData) {
+  return onOrder(orderId, (companyId, s) => {
+    if (fd.has("price")) assertFlag(s.perms, "prices");
+    if (fd.has("discount")) assertFlag(s.perms, "discounts");
+    const pricing = { price: fd.has("price") ? rub(fd, "price", "Цена") : undefined, discount: num(fd, "discount") };
+    if (kind === "WORK") {
+      return updateWorkLine(companyId, orderId, lineId, {
+        ...pricing, unitNormHours: num(fd, "unitNormHours"), multiplicity: num(fd, "multiplicity"), executorId: fields(fd).executorId,
+      });
+    }
+    if (kind === "ITEM") return updateItemLine(companyId, orderId, lineId, { ...pricing, qty: num(fd, "qty"), note: fields(fd).note });
+    throw new UserError("Неизвестный вид строки");
   });
 }
 

@@ -34,6 +34,13 @@ const derivedTables = new Set<string>(["WorkOrder", "Receipt", "Sale", "Estimate
 const derivedColumns = ["worksTotal", "itemsTotal", "total", "paid", "due", "totalsDirty"];
 export const replicaFormat = 1;
 
+// Keep the v1 contract and digest readable by already installed Windows programs.
+const serverOnlyColumns: Record<string, string[]> = {
+  WorkOrderWork: ["unitNormHours", "multiplicity"],
+  WorkOrderItem: ["unit", "note"],
+};
+export const replicaServerOnlyColumns = (table: string): string[] => serverOnlyColumns[table] ?? [];
+
 export type ReplicaTable = { table: string; rows: string[] };
 
 export function replicaDigest(companyId: string, tables: readonly ReplicaTable[]) {
@@ -55,8 +62,9 @@ export async function readReplica(tx: Prisma.TransactionClient, companyId: strin
   async function add(table: string, where: Prisma.Sql, by = Prisma.sql`r."id" COLLATE "C"`) {
     // Identifiers come only from the schema inventory above. Keep PostgreSQL's JSON text
     // intact so decimals, timestamps and bytea round trip without the JS JSON parser.
-    const row = derivedTables.has(table)
-      ? Prisma.sql`to_jsonb(r) - ARRAY[${Prisma.join(derivedColumns)}]::text[]`
+    const omitted = derivedTables.has(table) ? derivedColumns : replicaServerOnlyColumns(table);
+    const row = omitted.length
+      ? Prisma.sql`to_jsonb(r) - ARRAY[${Prisma.join(omitted)}]::text[]`
       : table === "User"
         ? Prisma.sql`jsonb_build_object('id', r.id, 'email', r.email, 'name', r.name, 'createdAt', r."createdAt")`
         : Prisma.sql`to_jsonb(r)`;

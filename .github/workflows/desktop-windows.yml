@@ -62,7 +62,11 @@ jobs:
           path: dist/AutoRemHub-Setup-x64.exe
           if-no-files-found: error
   publish:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # A server-only merge keeps the installer currently linked from the cabinet.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[server-only]')))
     needs: installer
     runs-on: ubuntu-latest
     permissions:

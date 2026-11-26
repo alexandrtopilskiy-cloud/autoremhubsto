@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { UserError } from "../errors";
-import { replicaDigest, replicaFormat, replicaTables, readReplica } from "./offline-replica";
+import { replicaDigest, replicaFormat, replicaTables, readReplica, replicaServerOnlyColumns } from "./offline-replica";
 import { cacheFields, restoreOrder, type ReplicaSnapshot } from "./offline-replica-restore";
 
 export const syncSnapshotSchema = z.object({
@@ -136,15 +136,25 @@ export async function applyReplica(tx: Prisma.TransactionClient, source: Replica
     const fields = models.get(table)!.fields.filter(f => f.kind !== "object");
     const defaults: Record<string, unknown> = Object.fromEntries(fields.filter(f => Object.hasOwn(cacheFields, f.name)).map(f => [f.name, cacheFields[f.name]]));
     if (table === "User") defaults.passwordHash = "!";
-    const updates = Prisma.join(fields.filter(f => !keys.includes(f.name) && f.name !== "passwordHash")
-      .map(f => Prisma.raw(`"${f.name}" = EXCLUDED."${f.name}"`)));
+    const updates = fields.filter(f => !keys.includes(f.name) && f.name !== "passwordHash" && !replicaServerOnlyColumns(table).includes(f.name))
+      .map(f => Prisma.raw(`"${f.name}" = EXCLUDED."${f.name}"`));
+    // The installed client can edit effective hours and product links without knowing the new fields.
+    if (table === "WorkOrderWork") {
+      for (const column of replicaServerOnlyColumns(table)) {
+        const field = Prisma.raw(`"${column}"`);
+        updates.push(Prisma.sql`${field} = CASE WHEN ${id}."normHours" = EXCLUDED."normHours" THEN ${id}.${field} END`);
+      }
+    }
+    if (table === "WorkOrderItem") {
+      updates.push(Prisma.sql`"unit" = CASE WHEN ${id}."productId" IS NOT DISTINCT FROM EXCLUDED."productId" THEN ${id}."unit" END`);
+    }
     // Never let an upsert target a row outside the scoped current snapshot.
     const authorized = [...existing.values()].map(({raw}) => raw);
     const match = Prisma.join(keys.map(key => Prisma.raw(`old."${key}" = EXCLUDED."${key}"`)), " AND ");
     await tx.$executeRaw`INSERT INTO ${id}
       SELECT (jsonb_populate_record(NULL::${id}, ${JSON.stringify(defaults)}::jsonb || value)).*
       FROM jsonb_array_elements(${"[" + changed.join(",") + "]"}::jsonb) WHERE true
-      ON CONFLICT (${keyList}) DO UPDATE SET ${updates} WHERE EXISTS (
+      ON CONFLICT (${keyList}) DO UPDATE SET ${Prisma.join(updates)} WHERE EXISTS (
         SELECT 1 FROM jsonb_populate_recordset(NULL::${id}, ${"[" + authorized.join(",") + "]"}::jsonb) old WHERE ${match}
       )`;
   }
