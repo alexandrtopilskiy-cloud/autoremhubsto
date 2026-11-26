@@ -45,6 +45,7 @@ import {
 } from "../actions";
 import { DictList } from "@/components/dict-list";
 import { DocToolbar } from "@/components/doc-toolbar";
+import { AddFromReceiptModal } from "../add-from-receipt-modal";
 
 const METHODS = { CASH: "Наличные", CARD: "Карта", BANK_TRANSFER: "Безнал", SBP: "СБП" } as const;
 
@@ -433,6 +434,12 @@ export default async function OrderPage({
           </Card>
 
           <Card title={`Запчасти и материалы · ${formatRub(t.items)}`}>
+            {!posted && (
+              <div className="mb-3 flex justify-end">
+                <AddFromReceiptModal orderId={o.id} />
+              </div>
+            )}
+
             <table className="mb-3 w-full text-sm">
               <thead>
                 <tr className="border-b">
