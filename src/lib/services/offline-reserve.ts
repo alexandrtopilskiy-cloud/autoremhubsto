@@ -9,6 +9,11 @@ export function lockReserve(tx: Prisma.TransactionClient, companyId: string) {
   return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${companyId}, 61123))`;
 }
 
+export async function assertDesktopCanChange(tx: Prisma.TransactionClient, companyId: string) {
+  const sync = await tx.offlineDesktopSync.findUnique({ where: { companyId }, select: { leaseUntil: true } });
+  if (sync?.leaseUntil) throw new UserError("Привязка используется автоматическим резервом. Смена мастера и отвязка ПК в этом режиме недоступны.");
+}
+
 function pairingHash(code: string) {
   return createHash("sha256").update(code).digest("hex");
 }
@@ -21,7 +26,9 @@ export async function setOfflineMaster(companyId: string, actorUserId: string, m
 
     const current = await tx.offlineReserve.findUnique({ where: { companyId } });
     if (current && current.phase !== "ONLINE") throw new UserError(OFFLINE_READ_ONLY_MESSAGE);
+    if (current?.masterMembershipId !== masterMembershipId) await assertDesktopCanChange(tx, companyId);
     if (!masterMembershipId) {
+      await tx.offlineDesktopSync.deleteMany({ where: { companyId, localMode: null } });
       if (current) await tx.offlineReserve.delete({ where: { companyId } });
       return;
     }
@@ -32,6 +39,7 @@ export async function setOfflineMaster(companyId: string, actorUserId: string, m
     if (!master) throw new UserError("Выберите сотрудника этой СТО");
 
     if (current && current.masterMembershipId !== masterMembershipId) {
+      await tx.offlineDesktopSync.deleteMany({ where: { companyId, localMode: null } });
       await tx.offlineWorkstation.deleteMany({ where: { companyId } });
     }
 
@@ -73,6 +81,8 @@ export function revokeWorkstation(companyId: string, actorUserId: string) {
     if (actor?.role !== "OWNER") throw new UserError("Управлять привязкой может только владелец СТО");
     const reserve = await tx.offlineReserve.findUnique({ where: { companyId }, select: { phase: true } });
     if (reserve && reserve.phase !== "ONLINE") throw new UserError(OFFLINE_READ_ONLY_MESSAGE);
+    await assertDesktopCanChange(tx, companyId);
+    await tx.offlineDesktopSync.deleteMany({ where: { companyId, localMode: null } });
     await tx.offlineWorkstation.deleteMany({ where: { companyId } });
   });
 }

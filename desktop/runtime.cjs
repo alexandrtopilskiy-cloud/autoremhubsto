@@ -137,7 +137,7 @@ async function startCabinet({ directory, dataDirectory, node = process.execPath,
     const local = await prepareCluster(dataDirectory, postgres, env, log);
     cluster = local.cluster;
     const startArgs = ["-D", cluster, "-l", path.join(dataDirectory, "postgres.log"), "-w", "-t", "60",
-      "-o", `-h ${loopback} -p ${dbPort} -c unix_socket_directories=`, "start"];
+      "-o", `-h ${loopback} -p ${dbPort} -c unix_socket_directories= -c timezone=UTC`, "start"];
     await requireSuccess(startChild(postgres("pg_ctl"), startArgs, { env }, log), "Не удалось запустить локальную базу.");
     dbStarted = true;
 
@@ -163,7 +163,7 @@ async function startCabinet({ directory, dataDirectory, node = process.execPath,
         return false;
       }
     }, web, "Офлайн-кабинет");
-    return { origin, loginUrl: origin + "/api/local/open?key=" + accessKey, stop };
+    return { origin, accessKey, loginUrl: origin + "/api/local/open?key=" + accessKey, stop };
   } catch (error) {
     log.write(String(error) + "\n");
     await stop();

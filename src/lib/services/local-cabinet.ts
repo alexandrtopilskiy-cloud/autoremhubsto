@@ -1,9 +1,10 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign, type KeyObject } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { prisma } from "../db";
+import { isLocalRuntime } from "../local-runtime";
 import { UserError } from "../errors";
 import { restoreReplica } from "./offline-replica-restore";
 
@@ -15,7 +16,7 @@ export const localSetupSchema = z.object({
     .refine((value) => Buffer.byteLength(value) <= 72, "Пароль слишком длинный"),
 });
 
-const snapshotResponse = z.object({
+export const snapshotResponse = z.object({
   format: z.number().int(),
   companyId: z.string().min(1),
   masterUserId: z.string().min(1),
@@ -25,7 +26,7 @@ const snapshotResponse = z.object({
 
 type CloudRequest = (path: string, body: object) => Promise<unknown>;
 
-async function workstationKey(pairing: boolean) {
+export async function workstationKey(pairing: boolean) {
   const directory = join(homedir(), ".autoremhubsto");
   const path = join(directory, "workstation-key.pem");
   try {
@@ -44,7 +45,7 @@ async function workstationKey(pairing: boolean) {
   return createPrivateKey(await readFile(path));
 }
 
-function deviceProof(key: KeyObject, message: string) {
+export function deviceProof(key: KeyObject, message: string) {
   return {
     publicKey: createPublicKey(key).export({ type: "spki", format: "der" }).toString("base64url"),
     signature: sign(null, Buffer.from(message), key).toString("base64url"),
@@ -117,7 +118,19 @@ export async function restoreLocalCabinet(
   if (!snapshot.success) throw new UserError("Снимок СТО несовместим с версией Windows-приложения.");
   const { masterUserId } = snapshot.data;
   const digest = await prisma.$transaction(
-    (tx) => restoreReplica(tx, snapshot.data, { userId: masterUserId, password }),
+    async (tx) => {
+      const digest = await restoreReplica(tx, snapshot.data, { userId: masterUserId, password });
+      if (isLocalRuntime()) {
+        const initial = {
+          format: snapshot.data.format, companyId: snapshot.data.companyId,
+          digest: snapshot.data.digest, tables: snapshot.data.tables,
+        };
+        await tx.offlineDesktopSync.create({
+          data: { companyId: initial.companyId, deviceId: randomUUID(), localMode: "READY", checkpoint: { snapshot: initial } },
+        });
+      }
+      return digest;
+    },
     { timeout: 240_000 },
   );
   const confirmed = await ask(digest)

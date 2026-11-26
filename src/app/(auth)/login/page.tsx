@@ -36,6 +36,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       {!local && (
         <p className="mt-3 text-sm text-slate-600">
           Нет кабинета? <Link className="text-blue-600" href="/register">Зарегистрируйте СТО</Link>
+          <br />
+          <a className="text-blue-600 underline" href="/downloads/windows-cabinet">Скачать Программу для Windows x64</a>
         </p>
       )}
     </Card>

@@ -61,3 +61,24 @@ jobs:
           name: AutoRemHub-Setup-x64
           path: dist/AutoRemHub-Setup-x64.exe
           if-no-files-found: error
+  publish:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AutoRemHub-Setup-x64
+          path: dist
+      - name: Publish installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view windows-cabinet --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload windows-cabinet dist/AutoRemHub-Setup-x64.exe --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create windows-cabinet dist/AutoRemHub-Setup-x64.exe --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "AutoRemHub СТО для Windows x64" --notes "Установщик офлайн-кабинета." --latest=false
+          fi
