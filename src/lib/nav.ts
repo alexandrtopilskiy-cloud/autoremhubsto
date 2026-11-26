@@ -70,6 +70,7 @@ export const MENU_BOTTOM: MenuItem[] = [
     children: [
       { href: "/app/settings/users", section: "settings", label: "Пользователи и доступ" },
       { href: "/app/settings", section: "settings", label: "Настройки компании" },
+      { href: "/app/settings/integrations", section: "settings", label: "Интеграции" },
       { href: "/app/settings/money", section: "settings", label: "Статьи и счета" },
       { href: "/app/settings/roles", section: "settings", label: "Роли и права" },
       { href: "/app/documents/trash", section: "documents", label: "Корзина" },

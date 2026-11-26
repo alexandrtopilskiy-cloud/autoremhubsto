@@ -13,6 +13,7 @@ import { getCompany } from "@/lib/services/settings";
 import { createReceiptAction } from "../actions";
 import { StockTabs } from "../tabs";
 import { previewSession } from "@/lib/preview";
+import { RosskoImportModal } from "./rossko-import-modal";
 
 const PATH = "/app/stock/receipts";
 
@@ -54,6 +55,9 @@ export default async function ReceiptsPage({ searchParams }: { searchParams: Pro
       <PageTitle create="#new" createLabel="Новый приход">Склад</PageTitle>
       <StockTabs active="receipts" />
       <Allowed perms={s.perms} section="stock" flag="costs">
+        <div className="flex justify-end mb-2">
+          <RosskoImportModal />
+        </div>
         <NewPanel>
           <Card title="Новый приход">
             <ActionForm action={createReceiptAction} className="flex flex-wrap items-end gap-3">

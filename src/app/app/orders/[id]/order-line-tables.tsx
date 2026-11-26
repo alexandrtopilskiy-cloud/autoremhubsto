@@ -11,6 +11,7 @@ import {
   attachCatalogLineAction, createCatalogLineAction, lineToRecommendationAction,
   removeItemAction, removeWorkAction, saveOrderLineAction,
 } from "../actions";
+import { AddFromReceiptModal } from "../add-from-receipt-modal";
 
 type Choice = { id: string; name: string; detail?: string };
 type Fact = [string, string | null | undefined];
@@ -323,13 +324,20 @@ function LineTable({ kind, lines, options }: { kind: LineKind; lines: OrderLine[
         </table>
       </div>
       <div className="mt-3 flex flex-wrap items-start gap-3">
-        {editable && <button type="button" disabled={pending} className={secondary}
-          onClick={() => {
-            const id = next.current++;
-            setBlanks((current) => !lines.length && !current.length ? [0, id] : [...current, id]);
-          }}>
-          <span aria-hidden="true" className="mr-1 text-blue-700">+</span> {copy.add}
-        </button>}
+        {editable && (
+          <div className="flex gap-2">
+            <button type="button" disabled={pending} className={secondary}
+              onClick={() => {
+                const id = next.current++;
+                setBlanks((current) => !lines.length && !current.length ? [0, id] : [...current, id]);
+              }}>
+              <span aria-hidden="true" className="mr-1 text-blue-700">+</span> {copy.add}
+            </button>
+            
+            {/* Добавляем нашу кнопку только для вкладки с запчастями */}
+            {kind === "ITEM" && <AddFromReceiptModal orderId={orderId} />}
+          </div>
+        )}
         <dl className="ml-auto flex flex-wrap gap-x-8 gap-y-2 rounded-md bg-slate-50 px-4 py-2">
           <div><dt className="text-xs text-slate-500">{copy.totalQty}</dt><dd className="text-sm font-semibold tabular-nums">{formatQty(totals.qty)}{kind === "WORK" ? " ч." : ""}</dd></div>
           <div><dt className="text-xs text-slate-500">Итого скидка</dt><dd className="text-sm font-semibold tabular-nums">{formatRub(totals.discount)}</dd></div>
