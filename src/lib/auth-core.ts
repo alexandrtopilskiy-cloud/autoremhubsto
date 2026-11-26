@@ -2,7 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { prisma } from "./db";
-import { parsePermissions, PRESETS, type Permissions } from "./permissions";
+import { parsePermissions, PRESETS, viewOnlyPermissions, type Permissions } from "./permissions";
+import { isLocalRuntime } from "./local-runtime";
 import { roleLabel } from "./roles";
 
 export const SESSION_COOKIE = "sto_session";
@@ -37,6 +38,8 @@ export type SessionCtx = {
   /** Название роли для шапки: своя роль СТО или встроенная. */
   roleName: string;
   perms: Permissions;
+  cloudReadOnly: boolean;
+  isOfflineMaster: boolean;
 };
 
 export async function resolveSession(token: string | undefined): Promise<SessionCtx | null> {
@@ -53,10 +56,17 @@ export async function resolveSession(token: string | undefined): Promise<Session
   // Доступ к компании мог быть отозван после входа.
   const m = await prisma.membership.findUnique({
     where: { userId_companyId: { userId: s.userId, companyId: s.companyId } },
-    include: { company: true, customRole: true },
+    include: { company: { include: { offlineReserve: { select: { phase: true, masterMembershipId: true } }, desktopSync: { select: { leaseUntil: true, localMode: true } } } }, customRole: true },
   });
   if (!m) return null;
   const custom = m.role !== "OWNER" ? m.customRole : null;
+  const phase = m.company.offlineReserve?.phase;
+  const sync = m.company.desktopSync;
+  const local = isLocalRuntime();
+  const cloudReadOnly = local ? sync?.localMode !== "EDIT" :
+    (!!phase && phase !== "ONLINE") || (sync?.leaseUntil != null && sync.leaseUntil.getTime() <= Date.now());
+  const basePerms = custom ? parsePermissions(custom.permissions) : PRESETS[m.role];
+  const perms = local ? { ...basePerms, sections: { ...basePerms.sections, settings: "VIEW" as const } } : basePerms;
   return {
     userId: s.userId,
     userName: s.user.name,
@@ -64,7 +74,9 @@ export async function resolveSession(token: string | undefined): Promise<Session
     companyName: m.company.name,
     role: m.role,
     roleName: custom?.name ?? roleLabel(m.role),
-    perms: custom ? parsePermissions(custom.permissions) : PRESETS[m.role],
+    perms: cloudReadOnly ? viewOnlyPermissions(perms) : perms,
+    cloudReadOnly,
+    isOfflineMaster: m.id === m.company.offlineReserve?.masterMembershipId,
   };
 }
 

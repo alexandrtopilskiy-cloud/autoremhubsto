@@ -6,3 +6,8 @@ node_modules
 next-env.d.ts
 .idea
 .vscode
+/public/downloads/AutoRemHub-PC.exe
+
+/desktop-stage/
+/desktop-build-cache/
+/dist/

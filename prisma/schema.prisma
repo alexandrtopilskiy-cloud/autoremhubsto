@@ -130,6 +130,7 @@ enum PaymentMethod {
 }
 
 model Company {
+  desktopSync OfflineDesktopSync?
   id               String            @id @default(cuid())
   name             String
   city             String?
@@ -139,6 +140,7 @@ model Company {
   dayEnd           Int               @default(1260) // конец рабочего дня
   createdAt        DateTime          @default(now())
   memberships      Membership[]
+  offlineReserve   OfflineReserve?
   organizations    Organization[]
   clients          Client[]
   vehicles         Vehicle[]
@@ -216,8 +218,42 @@ model Membership {
   customRole   CompanyRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   createdAt    DateTime     @default(now())
 
+  offlineReserve OfflineReserve?
+
   @@unique([userId, companyId])
+  @@unique([companyId, id])
   @@index([companyId])
+}
+
+enum OfflineReservePhase {
+  ONLINE
+  OFFLINE
+  SYNCING
+}
+
+// Выбор мастера и состояние записи в облаке для одной СТО.
+model OfflineReserve {
+  companyId          String              @id
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  masterMembershipId String
+  master             Membership          @relation(fields: [companyId, masterMembershipId], references: [companyId, id], onDelete: NoAction)
+  phase              OfflineReservePhase @default(ONLINE)
+  workstation        OfflineWorkstation?
+
+  @@unique([companyId, masterMembershipId])
+}
+
+model OfflineWorkstation {
+  companyId         String         @id
+  reserve           OfflineReserve @relation(fields: [companyId], references: [companyId], onDelete: Cascade)
+  pairingHash       String?        @unique
+  pairingExpiresAt  DateTime?
+  publicKey         String?
+  name              String?
+  pairedAt          DateTime?
+  replicaVerifiedAt DateTime?
+  replicaCodeHash   String?        @unique
+  replicaCodeExpiry DateTime?
 }
 
 // Своя роль СТО с правами по разделам (src/lib/permissions.ts).
@@ -545,6 +581,8 @@ model WorkOrderWork {
   work            Work?     @relation(fields: [workId], references: [id])
   name            String
   normHours       Decimal   @default(1) @db.Decimal(8, 2)
+  unitNormHours   Decimal?  @db.Decimal(8, 2)
+  multiplicity    Decimal?  @db.Decimal(8, 2)
   price           Int // цена за 1 нормочас или за работу целиком, коп.
   discount        Int       @default(0) // %
   discountSum     Int? // скидка суммой, коп.; если задана — вместо процента (документы из АвтоДилера с дробным % и коэффициентом)
@@ -574,6 +612,8 @@ model WorkOrderItem {
   discount      Int       @default(0) // %
   discountSum   Int? // скидка суммой, коп.; если задана — вместо процента
   brand         String? // производитель
+  unit          String?
+  note          String?
   cost          Int? // закупочная цена за единицу, коп.
   managerId     String?
   manager       Employee? @relation("ItemManager", fields: [managerId], references: [id])
@@ -1131,6 +1171,19 @@ model TrashItem {
   deletedByName String?
 
   @@index([companyId, deletedAt])
+}
+
+model OfflineDesktopSync {
+  companyId      String    @id
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deviceId       String
+  publicKey      String?
+  secret         String?
+  leaseUntil     DateTime?
+  lastSyncId     String?
+  lastSyncDigest String?
+  localMode      String?
+  checkpoint     Json?
 }
 
 // Интеграция с внешними сервисами (Rossko, ЕвроАвто, ТехноВектор и т.д.).

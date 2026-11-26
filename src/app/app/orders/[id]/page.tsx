@@ -6,10 +6,10 @@ import { Badge, Card, Field, Input, PageTitle, Select, td, th } from "@/componen
 import { requireSession } from "@/lib/auth";
 import { NotFoundError } from "@/lib/errors";
 import { formatDate, formatQty, orderNo, vehicleTitle } from "@/lib/format";
-import { formatRub, lineTotal, discountLabel } from "@/lib/money";
-import { groupWorks, worksForPicker } from "@/lib/services/catalog";
+import { formatRub, lineTotal } from "@/lib/money";
+import { listGroups, listWorkGroups } from "@/lib/services/catalog";
 import { listEmployees } from "@/lib/services/employees";
-import { getCompany } from "@/lib/services/settings";
+import { prisma } from "@/lib/db";
 import { listCashboxes } from "@/lib/services/cash";
 import { stockBalances } from "@/lib/services/stock";
 import { clientOrderStats, getOrder, orderSummary, STAGES, stageLabel } from "@/lib/services/orders";
@@ -21,31 +21,24 @@ import { ContactLinks } from "@/components/contact-links";
 import { dicts } from "@/lib/services/dictionaries";
 import { FUEL_LEVELS, getInspection } from "@/lib/services/inspections";
 import { InspectionEditor } from "./inspection-editor";
+import { OrderLineTables } from "./order-line-tables";
 import {
-  addItemAction,
-  addItemFromCatalogAction,
   addPaymentAction,
-  addWorkAction,
-  addWorkFromCatalogAction,
   addRecommendationAction,
   saveInspectionAction,
   cancelRequestAction,
   issueRequestAction,
-  lineToRecommendationAction,
   postAction,
   recommendationToOrderAction,
   removeRequestLineAction,
   requestPartAction,
   setRecommendationStatusAction,
-  removeItemAction,
-  removeWorkAction,
   setStageAction,
   unpostAction,
   updateHeaderAction,
 } from "../actions";
 import { DictList } from "@/components/dict-list";
 import { DocToolbar } from "@/components/doc-toolbar";
-import { AddFromReceiptModal } from "../add-from-receipt-modal";
 
 const METHODS = { CASH: "Наличные", CARD: "Карта", BANK_TRANSFER: "Безнал", SBP: "СБП" } as const;
 
@@ -86,12 +79,10 @@ export default async function OrderPage({
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const [managers, executors, works, products, company, cashboxes, summary, recs, requests, stats] = await Promise.all([
+  const [managers, executors, products, cashboxes, summary, recs, requests, stats] = await Promise.all([
     listEmployees(s.companyId, "MANAGER"),
     listEmployees(s.companyId, "EXECUTOR"),
-    worksForPicker(s.companyId),
-    stockBalances(s.companyId),
-    getCompany(s.companyId),
+    tab === "lines" ? stockBalances(s.companyId) : [],
     listCashboxes(s.companyId).then((b) => b.filter((x) => !x.hidden)),
     orderSummary(s.companyId, id),
     listRecommendations(s.companyId, { clientId: o.clientId }),
@@ -109,6 +100,21 @@ export default async function OrderPage({
       ? `Здравствуйте, ${o.client.name}! ${car} готов, можно забирать. К оплате ${formatRub(Math.max(0, o.totals.due))}. ${s.companyName}`
       : `Здравствуйте, ${o.client.name}! Пишем по заказ-наряду ${orderNo(o.number, o.numberPrefix)} (${car}). ${s.companyName}`;
   const posted = o.status === "POSTED";
+  const linesEditable = !posted && !s.cloudReadOnly && can(s.perms, "orders", "EDIT");
+  const canCreateLine = linesEditable && can(s.perms, "catalog", "CREATE");
+  const productIds = o.items.flatMap((line) => line.productId ? [line.productId] : []);
+  const [workGroups, productGroups, balances] = await Promise.all([
+    tab === "lines" && canCreateLine ? listWorkGroups(s.companyId).then(({ groups }) => groups) : [],
+    tab === "lines" && canCreateLine ? listGroups(s.companyId) : [],
+    tab === "lines" && productIds.length ? prisma.stockMove.groupBy({
+      by: ["productId"], where: { companyId: s.companyId, productId: { in: productIds } }, _sum: { qty: true },
+    }) : [],
+  ]);
+  const stockByProduct = new Map(balances.map((balance) => [balance.productId, Number(balance._sum.qty ?? 0)]));
+  const lineExecutors = new Map(executors.map(({ id, name }) => [id, { id, name }]));
+  for (const { executor } of o.works) {
+    if (executor && !lineExecutors.has(executor.id)) lineExecutors.set(executor.id, { id: executor.id, name: executor.name });
+  }
   const t = o.totals;
   const counts: Partial<Record<Tab, number>> = { inspection: inspection.damages.length, lines: o.works.length + o.items.length };
   const lastVisit = stats.orders.find((x) => x.id !== o.id);
@@ -325,209 +331,43 @@ export default async function OrderPage({
 
       {tab === "lines" && (
         <>
-          <Card title={`Работы · ${formatRub(t.works)}`}>
-            <table className="mb-3 w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className={th}>Работа</th>
-                  <th className={th}>Исполнитель</th>
-                  <th className={`${th} text-right`}>Н/ч</th>
-                  <th className={`${th} text-right`}>Цена</th>
-                  <th className={`${th} text-right`}>Скидка</th>
-                  <th className={`${th} text-right`}>Сумма</th>
-                  <th className={th} />
-                </tr>
-              </thead>
-              <tbody>
-                {o.works.map((w) => (
-                  <tr key={w.id} className="border-b last:border-0">
-                    <td className={td}>{w.name}</td>
-                    <td className={td}>{w.executor?.name}</td>
-                    <td className={`${td} text-right`}>{formatQty(Number(w.normHours))}</td>
-                    <td className={`${td} text-right`}>{formatRub(w.price)}</td>
-                    <td className={`${td} text-right`}>{discountLabel(w)}</td>
-                    <td className={`${td} text-right whitespace-nowrap`}>
-                      {formatRub(lineTotal({ qty: Number(w.normHours), price: w.price, discount: w.discount, discountSum: w.discountSum }))}
-                    </td>
-                    <td className={`${td} text-right`}>
-                      {!posted && (
-                        <div className="flex justify-end gap-3">
-                          <ActionForm action={lineToRecommendationAction.bind(null, o.id, "WORK", w.id)}>
-                            <button className="text-slate-500 hover:text-blue-600" title="Клиент отказался: перенести в рекомендации">
-                              ↷
-                            </button>
-                          </ActionForm>
-                          <ActionForm action={removeWorkAction.bind(null, o.id, w.id)}>
-                            <button className="text-red-600 hover:underline" title="Удалить">
-                              ✕
-                            </button>
-                          </ActionForm>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!posted && works.length > 0 && (
-              <ActionForm action={addWorkFromCatalogAction.bind(null, o.id)} reset className="mb-3 flex flex-wrap items-end gap-3 rounded-md bg-slate-50 p-3">
-                <Field label="Из справочника" className="min-w-64 flex-1">
-                  <Select name="refId" defaultValue="">
-                    <option value="">Выберите работу</option>
-                    {groupWorks(works).map(([group, list]) => (
-                      <optgroup key={group} label={group}>
-                        {list.map((w) => (
-                          <option key={w.id} value={w.id}>
-                            {w.name} · {w.price ? formatRub(w.price) : `${formatQty(Number(w.normHours ?? 1))} н/ч`}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Кол-во">
-                  <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
-                </Field>
-                <Field label="Скидка, %">
-                  <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.discount} className="w-20" />
-                </Field>
-                <Field label="Исполнитель">
-                  <Select name="executorId" defaultValue="">
-                    <option value="">Не указан</option>
-                    {executors.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Submit variant="ghost">Добавить</Submit>
-              </ActionForm>
-            )}
-            {!posted && (
-              <ActionForm action={addWorkAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
-                <Field label="Работа" className="min-w-64 flex-1">
-                  <Input name="name" required />
-                </Field>
-                <Field label="Нормочасы">
-                  <Input name="normHours" defaultValue="1" inputMode="decimal" className="w-24" />
-                </Field>
-                <Field label="Цена за н/ч, ₽">
-                  <Input name="price" defaultValue={(o.client.hourPrice ?? company.hourPrice) ? money(o.client.hourPrice ?? company.hourPrice) : ""} inputMode="decimal" className="w-28" required />
-                </Field>
-                <Field label="Скидка, %">
-                  <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.discount} className="w-20" />
-                </Field>
-                <Field label="Исполнитель">
-                  <Select name="executorId" defaultValue="">
-                    <option value="">Не указан</option>
-                    {executors.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Submit variant="ghost">Добавить</Submit>
-              </ActionForm>
-            )}
-          </Card>
-
-          <Card title={`Запчасти и материалы · ${formatRub(t.items)}`}>
-            {!posted && (
-              <div className="mb-3 flex justify-end">
-                <AddFromReceiptModal orderId={o.id} />
-              </div>
-            )}
-
-            <table className="mb-3 w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className={th}>Наименование</th>
-                  <th className={th}>Артикул</th>
-                  <th className={`${th} text-right`}>Кол-во</th>
-                  <th className={`${th} text-right`}>Цена</th>
-                  <th className={`${th} text-right`}>Скидка</th>
-                  <th className={`${th} text-right`}>Сумма</th>
-                  <th className={th} />
-                </tr>
-              </thead>
-              <tbody>
-                {o.items.map((i) => (
-                  <tr key={i.id} className="border-b last:border-0">
-                    <td className={td}>{i.name}</td>
-                    <td className={td}>{i.article}</td>
-                    <td className={`${td} text-right`}>{formatQty(Number(i.qty))}</td>
-                    <td className={`${td} text-right`}>{formatRub(i.price)}</td>
-                    <td className={`${td} text-right`}>{discountLabel(i)}</td>
-                    <td className={`${td} text-right whitespace-nowrap`}>
-                      {formatRub(lineTotal({ qty: Number(i.qty), price: i.price, discount: i.discount, discountSum: i.discountSum }))}
-                    </td>
-                    <td className={`${td} text-right`}>
-                      {!posted && (
-                        <div className="flex justify-end gap-3">
-                          <ActionForm action={lineToRecommendationAction.bind(null, o.id, "ITEM", i.id)}>
-                            <button className="text-slate-500 hover:text-blue-600" title="Клиент отказался: перенести в рекомендации">
-                              ↷
-                            </button>
-                          </ActionForm>
-                          <ActionForm action={removeItemAction.bind(null, o.id, i.id)}>
-                            <button className="text-red-600 hover:underline" title="Удалить">
-                              ✕
-                            </button>
-                          </ActionForm>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!posted && products.length > 0 && (
-              <ActionForm action={addItemFromCatalogAction.bind(null, o.id)} reset className="mb-3 flex flex-wrap items-end gap-3 rounded-md bg-slate-50 p-3">
-                <Field label="Из номенклатуры" className="min-w-64 flex-1">
-                  <Select name="refId" defaultValue="">
-                    <option value="">Выберите товар</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {[p.name, p.article, p.brand].filter(Boolean).join(" · ")} · {formatRub(p.price)}/{p.unit} · остаток {formatQty(p.qty)}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="или штрихкод">
-                  <Input name="barcode" className="w-36" autoComplete="off" />
-                </Field>
-                <Field label="Кол-во">
-                  <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
-                </Field>
-                <Field label="Скидка, %">
-                  <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.partsDiscount} className="w-20" />
-                </Field>
-                <Submit variant="ghost">Добавить</Submit>
-              </ActionForm>
-            )}
-            {!posted && (
-              <ActionForm action={addItemAction.bind(null, o.id)} reset className="flex flex-wrap items-end gap-3">
-                <Field label="Наименование" className="min-w-64 flex-1">
-                  <Input name="name" required />
-                </Field>
-                <Field label="Артикул">
-                  <Input name="article" className="w-32" />
-                </Field>
-                <Field label="Кол-во">
-                  <Input name="qty" defaultValue="1" inputMode="decimal" className="w-20" />
-                </Field>
-                <Field label="Цена, ₽">
-                  <Input name="price" inputMode="decimal" className="w-28" required />
-                </Field>
-                <Field label="Скидка, %">
-                  <Input name="discount" type="number" min={0} max={100} defaultValue={o.client.partsDiscount} className="w-20" />
-                </Field>
-                <Submit variant="ghost">Добавить</Submit>
-              </ActionForm>
-            )}
-          </Card>
+          <OrderLineTables key={o.id} orderId={o.id} editable={linesEditable} canCreate={canCreateLine}
+            canPrice={s.perms.flags.prices} canDiscount={s.perms.flags.discounts}
+            executors={[...lineExecutors.values()]} workGroups={workGroups.map(({ id, name }) => ({ id, name }))}
+            productGroups={productGroups.map(({ id, name }) => ({ id, name }))}
+            works={o.works.map((line) => {
+              const { id, name, price, discount, discountSum, executorId, work } = line;
+              const qty = Number(line.normHours);
+              return { kind: "WORK", id, name, price, discount, discountSum, executorId, qty,
+                unitNormHours: Number(line.unitNormHours ?? qty), multiplicity: Number(line.multiplicity ?? 1),
+                facts: [
+                  ["Группа работ", work?.group?.name],
+                  ["Норма по справочнику", work?.normHours == null ? null : `${formatQty(Number(work.normHours))} ч.`],
+                  ["Фиксированная цена по справочнику", work?.price ? formatRub(work.price) : null],
+                  ["Процент исполнителя", (line.executorPercent ?? work?.executorPercent) == null ? null : `${line.executorPercent ?? work?.executorPercent}%`],
+                  ["Нормочасы с учётом кратности", `${formatQty(qty)} ч.`],
+                  ["Стоимость со скидкой", formatRub(lineTotal({ qty, price, discount, discountSum }))],
+                ],
+              };
+            })}
+            items={o.items.map((line) => {
+              const { id, name, article, price, discount, discountSum, note, product } = line;
+              const qty = Number(line.qty);
+              const brand = line.brand ?? product?.brand ?? null;
+              const unit = line.unit ?? product?.unit ?? "шт";
+              const stock = product ? (stockByProduct.get(product.id) ?? 0) : null;
+              return { kind: "ITEM", id, name, article, brand, unit, stock, note, qty, price, discount, discountSum,
+                facts: [
+                  ["Артикул", article], ["Производитель", brand], ["Ед. изм.", unit],
+                  ["Группа товаров", product?.group?.name], ["Штрихкод", product?.barcode],
+                  ["Минимальный остаток", product?.minQty == null ? null : formatQty(Number(product.minQty))],
+                  ["Склад", stock === null ? null : `Основной · остаток ${formatQty(stock)} ${unit}`],
+                  ["Стоимость со скидкой", formatRub(lineTotal({ qty, price, discount, discountSum }))],
+                  ...(s.perms.flags.costs && line.cost !== null ? [["Закупочная цена", formatRub(line.cost)] as [string, string]] : []),
+                ],
+              };
+            })}
+          />
 
           <Card title="Требования на запчасти">
             {requests.length > 0 && (

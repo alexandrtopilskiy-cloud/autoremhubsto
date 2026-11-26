@@ -1,0 +1,88 @@
+name: Windows offline cabinet
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build Windows installer
+        shell: pwsh
+        run: ./desktop/package-windows.ps1
+      - name: Install and reopen detached local runtime
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $appDir = Join-Path $env:RUNNER_TEMP 'AutoRemHub Install'
+          $dbDir = Join-Path $env:RUNNER_TEMP 'AutoRemHub DB'
+          $db = Join-Path $dbDir 'AutoRemHub-Cabinet'
+          $setupLog = Join-Path $env:RUNNER_TEMP 'AutoRemHub installer.log'
+          Write-Host "Installing the Windows bundle"
+          $setup = Start-Process -FilePath ./dist/AutoRemHub-Setup-x64.exe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$setupLog`" /DIR=`"$appDir`" /DATADIR=`"$dbDir`"" -PassThru
+          if (!$setup.WaitForExit(480000)) {
+            if (Test-Path $setupLog) { Get-Content $setupLog -Tail 35 }
+            $setup.Kill()
+            throw "Installer did not finish in eight minutes"
+          }
+          if (Test-Path $setupLog) { Get-Content $setupLog -Tail 20 }
+          if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
+          if (!(Test-Path (Join-Path $appDir 'runtime/AutoRemHub.exe'))) { throw 'Installed executable missing' }
+          Write-Host "Starting two local sessions using the installed bundle"
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          try {
+            $process = Start-Process -FilePath (Join-Path $appDir 'runtime/AutoRemHub.exe') -ArgumentList "`"$PWD/desktop/smoke.cjs`" `"$appDir`" `"$db`"" -PassThru -NoNewWindow
+            if (!$process.WaitForExit(180000)) {
+              $process.Kill()
+              throw "Local startup and restart did not finish in three minutes"
+            }
+            if ($process.ExitCode -ne 0) { throw "Local runtime failed: $($process.ExitCode)" }
+          }
+          finally {
+            foreach ($log in 'startup.log', 'postgres.log') {
+              $file = Join-Path $db $log
+              if (Test-Path $file) { Get-Content $file -Tail 60 }
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoRemHub-Setup-x64
+          path: dist/AutoRemHub-Setup-x64.exe
+          if-no-files-found: error
+  publish:
+    # A server-only merge keeps the installer currently linked from the cabinet.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[server-only]')))
+    needs: installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AutoRemHub-Setup-x64
+          path: dist
+      - name: Publish installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view windows-cabinet --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload windows-cabinet dist/AutoRemHub-Setup-x64.exe --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create windows-cabinet dist/AutoRemHub-Setup-x64.exe --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "AutoRemHub СТО для Windows x64" --notes "Установщик офлайн-кабинета." --latest=false
+          fi

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import type { CashCategory } from "@prisma/client";
 import { prisma } from "../db";
-import { NotFoundError, UserError } from "../errors";
+import { isOfflineReadOnlyError, NotFoundError, UserError } from "../errors";
 import { PAYROLL_CATEGORY } from "./payroll";
 import { SALE_PAYMENT } from "./warehouse";
 
@@ -72,13 +72,24 @@ const key = (s: string) => s.trim().toLowerCase();
  */
 export async function listCategories(companyId: string): Promise<CashCategory[]> {
   let have = await prisma.cashCategory.findMany({ where: { companyId } });
-  if (!have.length) {
-    await prisma.cashCategory.createMany({
-      data: DEFAULT_CATEGORIES.map(([name, income, group, system], position) => ({ companyId, name, income, group, system, position })),
-      skipDuplicates: true,
-    });
-    have = await prisma.cashCategory.findMany({ where: { companyId } });
+  const defaults = DEFAULT_CATEGORIES.map(([name, income, group, system], position) =>
+    ({ companyId, name, income, group, system: system ?? null, position }));
+  const displayOnly = (data: Omit<CashCategory, "createdAt" | "id">[]) => data.map((entry) => ({
+    ...entry, id: `preview:${entry.name}`, createdAt: new Date(0),
+  }));
+  let readOnly = false;
+  async function saveOrPreview(data: Omit<CashCategory, "createdAt" | "id">[]) {
+    if (readOnly) return [...have, ...displayOnly(data)];
+    try {
+      await prisma.cashCategory.createMany({ data, skipDuplicates: true });
+    } catch (e) {
+      if (!isOfflineReadOnlyError(e)) throw e;
+      readOnly = true;
+      return [...have, ...displayOnly(data)];
+    }
+    return prisma.cashCategory.findMany({ where: { companyId } });
   }
+  if (!have.length) have = await saveOrPreview(defaults);
   const names = new Set(have.map((c) => key(c.name)));
   const used = await prisma.cashOperation.groupBy({ by: ["category"], where: { companyId }, _sum: { amount: true } });
   const missing = used.filter((u) => {
@@ -87,11 +98,9 @@ export async function listCategories(companyId: string): Promise<CashCategory[]>
   });
   if (missing.length) {
     const last = Math.max(0, ...have.map((c) => c.position));
-    await prisma.cashCategory.createMany({
-      data: missing.map((u, i) => ({ companyId, name: u.category.trim(), income: (u._sum.amount ?? 0) > 0, position: last + 1 + i })),
-      skipDuplicates: true,
-    });
-    have = await prisma.cashCategory.findMany({ where: { companyId } });
+    have = await saveOrPreview(missing.map((u, i) => ({
+      companyId, name: u.category.trim(), income: (u._sum.amount ?? 0) > 0, group: null, system: null, position: last + 1 + i,
+    })));
   }
   return have.sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, "ru"));
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeLink, allowedMenu, allowedNav, MENU, MENU_BOTTOM, menuLinks, tabKey } from "@/lib/nav";
+import { activeLink, allowedMenu, MENU, MENU_BOTTOM, menuLinks, tabKey } from "@/lib/nav";
 import { SECTIONS, type Permissions } from "@/lib/permissions";
 
 const perms = (open: string[]): Permissions =>
@@ -14,12 +14,13 @@ describe("главное меню", () => {
     expect(menu.map((m) => m.key)).toEqual(["service", "catalog"]);
     expect(menu[1].children!.map((c) => c.label)).toEqual(["Клиенты"]);
     expect(menu[0].children!.map((c) => c.href)).toEqual(["/app/orders", "/app/estimates", "/app/recommendations"]);
-    expect(allowedMenu(perms(["orders"]), MENU_BOTTOM)).toEqual([]);
+    expect(allowedMenu(perms(["orders"]), MENU_BOTTOM).map((m) => m.key)).toEqual(["help"]);
   });
 
-  it("стартовая страница — заказ-наряды, если они доступны", () => {
-    expect(allowedNav(perms(["orders", "stock"]))[0].href).toBe("/app/orders");
-    expect(allowedNav(perms(["stock"]))[0].href).toBe("/app/stock");
+  it("справка доступна без прав на остальные разделы", () => {
+    const p = perms([]);
+    const links = menuLinks([...allowedMenu(p), ...allowedMenu(p, MENU_BOTTOM)]);
+    expect(links.map((item) => item.href)).toEqual(["/app/help"]);
   });
 
   it("подсвечивает самый точный пункт меню", () => {
@@ -27,6 +28,7 @@ describe("главное меню", () => {
     expect(activeLink(links, "/app/staff/payroll")?.label).toBe("Зарплата");
     expect(activeLink(links, "/app/staff/abc")?.label).toBe("Сотрудники");
     expect(activeLink(links, "/app/settings/users")?.label).toBe("Пользователи и доступ");
+    expect(activeLink(links, "/app/help")?.label).toBe("Справка — FAQ");
     expect(activeLink(links, "/app/stock/receipts/1")?.label).toBe("Приход товара");
     expect(activeLink(links, "/app/stockx")).toBeUndefined();
   });

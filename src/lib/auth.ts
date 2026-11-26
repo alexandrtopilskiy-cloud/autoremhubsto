@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { isLocalRuntime } from "./local-runtime";
 import { SESSION_COOKIE, destroySession, resolveSession, type SessionCtx } from "./auth-core";
 
 export { createSession } from "./auth-core";
@@ -11,7 +12,7 @@ export async function setSessionCookie(token: string, expiresAt: Date) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" && !isLocalRuntime(),
     path: "/",
     expires: expiresAt,
   });

@@ -3,9 +3,11 @@
 import { redirect } from "next/navigation";
 import { createSession, setSessionCookie } from "@/lib/auth";
 import { fields, run, type FormState } from "@/lib/actions";
+import { isLocalRuntime } from "@/lib/local-runtime";
 import { authenticate, registerCompany } from "@/lib/services/accounts";
 
 export async function registerAction(_: FormState, fd: FormData): Promise<FormState> {
+  if (isLocalRuntime()) redirect("/login");
   let ids: { userId: string; companyId: string } | undefined;
   const res = await run(async () => {
     const { user, company } = await registerCompany(fields(fd));

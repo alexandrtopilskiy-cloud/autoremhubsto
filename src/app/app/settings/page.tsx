@@ -4,11 +4,15 @@ import { Allowed } from "@/components/manager-only";
 import { Card, Field, Input, PageTitle, Select } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { listOrganizations } from "@/lib/services/employees";
+import { prisma } from "@/lib/db";
+import { listMembers } from "@/lib/services/staff";
 import { getCompany } from "@/lib/services/settings";
 import { listWorkplaces } from "@/lib/services/appointments";
 import { minutesToTime, UTC_OFFSETS } from "@/lib/time";
 import { createWorkplaceAction, updateWorkplaceAction } from "../schedule/actions";
 import { createOrganizationAction, updateCompanyAction, updateOrganizationAction } from "../manage-actions";
+
+import { OfflineReserveCard } from "./offline/reserve-card";
 
 type Org = { name?: string; inn?: string | null; kpp?: string | null; ogrn?: string | null; address?: string | null; phone?: string | null };
 
@@ -39,10 +43,15 @@ function OrgFields({ o = {} }: { o?: Org }) {
 
 export default async function SettingsPage() {
   const s = await requireSession();
-  const [company, orgs, workplaces] = await Promise.all([
+  const [company, orgs, workplaces, members, reserve] = await Promise.all([
     getCompany(s.companyId),
     listOrganizations(s.companyId),
     listWorkplaces(s.companyId, { all: true }),
+    s.role === "OWNER" ? listMembers(s.companyId) : [],
+    s.role === "OWNER" ? prisma.offlineReserve.findUnique({
+      where: { companyId: s.companyId },
+      include: { workstation: { select: { name: true, pairedAt: true, pairingExpiresAt: true } } },
+    }) : null,
   ]);
   return (
     <div className="flex flex-col gap-4">
@@ -56,6 +65,7 @@ export default async function SettingsPage() {
         Настройки СТО
       </PageTitle>
       <Allowed perms={s.perms} section="settings">
+        {s.role === "OWNER" && <OfflineReserveCard members={members} reserve={reserve} isOfflineMaster={s.isOfflineMaster} />}
         <Card title="Компания">
           <ActionForm action={updateCompanyAction} className="flex flex-wrap items-end gap-3">
             <Field label="Название СТО" className="min-w-64 flex-1">

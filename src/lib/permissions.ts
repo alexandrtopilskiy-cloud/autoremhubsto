@@ -68,6 +68,15 @@ export function parsePermissions(raw: unknown): Permissions {
   return { sections, flags: f };
 }
 
+/** Ограничение на запись применяется поверх существующих прав и не открывает скрытые разделы. */
+export function viewOnlyPermissions(perms: Permissions): Permissions {
+  const sections = all("NONE");
+  for (const { key } of SECTIONS) {
+    if (perms.sections[key] !== "NONE") sections[key] = "VIEW";
+  }
+  return { sections, flags: { ...perms.flags, discounts: false, prices: false } };
+}
+
 export const can = (p: Permissions, section: Section, level: Level = "VIEW") => rank(p.sections[section]) >= rank(level);
 
 const ACTION: Record<Level, string> = {
