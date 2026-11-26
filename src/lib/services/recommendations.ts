@@ -3,7 +3,7 @@ import type { LineKind, RecommendationStatus } from "@prisma/client";
 import { prisma } from "../db";
 import { NotFoundError, UserError } from "../errors";
 import { ownOrder } from "../tenant";
-import { editableOrder } from "./orders";
+import { lockEditableOrder } from "./orders";
 
 export const REC_STATUSES: { value: RecommendationStatus; label: string }[] = [
   { value: "OPEN", label: "Не выполнена" },
@@ -36,7 +36,7 @@ export async function addRecommendation(companyId: string, orderId: string, inpu
 /** Клиент отказался от строки заказ-наряда: строка уходит из наряда в рекомендации. */
 export async function lineToRecommendation(companyId: string, orderId: string, kind: LineKind, lineId: string) {
   return prisma.$transaction(async (tx) => {
-    const o = await editableOrder(tx, companyId, orderId);
+    const o = await lockEditableOrder(tx, companyId, orderId);
     const line =
       kind === "WORK"
         ? await tx.workOrderWork.findFirst({ where: { id: lineId, orderId } }).then((l) => l && { name: l.name, qty: l.normHours, price: l.price })
@@ -90,7 +90,7 @@ export async function recommendationToOrder(companyId: string, id: string, order
     const r = await tx.recommendation.findFirst({ where: { id, companyId } });
     if (!r) throw new NotFoundError("Рекомендация");
     if (r.status !== "OPEN") throw new UserError("Рекомендация уже закрыта");
-    const o = await editableOrder(tx, companyId, orderId);
+    const o = await lockEditableOrder(tx, companyId, orderId);
     if (o.clientId !== r.clientId) throw new UserError("Заказ-наряд другого клиента");
     const client = await tx.client.findUniqueOrThrow({ where: { id: r.clientId } });
     if (r.kind === "WORK") {

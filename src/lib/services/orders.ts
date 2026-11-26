@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { OrderStage, Prisma } from "@prisma/client";
+import { Prisma, type OrderStage } from "@prisma/client";
 import { prisma } from "../db";
 import { nextNumber } from "../counters";
 import { UserError } from "../errors";
@@ -185,8 +185,8 @@ export async function getOrder(companyId: string, orderId: string) {
       vehicle: true,
       organization: true,
       manager: true,
-      works: { orderBy: { position: "asc" }, include: { executor: true } },
-      items: { orderBy: { position: "asc" } },
+      works: { orderBy: [{ position: "asc" }, { id: "asc" }], include: { executor: true, work: { include: { group: true } } } },
+      items: { orderBy: [{ position: "asc" }, { id: "asc" }], include: { product: { include: { group: true } } } },
       payments: { orderBy: { paidAt: "asc" }, include: { cashbox: true } },
     },
   });
@@ -207,7 +207,7 @@ export async function addWork(companyId: string, orderId: string, input: unknown
 
 export async function removeWork(companyId: string, orderId: string, lineId: string) {
   return prisma.$transaction(async (tx) => {
-    await editableOrder(tx, companyId, orderId);
+    await lockEditableOrder(tx, companyId, orderId);
     await tx.workOrderWork.deleteMany({ where: { id: lineId, orderId } });
   });
 }
@@ -225,7 +225,7 @@ export async function addItem(companyId: string, orderId: string, input: unknown
 
 export async function removeItem(companyId: string, orderId: string, lineId: string) {
   return prisma.$transaction(async (tx) => {
-    await editableOrder(tx, companyId, orderId);
+    await lockEditableOrder(tx, companyId, orderId);
     await tx.workOrderItem.deleteMany({ where: { id: lineId, orderId } });
   });
 }
@@ -259,7 +259,7 @@ export async function setStage(companyId: string, orderId: string, stage: OrderS
 /** Провести: документ закрывается и становится нередактируемым. */
 export async function postOrder(companyId: string, orderId: string) {
   return prisma.$transaction(async (tx) => {
-    const o = await editableOrder(tx, companyId, orderId);
+    const o = await lockEditableOrder(tx, companyId, orderId);
     const lines =
       (await tx.workOrderWork.count({ where: { orderId: o.id } })) +
       (await tx.workOrderItem.count({ where: { orderId: o.id } }));
@@ -292,53 +292,101 @@ export const fromCatalogSchema = z.object({
   executorId: optId,
 });
 
-/**
- * Работа из справочника. Фиксированная цена идёт как 1 × цена,
- * иначе — нормочасы справочника × цена нормочаса СТО.
- */
-export async function addWorkFromCatalog(companyId: string, orderId: string, input: unknown) {
-  const data = fromCatalogSchema.parse(input);
-  return prisma.$transaction(async (tx) => {
-    const order = await editableOrder(tx, companyId, orderId);
+/** Take the tenant's write fence before locking the document, in the same order as desktop synchronization. */
+export async function lockEditableOrder(tx: Tx, companyId: string, orderId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock_shared(hashtextextended(${companyId}, 61123))`;
+  await tx.$queryRaw`SELECT id FROM "WorkOrder" WHERE id = ${orderId} AND "companyId" = ${companyId} FOR NO KEY UPDATE`;
+  return editableOrder(tx, companyId, orderId);
+}
+
+/** A fixed-price catalog entry is billed as one unit per repetition. */
+export async function addWorkFromCatalog(companyId: string, orderId: string, input: unknown, transaction?: Tx) {
+  const data = fromCatalogSchema.extend({ discount: percent.optional() }).parse(input);
+  const save = async (tx: Tx) => {
+    const order = await lockEditableOrder(tx, companyId, orderId);
     const w = await tx.work.findFirst({ where: { id: data.refId, companyId } });
     if (!w) throw new UserError("Работа не найдена в справочнике");
     if (data.executorId) await ownEmployee(tx, companyId, data.executorId);
-    const prices = await pricing(tx, companyId, order.clientId);
+    const [prices, client, last] = await Promise.all([
+      pricing(tx, companyId, order.clientId),
+      data.discount === undefined ? ownClient(tx, companyId, order.clientId) : null,
+      tx.workOrderWork.aggregate({ where: { orderId }, _max: { position: true } }),
+    ]);
     const fixed = w.price > 0;
-    const position = await tx.workOrderWork.count({ where: { orderId } });
+    const unitNormHours = fixed ? 1 : Number(w.normHours ?? 1);
+    const multiplicity = new Prisma.Decimal(data.qty).toDecimalPlaces(2);
+    const normHours = new Prisma.Decimal(unitNormHours).mul(multiplicity).toDecimalPlaces(2);
+    if (multiplicity.lt(0.01) || multiplicity.gt(999999.99)) throw new UserError("Кратность вне допустимого диапазона");
+    if (normHours.lt(0.01) || normHours.gt(999999.99)) throw new UserError("Итоговая норма времени вне допустимого диапазона");
     return tx.workOrderWork.create({
       data: {
-        orderId,
-        workId: w.id,
-        name: w.name,
-        normHours: fixed ? data.qty : Number(w.normHours ?? 1) * data.qty,
-        price: fixed ? w.price : prices.hourPrice,
-        discount: data.discount,
-        executorId: data.executorId,
-        position,
+        orderId, workId: w.id, name: w.name, unitNormHours, multiplicity, normHours,
+        price: fixed ? w.price : prices.hourPrice, discount: data.discount ?? client?.discount ?? 0,
+        executorId: data.executorId, position: (last._max.position ?? -1) + 1,
       },
+    });
+  };
+  return transaction ? save(transaction) : prisma.$transaction(save);
+}
+
+export async function addItemFromCatalog(companyId: string, orderId: string, input: unknown, transaction?: Tx) {
+  const data = fromCatalogSchema.extend({ discount: percent.optional() }).parse(input);
+  const save = async (tx: Tx) => {
+    const order = await lockEditableOrder(tx, companyId, orderId);
+    const p = await tx.product.findFirst({ where: { id: data.refId, companyId } });
+    if (!p) throw new UserError("Товар не найден в номенклатуре");
+    const [prices, client, last] = await Promise.all([
+      pricing(tx, companyId, order.clientId),
+      data.discount === undefined ? ownClient(tx, companyId, order.clientId) : null,
+      tx.workOrderItem.aggregate({ where: { orderId }, _max: { position: true } }),
+    ]);
+    return tx.workOrderItem.create({
+      data: {
+        orderId, productId: p.id, name: p.name, article: p.article, brand: p.brand, unit: p.unit,
+        qty: data.qty, price: await prices.product(p), discount: data.discount ?? client?.partsDiscount ?? 0,
+        position: (last._max.position ?? -1) + 1,
+      },
+    });
+  };
+  return transaction ? save(transaction) : prisma.$transaction(save);
+}
+
+const pricedLineChanges = z.object({ price: kop.min(0).max(2147483647).optional(), discount: percent.optional() });
+const workLineChanges = pricedLineChanges.extend({
+  unitNormHours: decimal.min(0.01).max(999999.99).multipleOf(0.01),
+  multiplicity: decimal.min(0.01).max(999999.99).multipleOf(0.01),
+  executorId: optId,
+});
+const itemLineChanges = pricedLineChanges.extend({
+  qty: decimal.min(0.001).max(999999999.999).multipleOf(0.001),
+  note: z.string().trim().max(3000, "Примечание не длиннее 3000 символов").transform(value => value || null),
+});
+
+export async function updateWorkLine(companyId: string, orderId: string, lineId: string, input: unknown) {
+  const data = workLineChanges.parse(input);
+  return prisma.$transaction(async tx => {
+    await lockEditableOrder(tx, companyId, orderId);
+    const line = await tx.workOrderWork.findFirst({ where: { id: lineId, orderId } });
+    if (!line) throw new UserError("Работа в заказ-наряде не найдена");
+    if (data.executorId && data.executorId !== line.executorId) await ownEmployee(tx, companyId, data.executorId);
+    const normHours = new Prisma.Decimal(data.unitNormHours).mul(data.multiplicity).toDecimalPlaces(2);
+    if (normHours.lt(0.01) || normHours.gt(999999.99)) throw new UserError("Итоговая норма времени вне допустимого диапазона");
+    return tx.workOrderWork.update({
+      where: { id: line.id },
+      data: { ...data, normHours, ...(data.discount !== undefined ? { discountSum: null } : {}) },
     });
   });
 }
 
-export async function addItemFromCatalog(companyId: string, orderId: string, input: unknown) {
-  const data = fromCatalogSchema.parse(input);
-  return prisma.$transaction(async (tx) => {
-    const order = await editableOrder(tx, companyId, orderId);
-    const p = await tx.product.findFirst({ where: { id: data.refId, companyId } });
-    if (!p) throw new UserError("Товар не найден в номенклатуре");
-    const position = await tx.workOrderItem.count({ where: { orderId } });
-    return tx.workOrderItem.create({
-      data: {
-        orderId,
-        productId: p.id,
-        name: p.name,
-        article: p.article,
-        qty: data.qty,
-        price: await (await pricing(tx, companyId, order.clientId)).product(p),
-        discount: data.discount,
-        position,
-      },
+export async function updateItemLine(companyId: string, orderId: string, lineId: string, input: unknown) {
+  const data = itemLineChanges.parse(input);
+  return prisma.$transaction(async tx => {
+    await lockEditableOrder(tx, companyId, orderId);
+    const line = await tx.workOrderItem.findFirst({ where: { id: lineId, orderId } });
+    if (!line) throw new UserError("Запчасть в заказ-наряде не найдена");
+    return tx.workOrderItem.update({
+      where: { id: line.id },
+      data: { ...data, ...(data.discount !== undefined ? { discountSum: null } : {}) },
     });
   });
 }

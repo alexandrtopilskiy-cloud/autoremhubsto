@@ -69,14 +69,14 @@ export function groupWorks<T extends { group: { name: string } | null }>(works: 
   return [...out];
 }
 
-async function checkWorkGroup(companyId: string, groupId: string) {
-  if (!(await prisma.workGroup.findFirst({ where: { id: groupId, companyId } }))) throw new NotFoundError("Группа работ");
+async function checkWorkGroup(companyId: string, groupId: string, db: Prisma.TransactionClient = prisma) {
+  if (!(await db.workGroup.findFirst({ where: { id: groupId, companyId } }))) throw new NotFoundError("Группа работ");
 }
 
-export async function createWork(companyId: string, input: unknown) {
+export async function createWork(companyId: string, input: unknown, db: Prisma.TransactionClient = prisma) {
   const d = workFormSchema.parse(input);
-  await checkWorkGroup(companyId, d.groupId);
-  return prisma.work.create({ data: { ...d, companyId } });
+  await checkWorkGroup(companyId, d.groupId, db);
+  return db.work.create({ data: { ...d, companyId } });
 }
 
 export async function updateWork(companyId: string, id: string, input: unknown) {
@@ -124,16 +124,16 @@ export async function listWorkGroups(companyId: string) {
   return { groups: groups.map((g) => ({ id: g.id, name: g.name, count: g._count.works })), ungrouped, total };
 }
 
-async function uniqueWorkGroupName(companyId: string, name: string, id?: string) {
-  const same = await prisma.workGroup.findFirst({ where: { companyId, name: { equals: name, mode: "insensitive" }, ...(id ? { id: { not: id } } : {}) } });
+async function uniqueWorkGroupName(companyId: string, name: string, id?: string, db: Prisma.TransactionClient = prisma) {
+  const same = await db.workGroup.findFirst({ where: { companyId, name: { equals: name, mode: "insensitive" }, ...(id ? { id: { not: id } } : {}) } });
   if (same) throw new UserError(`Группа «${same.name}» уже есть`);
 }
 
-export async function createWorkGroup(companyId: string, input: unknown) {
+export async function createWorkGroup(companyId: string, input: unknown, db: Prisma.TransactionClient = prisma) {
   const name = groupName.parse(input);
-  await uniqueWorkGroupName(companyId, name);
-  const last = await prisma.workGroup.aggregate({ where: { companyId }, _max: { position: true } });
-  return prisma.workGroup.create({ data: { companyId, name, position: (last._max.position ?? -1) + 1 } });
+  await uniqueWorkGroupName(companyId, name, undefined, db);
+  const last = await db.workGroup.aggregate({ where: { companyId }, _max: { position: true } });
+  return db.workGroup.create({ data: { companyId, name, position: (last._max.position ?? -1) + 1 } });
 }
 
 export async function renameWorkGroup(companyId: string, id: string, input: unknown) {
@@ -193,18 +193,18 @@ export function productFilter(q?: string, groupId?: string): Prisma.ProductWhere
   };
 }
 
-async function checkProduct(companyId: string, d: z.infer<typeof productSchema>, id?: string) {
-  if (d.groupId && !(await prisma.productGroup.findFirst({ where: { id: d.groupId, companyId } }))) throw new NotFoundError("Группа товаров");
+async function checkProduct(companyId: string, d: z.infer<typeof productSchema>, id?: string, db: Prisma.TransactionClient = prisma) {
+  if (d.groupId && !(await db.productGroup.findFirst({ where: { id: d.groupId, companyId } }))) throw new NotFoundError("Группа товаров");
   if (d.barcode) {
-    const same = await prisma.product.findFirst({ where: { companyId, barcode: d.barcode, ...(id ? { id: { not: id } } : {}) } });
+    const same = await db.product.findFirst({ where: { companyId, barcode: d.barcode, ...(id ? { id: { not: id } } : {}) } });
     if (same) throw new UserError(`Штрихкод ${d.barcode} уже есть у товара «${same.name}»`);
   }
   return d;
 }
 
-export async function createProduct(companyId: string, input: unknown) {
-  const d = await checkProduct(companyId, productSchema.parse(input));
-  return prisma.product.create({ data: { ...d, companyId } });
+export async function createProduct(companyId: string, input: unknown, db: Prisma.TransactionClient = prisma) {
+  const d = await checkProduct(companyId, productSchema.parse(input), undefined, db);
+  return db.product.create({ data: { ...d, companyId } });
 }
 
 export async function updateProduct(companyId: string, id: string, input: unknown) {
