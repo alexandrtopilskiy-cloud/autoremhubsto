@@ -14,7 +14,7 @@ function appVersion(): string {
 }
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@prisma/client", "bcryptjs", "exceljs"],
+  serverExternalPackages: ["@prisma/client", "bcryptjs", "exceljs", "soap"],
   // вложения: до 10 МБ на файл у документов, до 30 МБ у сканов сотрудника; за раз можно загрузить несколько файлов
   experimental: { serverActions: { bodySizeLimit: "100mb" } },
   env: { NEXT_PUBLIC_APP_VERSION: appVersion() },

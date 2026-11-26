@@ -7,12 +7,19 @@ import { IntegrationProvider } from "@prisma/client";
 import { saveRosskoSettingsAction } from "./actions";
 import { CheckConnectionButton } from "./check-button";
 
+function maskKey(key: string | undefined) {
+  if (!key || key.length < 6) return "";
+  return `${key.slice(0, 3)}***${key.slice(-3)}`;
+}
+
 export default async function IntegrationsPage() {
   const s = await requireSession();
   
   // Получаем текущие настройки Rossko (если они есть)
   const rossko = await getIntegration(IntegrationProvider.ROSSKO);
   const rosskoKeys = rossko?.credentials || {};
+  const displayKey1 = maskKey(rosskoKeys.key1);
+  const displayKey2 = maskKey(rosskoKeys.key2);
 
   return (
     <div className="flex flex-col gap-4">
@@ -31,7 +38,7 @@ export default async function IntegrationsPage() {
               <Field label="Ключ доступа 1 (KEY1)">
                 <Input 
                   name="key1" 
-                  defaultValue={rosskoKeys.key1 ?? ""} 
+                  defaultValue={displayKey1} 
                   placeholder="Вставьте KEY1 из личного кабинета Rossko" 
                   required 
                 />
@@ -40,7 +47,7 @@ export default async function IntegrationsPage() {
               <Field label="Ключ доступа 2 (KEY2)">
                 <Input 
                   name="key2" 
-                  defaultValue={rosskoKeys.key2 ?? ""} 
+                  defaultValue={displayKey2} 
                   placeholder="Вставьте KEY2 из личного кабинета Rossko" 
                   required 
                 />
