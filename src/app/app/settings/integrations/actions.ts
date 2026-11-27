@@ -36,19 +36,18 @@ export async function saveRosskoSettingsAction(
 }
 
 export async function checkRosskoConnectionAction() {
-  console.log(">>> checkRosskoConnectionAction STARTED"); // Лог 1
 
   try {
     const result = await checkRosskoConnection();
-    console.log(">>> checkRosskoConnectionAction RESULT:", result); // Лог 2
 
     if (result.success) {
       return { ok: true, message: result.message };
     } else {
       return { error: result.message };
     }
-  } catch (error: any) {
-    console.error(">>> checkRosskoConnectionAction CRITICAL ERROR:", error); // Лог 3
-    return { error: `Внутренняя ошибка: ${error.message}` };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+
+    return { error: `Внутренняя ошибка: ${message}` };
   }
 }

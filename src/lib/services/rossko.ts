@@ -6,12 +6,6 @@ import { IntegrationProvider } from "@prisma/client";
 const ROSSKO_WSDL_URL = process.env.ROSSKO_WSDL_URL as string;
 const ROSSKO_WSDL = ROSSKO_WSDL_URL + '/GetOrders?wsdl';
 
-// Функция для маскировки ключей в логах
-function maskKey(key: string): string {
-  if (!key || key.length < 6) return "***";
-  return `${key.slice(0, 3)}***${key.slice(-3)}`;
-}
-
 export async function checkRosskoConnection(): Promise<{ success: boolean; message: string }> {
   const integration = await getIntegration(IntegrationProvider.ROSSKO);
 
@@ -32,23 +26,24 @@ export async function checkRosskoConnection(): Promise<{ success: boolean; messa
       limit: 1,
     });
 
-    const res = result as any;
+    const res = result as RosskoResponse;
 
-    // soap-библиотека может оборачивать ответ в разные корневые теги
-    const ordersResult = res?.OrdersResult || res; 
-
-    if (ordersResult && ordersResult.success === true) {
+    if (res.OrdersResult && res.OrdersResult.success === true) {
       return { success: true, message: "Подключение успешно!" };
-    } else {
-      return { success: false, message: `Rossko: ${res?.message || "Неизвестная ошибка"}` };
     }
-  } catch (error: any) {
+
+    return { success: false, message: `Rossko: ${res.OrdersResult?.message || "Неизвестная ошибка"}` };
+  } catch (error: unknown) {
     console.error("Ошибка SOAP клиента:", error);
-    const fault = error.root?.Envelope?.Body?.Fault;
+
+    const soapError = error as { root?: { Envelope?: { Body?: { Fault?: { faultstring?: string } } } }, message?: string };
+    const fault = soapError.root?.Envelope?.Body?.Fault;
+
     if (fault) {
-       return { success: false, message: `Ошибка Rossko: ${fault.faultstring || fault.Reason?.Text}` };
+       return { success: false, message: `Ошибка Rossko: ${fault.faultstring || "Неизвестно"}` };
     }
-    return { success: false, message: `Сетевая ошибка: ${error.message}` };
+
+    return { success: false, message: `Сетевая ошибка: ${soapError.message || "Неизвестно"}` };
   }
 }
 
@@ -66,7 +61,7 @@ export async function fetchRosskoOrders(limit: number = 20, orderIds?: number[])
   const { key1, key2 } = integration.credentials;
   const client = await createClientAsync(ROSSKO_WSDL);
 
-  const params: any = { KEY1: key1, KEY2: key2, limit };
+  const params: Record<string, unknown> = { KEY1: key1, KEY2: key2, limit };
   if (orderIds && orderIds.length > 0) {
     params.order_ids = orderIds;
   }

@@ -1,12 +1,25 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getRecentReceiptsAction, addMultipleItemsFromReceiptAction } from "./receipt-actions";
 import { formatDate } from "@/lib/format";
 
-// Используем any, чтобы не спотыкаться о типы после JSON.parse
-type Receipt = any; 
+type ReceiptLine = {
+  id: string;
+  productId: string;
+  qty: string;
+  cost: number;
+  product: { name: string; article: string | null; brand: string | null; unit: string };
+};
+
+type Receipt = {
+  id: string;
+  number: number;
+  date: Date;
+  supplier: { name: string } | null;
+  lines: ReceiptLine[];
+}; 
 
 export function AddFromReceiptModal({ orderId }: { orderId: string }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -21,26 +34,38 @@ export function AddFromReceiptModal({ orderId }: { orderId: string }) {
     setIsOpen(true);
     setLoading(true);
     setSelectedLines(new Set());
+
     const res = await getRecentReceiptsAction();
+
     if (res.success && res.receipts) {
-      setReceipts(res.receipts);
+      setReceipts(res.receipts as unknown as Receipt[]);
     }
+
     setLoading(false);
   };
 
   const toggleLine = (lineId: string) => {
     const next = new Set(selectedLines);
-    if (next.has(lineId)) next.delete(lineId);
-    else next.add(lineId);
+
+    if (next.has(lineId)) {
+        next.delete(lineId);
+    } else {
+        next.add(lineId);
+    }
+
     setSelectedLines(next);
   };
 
   const toggleReceipt = (receipt: Receipt, checked: boolean) => {
     const next = new Set(selectedLines);
-    receipt.lines.forEach((l: any) => {
-      if (checked) next.add(l.id);
-      else next.delete(l.id);
+    receipt.lines.forEach((l) => {
+      if (checked) {
+        next.add(l.id);
+      } else {
+        next.delete(l.id);
+      }
     });
+
     setSelectedLines(next);
   };
 
@@ -48,18 +73,20 @@ export function AddFromReceiptModal({ orderId }: { orderId: string }) {
     const itemsToAdd: { productId: string; qty: number; cost: number }[] = [];
     
     receipts.forEach(r => {
-      r.lines.forEach((l: any) => {
+      r.lines.forEach((l) => {
         if (selectedLines.has(l.id)) {
           itemsToAdd.push({
             productId: l.productId,
-            qty: 1, // Пока добавляем по 1 шт. Можно добавить поле ввода количества
+            qty: 1,
             cost: l.cost
           });
         }
       });
     });
 
-    if (itemsToAdd.length === 0) return;
+    if (itemsToAdd.length === 0) {
+        return;
+    }
 
     startTransition(async () => {
       await addMultipleItemsFromReceiptAction(orderId, itemsToAdd);
@@ -87,7 +114,7 @@ export function AddFromReceiptModal({ orderId }: { orderId: string }) {
               {!loading && receipts.length === 0 && <p className="text-slate-500">Нет проведенных приходов.</p>}
               
               {!loading && receipts.map((r) => {
-                const allSelected = r.lines.every((l: any) => selectedLines.has(l.id));
+                const allSelected = r.lines.every((l) => selectedLines.has(l.id));
                 return (
                   <div key={r.id} className="mb-4 border rounded-md overflow-hidden">
                     <div className="bg-slate-50 p-2 border-b font-medium text-sm flex items-center gap-2">
@@ -101,7 +128,7 @@ export function AddFromReceiptModal({ orderId }: { orderId: string }) {
                     </div>
                     <table className="w-full text-sm">
                       <tbody>
-                        {r.lines.map((l: any) => {
+                        {r.lines.map((l) => {
                           const isSelected = selectedLines.has(l.id);
                           return (
                             <tr 
