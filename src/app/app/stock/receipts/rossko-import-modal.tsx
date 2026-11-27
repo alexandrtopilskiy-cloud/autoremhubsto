@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { getRosskoOrdersAction, createReceiptFromPartsAction } from "./rossko-actions";
-import { type RosskoOrder, type RosskoPart } from "@/lib/services/rossko-types";
+import { type RosskoOrder } from "@/lib/services/rossko-types";
 import { SelectedRosskoPart } from "@/lib/services/rossko-receipt";
 
 export function RosskoImportModal() {
