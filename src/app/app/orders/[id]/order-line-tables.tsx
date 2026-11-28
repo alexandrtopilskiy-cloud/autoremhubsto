@@ -12,6 +12,7 @@ import {
   attachCatalogLineAction, changeOrderLinesAction, createCatalogLineAction, lineToRecommendationAction,
   removeItemAction, removeWorkAction, saveOrderLineAction,
 } from "../actions";
+import { AddFromReceiptModal } from "../add-from-receipt-modal";
 
 type Choice = { id: string; name: string; detail?: string };
 type Fact = [string, string | null | undefined];
@@ -374,13 +375,16 @@ function LineTable({ kind, lines, options }: { kind: LineKind; lines: OrderLine[
           </tfoot>
         </table>
       </div>
-      {editable && <button type="button" disabled={pending} className={`${secondary} mt-3`}
-        onClick={() => {
-          const id = next.current++;
-          setBlanks((current) => !lines.length && !current.length ? [0, id] : [...current, id]);
-        }}>
-        <span aria-hidden="true" className="mr-1 text-blue-700">+</span> {copy.add}
-      </button>}
+      {editable && <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" disabled={pending} className={secondary}
+          onClick={() => {
+            const id = next.current++;
+            setBlanks((current) => !lines.length && !current.length ? [0, id] : [...current, id]);
+          }}>
+          <span aria-hidden="true" className="mr-1 text-blue-700">+</span> {copy.add}
+        </button>
+        {kind === "ITEM" && <AddFromReceiptModal orderId={orderId} />}
+      </div>}
       {!modal && error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
       {modal && ("line" in modal ? (
         <Modal title={copy.detail} onClose={close}>
