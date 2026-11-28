@@ -5,10 +5,11 @@ import { createPortal } from "react-dom";
 import type { LineKind } from "@prisma/client";
 import { Card, Field, Input, Select } from "@/components/ui";
 import type { FormState } from "@/lib/actions";
+import type { OrderLineOperation } from "@/lib/services/order-line-bulk";
 import { formatQty } from "@/lib/format";
 import { discountLabel, formatRub, lineTotal } from "@/lib/money";
 import {
-  attachCatalogLineAction, createCatalogLineAction, lineToRecommendationAction,
+  attachCatalogLineAction, changeOrderLinesAction, createCatalogLineAction, lineToRecommendationAction,
   removeItemAction, removeWorkAction, saveOrderLineAction,
 } from "../actions";
 import { AddFromReceiptModal } from "../add-from-receipt-modal";
@@ -30,12 +31,12 @@ const labels = {
   WORK: {
     title: "Работы", add: "Добавить Работу", detail: "Работа в заказ-наряде", create: "Новая работа",
     columns: ["Наименование работы", "Норма времени, ч.", "Стоимость нормочаса", "Кратность", "Стоимость", "Скидка", "Стоимость со скидкой"],
-    totalQty: "Итого нормочасов", total: "Итого по работам",
+    totalQty: "Итого нормочасов", total: "Итого по работам", qtyColumn: 1, discountColumn: 5, totalColumn: 6,
   },
   ITEM: {
     title: "Запчасти", add: "Добавить Запчасть", detail: "Запчасть в заказ-наряде", create: "Новая номенклатура",
     columns: ["Наименование", "Артикул", "Производитель", "Ед. изм.", "Кол-во", "Цена", "Скидка", "Стоимость со скидкой", "Склад"],
-    totalQty: "Итого количество", total: "Итого по запчастям",
+    totalQty: "Итого количество", total: "Итого по запчастям", qtyColumn: 4, discountColumn: 6, totalColumn: 7,
   },
 };
 const secondary = "rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-blue-400 hover:text-blue-700 disabled:opacity-50";
@@ -251,11 +252,15 @@ function LineForm({ line, options, pending, error, submit, run }: {
 function LineTable({ kind, lines, options }: { kind: LineKind; lines: OrderLine[]; options: Options }) {
   const { orderId, editable, canCreate } = options;
   const [blanks, setBlanks] = useState<number[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const next = useRef(1);
   const [modal, setModal] = useState<{ line: OrderLine } | { key: number; query: string }>();
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
   const copy = labels[kind];
+  const selectedIds = lines.filter((line) => selected.has(line.id)).map((line) => line.id);
+  const allSelected = selectedIds.length > 0 && selectedIds.length === lines.length;
+  const selectionDisabled = pending || selectedIds.length === 0;
   const placeholderRows = !lines.length && !blanks.length ? [0] : blanks;
   const totals = lines.reduce((sum, line) => {
     const total = lineTotal(line);
@@ -274,6 +279,21 @@ function LineTable({ kind, lines, options }: { kind: LineKind; lines: OrderLine[
       }
     });
   }
+  function toggleLine(id: string, checked: boolean) {
+    setSelected((current) => {
+      const nextSelection = new Set(current);
+      if (checked) nextSelection.add(id);
+      else nextSelection.delete(id);
+      return nextSelection;
+    });
+  }
+
+  function changeSelected(operation: OrderLineOperation) {
+    if (selectionDisabled) return;
+    if (operation === "REMOVE" && !window.confirm(`Удалить выбранные строки из заказ-наряда (${selectedIds.length})?`)) return;
+    run(() => changeOrderLinesAction(orderId, kind, operation, selectedIds), () => setSelected(new Set()));
+  }
+
   function removeBlank(key: number) {
     setBlanks((current) => current.filter((id) => id !== key));
   }
@@ -282,15 +302,32 @@ function LineTable({ kind, lines, options }: { kind: LineKind; lines: OrderLine[
 
   return (
     <Card title={copy.title}>
+      {editable && <div role="group" aria-label={`Действия со строками · ${copy.title}`} className="mb-3 flex flex-wrap items-center gap-2">
+        <button type="button" className={secondary} disabled={selectionDisabled} onClick={() => changeSelected("REMOVE")}>Удалить</button>
+        <button type="button" className={secondary} disabled={selectionDisabled} onClick={() => changeSelected("COPY")}>Создать копию</button>
+        <button type="button" className={secondary} disabled={selectionDisabled} onClick={() => changeSelected("RECOMMEND")}>Переместить в рекомендации</button>
+        {selectedIds.length > 0 && <span role="status" className="text-sm text-slate-600">Выбрано {selectedIds.length}</span>}
+      </div>}
       <div className="overflow-x-auto rounded-md border border-slate-200">
         <table className={`w-full border-collapse text-sm ${kind === "WORK" ? "min-w-[790px]" : "min-w-[930px]"}`}>
           <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
-            <tr>{copy.columns.map((title, index) => <th key={title} scope="col"
+            <tr>
+              {editable && <th scope="col" className="w-10 px-3">
+                <input type="checkbox" aria-label={kind === "WORK" ? "Выбрать все работы" : "Выбрать все запчасти"}
+                  className="size-4 align-middle accent-blue-600" checked={allSelected} disabled={pending || !lines.length}
+                  ref={(input) => { if (input) input.indeterminate = !allSelected && selectedIds.length > 0; }}
+                  onChange={(event) => setSelected(new Set(event.target.checked ? lines.map((line) => line.id) : []))} />
+              </th>}
+              {copy.columns.map((title, index) => <th key={title} scope="col"
               className={`px-3 py-2.5 ${index === 0 ? "w-[30%] text-left" : kind === "ITEM" && [1, 2, 3, 8].includes(index) ? "text-left" : "text-right"}`}>{title}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {lines.map((line) => (
-              <tr key={line.id} onDoubleClick={() => openLine(line)} className="cursor-pointer hover:bg-blue-50/60">
+              <tr key={line.id} onDoubleClick={() => openLine(line)} className={`cursor-pointer hover:bg-blue-50/60 ${editable && selected.has(line.id) ? "bg-blue-50" : ""}`}>
+                {editable && <td className={cell} onDoubleClick={(event) => event.stopPropagation()}>
+                  <input type="checkbox" aria-label={`Выбрать: ${line.name}`} className="size-4 align-middle accent-blue-600"
+                    checked={selected.has(line.id)} disabled={pending} onChange={(event) => toggleLine(line.id, event.target.checked)} />
+                </td>}
                 <td className={cell}><button type="button" onClick={() => openLine(line)} className="text-left font-medium text-blue-800 hover:underline">{line.name}</button></td>
                 {line.kind === "WORK" ? <>
                   <td className={numeric}>{formatQty(line.unitNormHours)}</td>
@@ -312,6 +349,7 @@ function LineTable({ kind, lines, options }: { kind: LineKind; lines: OrderLine[
             ))}
             {editable && placeholderRows.map((key) => (
               <tr key={key}>
+                {editable && <td />}
                 <td className={cell}><CatalogSearch orderId={orderId} kind={kind} allowCreate={canCreate} disabled={pending}
                   onPick={(id) => run(() => attachCatalogLineAction(orderId, kind, id), () => removeBlank(key))}
                   onCreate={(query) => { setError(""); setModal({ key, query }); }} /></td>
@@ -321,29 +359,32 @@ function LineTable({ kind, lines, options }: { kind: LineKind; lines: OrderLine[
             ))}
             {!editable && !lines.length && <tr><td colSpan={copy.columns.length} className="px-3 py-4 text-sm text-slate-500">Позиции не добавлены</td></tr>}
           </tbody>
+          <tfoot className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800">
+            <tr>
+              {editable && <td />}
+              {copy.columns.map((column, index) => {
+                if (index === 0) return <th key={column} scope="row" className={`${cell} text-left`}>{copy.total}</th>;
+                if (index === copy.qtyColumn) return <td key={column} className={numeric} aria-label={`${copy.totalQty}: ${formatQty(totals.qty)}`}>
+                  {formatQty(totals.qty)}{kind === "WORK" ? " ч." : ""}
+                </td>;
+                if (index === copy.discountColumn) return <td key={column} className={numeric}>{formatRub(totals.discount)}</td>;
+                if (index === copy.totalColumn) return <td key={column} className={`${numeric} text-blue-800`}>{formatRub(totals.total)}</td>;
+                return <td key={column} />;
+              })}
+            </tr>
+          </tfoot>
         </table>
       </div>
-      <div className="mt-3 flex flex-wrap items-start gap-3">
-        {editable && (
-          <div className="flex gap-2">
-            <button type="button" disabled={pending} className={secondary}
-              onClick={() => {
-                const id = next.current++;
-                setBlanks((current) => !lines.length && !current.length ? [0, id] : [...current, id]);
-              }}>
-              <span aria-hidden="true" className="mr-1 text-blue-700">+</span> {copy.add}
-            </button>
-            
-            {/* Добавляем нашу кнопку только для вкладки с запчастями */}
-            {kind === "ITEM" && <AddFromReceiptModal orderId={orderId} />}
-          </div>
-        )}
-        <dl className="ml-auto flex flex-wrap gap-x-8 gap-y-2 rounded-md bg-slate-50 px-4 py-2">
-          <div><dt className="text-xs text-slate-500">{copy.totalQty}</dt><dd className="text-sm font-semibold tabular-nums">{formatQty(totals.qty)}{kind === "WORK" ? " ч." : ""}</dd></div>
-          <div><dt className="text-xs text-slate-500">Итого скидка</dt><dd className="text-sm font-semibold tabular-nums">{formatRub(totals.discount)}</dd></div>
-          <div><dt className="text-xs text-slate-500">{copy.total}</dt><dd className="text-sm font-semibold tabular-nums text-blue-800">{formatRub(totals.total)}</dd></div>
-        </dl>
-      </div>
+      {editable && <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" disabled={pending} className={secondary}
+          onClick={() => {
+            const id = next.current++;
+            setBlanks((current) => !lines.length && !current.length ? [0, id] : [...current, id]);
+          }}>
+          <span aria-hidden="true" className="mr-1 text-blue-700">+</span> {copy.add}
+        </button>
+        {kind === "ITEM" && <AddFromReceiptModal orderId={orderId} />}
+      </div>}
       {!modal && error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
       {modal && ("line" in modal ? (
         <Modal title={copy.detail} onClose={close}>

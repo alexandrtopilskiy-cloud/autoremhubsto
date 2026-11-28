@@ -34,6 +34,7 @@ import {
   setRecommendationStatus,
 } from "@/lib/services/recommendations";
 import { addDamage, removeDamage, saveInspection, updateDamage } from "@/lib/services/inspections";
+import { changeOrderLines, type OrderLineOperation } from "@/lib/services/order-line-bulk";
 
 export async function createOrderAction(_: FormState, fd: FormData): Promise<FormState> {
   const s = await requireSession();
@@ -170,6 +171,10 @@ export async function saveOrderLineAction(orderId: string, kind: LineKind, lineI
     if (kind === "ITEM") return updateItemLine(companyId, orderId, lineId, { ...pricing, qty: num(fd, "qty"), note: fields(fd).note });
     throw new UserError("Неизвестный вид строки");
   });
+}
+
+export async function changeOrderLinesAction(orderId: string, kind: LineKind, operation: OrderLineOperation, lineIds: string[]) {
+  return onOrder(orderId, (companyId) => changeOrderLines(companyId, orderId, kind, operation, lineIds));
 }
 
 // --- рекомендации ---
