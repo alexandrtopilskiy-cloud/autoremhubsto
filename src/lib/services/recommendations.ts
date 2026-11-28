@@ -4,6 +4,7 @@ import { prisma } from "../db";
 import { NotFoundError, UserError } from "../errors";
 import { ownOrder } from "../tenant";
 import { lockEditableOrder } from "./orders";
+import { changeOrderLines } from "./order-line-bulk";
 
 export const REC_STATUSES: { value: RecommendationStatus; label: string }[] = [
   { value: "OPEN", label: "Не выполнена" },
@@ -35,19 +36,8 @@ export async function addRecommendation(companyId: string, orderId: string, inpu
 
 /** Клиент отказался от строки заказ-наряда: строка уходит из наряда в рекомендации. */
 export async function lineToRecommendation(companyId: string, orderId: string, kind: LineKind, lineId: string) {
-  return prisma.$transaction(async (tx) => {
-    const o = await lockEditableOrder(tx, companyId, orderId);
-    const line =
-      kind === "WORK"
-        ? await tx.workOrderWork.findFirst({ where: { id: lineId, orderId } }).then((l) => l && { name: l.name, qty: l.normHours, price: l.price })
-        : await tx.workOrderItem.findFirst({ where: { id: lineId, orderId } }).then((l) => l && { name: l.name, qty: l.qty, price: l.price });
-    if (!line) throw new NotFoundError("Строка");
-    if (kind === "WORK") await tx.workOrderWork.delete({ where: { id: lineId } });
-    else await tx.workOrderItem.delete({ where: { id: lineId } });
-    return tx.recommendation.create({
-      data: { companyId, clientId: o.clientId, vehicleId: o.vehicleId, orderId, kind, ...line },
-    });
-  });
+  const [recommendation] = await changeOrderLines(companyId, orderId, kind, "RECOMMEND", [lineId]);
+  return recommendation;
 }
 
 export async function listRecommendations(

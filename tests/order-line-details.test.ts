@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { registerCompany } from "@/lib/services/accounts";
 import { createClient } from "@/lib/services/clients";
 import { applyReplica } from "@/lib/services/desktop-merge";
+import { changeOrderLines } from "@/lib/services/order-line-bulk";
 import { readReplica, replicaDigest } from "@/lib/services/offline-replica";
 import { addItemFromCatalog, addWorkFromCatalog, createOrder, getOrder, updateItemLine, updateWorkLine } from "@/lib/services/orders";
 
@@ -57,4 +58,38 @@ it("сохраняет серверное примечание при синхр
   expect(Number(savedWork.normHours)).toBe(2);
   expect(Number(savedItem.qty)).toBe(2);
   expect(savedItem).toMatchObject({ note: "Только на сервере", unit: "л" });
+});
+
+it("копирует выбранные строки, переносит их в рекомендации и удаляет только из открытого наряда", async () => {
+  const { companyId, client, order, work, part } = await fixture();
+  const first = await addWorkFromCatalog(companyId, order.id, { refId: work.id, qty: 2 });
+  const second = await addWorkFromCatalog(companyId, order.id, { refId: work.id, qty: 3 });
+  const item = await addItemFromCatalog(companyId, order.id, { refId: part.id, qty: 1.25 });
+  await updateItemLine(companyId, order.id, item.id, { qty: 1.25, note: "Оставить упаковку" });
+  const other = await createOrder(companyId, { clientId: client.id });
+  const otherItem = await addItemFromCatalog(companyId, other.id, { refId: part.id });
+
+  await changeOrderLines(companyId, order.id, "WORK", "COPY", [second.id, first.id, first.id]);
+  await changeOrderLines(companyId, order.id, "ITEM", "COPY", [item.id]);
+  const copied = await getOrder(companyId, order.id);
+  expect(copied.works.map(line => [line.position, Number(line.multiplicity)])).toEqual([[0, 2], [1, 3], [2, 2], [3, 3]]);
+  expect(copied.works[2]).toMatchObject({ workId: work.id, discount: first.discount, price: first.price });
+  expect(copied.items[1]).toMatchObject({ productId: part.id, note: "Оставить упаковку", unit: "л", discount: item.discount });
+  expect(Number(copied.items[1].qty)).toBe(1.25);
+  expect(copied.items[1].id).not.toBe(item.id);
+
+  await expect(changeOrderLines(companyId, order.id, "ITEM", "REMOVE", [item.id, otherItem.id])).rejects.toThrow("Строка");
+  expect(await prisma.workOrderItem.count({ where: { orderId: order.id } })).toBe(2);
+  await changeOrderLines(companyId, order.id, "ITEM", "REMOVE", copied.items.map(line => line.id));
+  expect(await prisma.workOrderItem.count({ where: { orderId: order.id } })).toBe(0);
+  expect(await prisma.workOrderItem.count({ where: { orderId: other.id } })).toBe(1);
+
+  const recs = await changeOrderLines(companyId, order.id, "WORK", "RECOMMEND", [first.id, second.id]);
+  expect(recs).toHaveLength(2);
+  expect(recs.map(rec => Number(rec.qty)).sort()).toEqual([1.5, 2.25]);
+  expect(recs.every(rec => rec.orderId === order.id && rec.clientId === client.id)).toBe(true);
+  expect((await getOrder(companyId, order.id)).works.map(line => line.id)).toEqual(copied.works.slice(2).map(line => line.id));
+
+  await prisma.workOrder.update({ where: { id: order.id }, data: { status: "POSTED" } });
+  await expect(changeOrderLines(companyId, order.id, "WORK", "COPY", [copied.works[2].id])).rejects.toThrow("проведён");
 });
